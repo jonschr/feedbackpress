@@ -21,4 +21,4 @@ See the [usage and API guide](docs/USAGE.md) for setup, synchronization, and dev
 
 ## License
 
-[GPL-2.0-or-later](LICENSE). Bundled html2canvas-pro retains its [MIT license](assets/vendor/html2canvas-pro-LICENSE.txt).
+[GPL-2.0-or-later](LICENSE). Bundled [html2canvas-pro](assets/vendor/html2canvas-pro-LICENSE.txt) and [Plugin Update Checker](vendor/plugin-update-checker/license.txt) retain their MIT licenses.

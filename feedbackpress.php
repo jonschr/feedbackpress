@@ -1,19 +1,22 @@
 <?php
 /**
  * Plugin Name: FeedbackPress
+ * Plugin URI: https://github.com/jonschr/feedbackpress
+ * Update URI: https://github.com/jonschr/feedbackpress
  * Description: On-page client feedback, screenshots, and environment synchronization.
- * Version: 0.1.21
+ * Version: 0.1.22
  * Requires at least: 6.6
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  */
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-const VERSION = '0.1.21';
+const VERSION = '0.1.22';
 require_once __DIR__ . '/includes/store.php';
 require_once __DIR__ . '/includes/api.php';
 require_once __DIR__ . '/includes/sync.php';
 require_once __DIR__ . '/includes/admin.php';
+require_once __DIR__ . '/includes/update-checker.php';
 function defaults(): array {
     return ['mode' => 'everyone', 'environment' => 'local', 'bound_url' => untrailingslashit(home_url()), 'project' => wp_generate_uuid4(), 'secret' => bin2hex(random_bytes(32)), 'production' => '', 'staging' => '', 'local' => untrailingslashit(home_url()), 'retention' => 90];
 }

@@ -1,0 +1,52 @@
+<?php
+// WP-CLI: wp eval-file tests/update-checker.php
+// Update AJAX boot: wp --require=tests/update-checker.php eval-file tests/update-checker.php
+if (!defined('ABSPATH')) {
+    define('DOING_AJAX', true);
+    $_REQUEST['action'] = 'update-plugin';
+    return;
+}
+
+$metadata = json_decode(file_get_contents(dirname(__DIR__) . '/update.json'), true, 512, JSON_THROW_ON_ERROR);
+$plugin = dirname(__DIR__) . '/feedbackpress.php';
+$headers = get_file_data($plugin, ['Version' => 'Version', 'UpdateURI' => 'Update URI']);
+if ($metadata['version'] !== FeedbackPress\VERSION || $headers['Version'] !== $metadata['version'] || $headers['UpdateURI'] !== 'https://github.com/jonschr/feedbackpress'
+    || $metadata['download_url'] !== 'https://github.com/jonschr/feedbackpress/archive/refs/tags/' . $metadata['version'] . '.zip') {
+    throw new RuntimeException('Plugin header, runtime version, and update metadata must agree.');
+}
+$url = 'https://raw.githubusercontent.com/jonschr/feedbackpress/main/update.json';
+$found = [];
+foreach ($GLOBALS['wp_filter']['site_transient_update_plugins']->callbacks ?? [] as $callbacks) {
+    foreach ($callbacks as $callback) {
+        $handler = $callback['function'];
+        if (is_array($handler) && is_object($handler[0]) && ($handler[0]->slug ?? null) === 'feedbackpress') $found[spl_object_id($handler[0])] = $handler[0];
+    }
+}
+if (count($found) !== 1) throw new RuntimeException('FeedbackPress must register exactly one update checker.');
+$checker = reset($found);
+if ($checker->metadataUrl !== $url || $checker->pluginFile !== 'feedbackpress/feedbackpress.php') throw new RuntimeException('Incorrect updater endpoint or plugin basename.');
+
+$body = $metadata;
+$mock = static function ($pre, $args, $request_url) use ($url, &$body) {
+    if (!str_starts_with($request_url, $url)) return $pre;
+    return ['headers' => [], 'body' => wp_json_encode($body), 'response' => ['code' => 200, 'message' => 'OK'], 'cookies' => []];
+};
+add_filter('pre_http_request', $mock, 10, 3);
+$state = $checker->getUpdateState();
+$previous = $state->getUpdate();
+try {
+    $update = $checker->requestUpdate();
+    if (!$update || $update->version !== $metadata['version'] || $update->download_url !== $metadata['download_url']) throw new RuntimeException('Could not parse JSON update metadata.');
+    $state->setUpdate($update);
+    if ($checker->getUpdate() !== null) throw new RuntimeException('The current version must not offer itself as an update.');
+    $body['version'] = '9999.0.0';
+    $body['download_url'] = 'https://example.invalid/feedbackpress-test.zip';
+    $state->setUpdate($checker->requestUpdate());
+    $updates = $checker->injectUpdate((object) ['response' => [], 'no_update' => []]);
+    $offer = $updates->response[$checker->pluginFile] ?? null;
+    if (!$offer || $offer->new_version !== $body['version'] || $offer->package !== $body['download_url'] || $offer->slug !== 'feedbackpress') throw new RuntimeException('A newer JSON release must reach the WordPress updates response.');
+} finally {
+    $state->setUpdate($previous); // Keep synthetic update data in memory; never save it to WordPress.
+    remove_filter('pre_http_request', $mock, 10);
+}
+echo 'PASS FeedbackPress JSON updates: version parity, single checker, plugin basename, current/newer releases, and ' . (wp_doing_ajax() ? 'update AJAX' : 'WP-CLI') . " boot. No update installed.\n";

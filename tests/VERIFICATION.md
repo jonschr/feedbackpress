@@ -165,3 +165,10 @@ Not tested: actual production/staging hosts or their firewalls, Safari/Firefox, 
 - Guard checks passed for eleven native input types, textareas, selects, contenteditable, eight custom input roles, an input inside open Shadow DOM, document designMode, modifier combinations, repeat, and composition. Native text inputs, sidebar search, draft text, and replies retain typed c/v characters.
 - Mobile V switching between the popup and list matches clicking View issues. Switching into the list removes stale pin-placement instructions. Added tests/navigation-shortcuts.cjs with intercepted API fixtures; no client data changed.
 - Existing Escape/1–4/Command+Enter regression checks, JavaScript syntax, PHP bootstrap lint, and archive integrity passed. Safari/Firefox were not tested.
+
+## 0.1.22 JSON plugin update support
+
+- Bundled the same MIT-licensed Plugin Update Checker 5.6 used by Ollie Bridge. A plugins_loaded hook initializes FeedbackPress’s own JSON endpoint and stable plugin slug, independently of review visibility or feedback synchronization settings.
+- WordPress smoke checks passed with only FeedbackPress enabled in the test process, during update-AJAX boot, and alongside the normally active plugins (including other PUC consumers). Exactly one FeedbackPress checker is registered with the correct endpoint and plugin basename.
+- Plugin header, runtime version, JSON version, and versioned GitHub archive URL agree. Intercepted JSON parsed successfully; the current version produced no update, and a simulated newer version reached WordPress’s plugin update response with the correct package/slug. Synthetic state stayed in memory; no update was installed and no feedback was changed.
+- PHP syntax passed for the integration and every bundled library file. The real public JSON feed and tag archive become available after publishing the manifest and release tag; an actual upgrade was not performed.

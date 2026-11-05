@@ -1,4 +1,4 @@
-# FeedbackPress 0.1.21
+# FeedbackPress 0.1.22
 
 A self-hosted WordPress client review plugin. Requires WordPress 6.6+, PHP 8.1+, and a writable private attachment directory. Single-site activation; multisite/network activation is not supported in this initial release.
 
@@ -69,3 +69,11 @@ Sync-only endpoints `sync/events` and `sync/files/{uuid}` require both `X-Feedba
 Run `wp --path=/path/to/site eval-file /path/to/feedbackpress/tests/integration.php` on a local test site. It checks creation, replies, statuses, stale writes, conflicting offline changes, resolution, privacy, invalid uploads, expiration, and idempotency; test issues are removed in `finally`. Run `php tests/search-sort.php` for standalone search/date-sort checks without a database. With Playwright available and Chrome installed, `node tests/tooltips.cjs` checks instant tooltips using intercepted fixtures without changing client feedback. `node tests/screenshot-pin.cjs` checks marked screenshot uploads using the bundled renderer and intercepted writes. `node tests/passive-pins.cjs` checks passive visibility, filters, immediate saved pins, and delayed requests without touching client feedback. `node tests/navigation-shortcuts.cjs` checks C/V actions, tooltip badges, and typing guards. Run PHP lint and `node --check assets/review.js` after edits.
 
 Initial release limits: no notifications, video, issue text editing, deletion UI, assignments, or automated code changes. The REST API supplies feedback to an agent; it does not run an agent. Public review mode intentionally permits visitors to see feedback and change statuses. Basic per-IP write throttling is included; public internet deployments may need edge-level abuse protection appropriate to their traffic.
+
+## Plugin updates
+
+FeedbackPress uses bundled Plugin Update Checker 5.6 to read `update.json` from this repository’s `main` branch. Its download URL points to a numbered GitHub tag archive, matching Recently Edited and Ollie Bridge. Plugin update checks are separate from feedback synchronization.
+
+For each release, update the plugin header, `FeedbackPress\VERSION`, and `update.json` to the same version, and set `download_url` to that tag’s ZIP. Publish the matching tag (for example `0.1.22`, without a `v` prefix) and the manifest on `main`. Keep older tags unchanged. WordPress can then offer the newer version through its normal plugin updates UI.
+
+Run `wp eval-file tests/update-checker.php` from this plugin directory to check registration and JSON parsing using intercepted metadata. Run `wp --require=tests/update-checker.php eval-file tests/update-checker.php` to verify update-AJAX boot. The tests simulate an update offer in memory and do not install it or save the synthetic version.
