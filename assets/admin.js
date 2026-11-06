@@ -8,18 +8,21 @@
     if (!response.ok) throw new Error(data.message || 'Request failed.');
     return data;
   };
-  document.querySelectorAll('.fp-add-peer').forEach(button => button.addEventListener('click', () => {
-    const type = button.dataset.peerType, template = document.getElementById('fp-peer-' + type);
-    const holder = document.createElement('template'); holder.innerHTML = template.innerHTML.replaceAll('__KEY__', 'new-' + crypto.randomUUID());
-    document.querySelector(`[data-peer-type="${type}"].fp-peer-table tbody`).append(holder.content);
-  }));
-  document.addEventListener('click', event => { if (event.target.matches('.fp-remove-peer')) event.target.closest('tr').remove(); });
+  let rowNumber = 0;
+  document.querySelector('.fp-add-peer').addEventListener('click', () => {
+    const holder = document.createElement('template'); holder.innerHTML = document.getElementById('fp-peer-template').innerHTML.replaceAll('__KEY__', 'new-' + Date.now() + '-' + (++rowNumber));
+    document.getElementById('fp-sites').append(holder.content);
+    document.querySelector('#fp-sites .fp-site:last-child .fp-site-url').focus();
+  });
+  document.addEventListener('click', event => { if (event.target.matches('.fp-remove-peer')) event.target.closest('.fp-site').remove(); });
+  document.addEventListener('change', event => { if (event.target.matches('.fp-site-type')) event.target.closest('.fp-site').querySelector('.fp-basic-auth').hidden = event.target.value === 'local'; });
+  document.getElementById('fp-join-code').addEventListener('input', event => { document.querySelector('.fp-join-type').hidden = !event.target.value.trim(); });
   const copyNetwork = async (button, provision) => {
     const status = document.getElementById('fp-copy-status'); button.disabled = true;
     try {
-      const data = await request('network/code', provision ? { provision } : {}); const field = document.getElementById('fp-network-code'); field.value = data.code; field.hidden = false;
-      try { await navigator.clipboard.writeText(data.code); if (provision) button.textContent = 'Copied'; status.textContent = 'Copied. Paste this private code on the installation joining the network.'; }
-      catch (_) { field.focus(); field.select(); status.textContent = 'Select and copy the setup code below.'; }
+      const data = await request('network/code', provision ? { provision } : {}); const field = document.getElementById('fp-network-code'); field.value = data.code;
+      try { await navigator.clipboard.writeText(data.code); button.textContent = 'Code copied'; status.textContent = 'Paste the code in FeedbackPress on your other WordPress installation. Codes expire after 24 hours.'; }
+      catch (_) { field.hidden = false; field.focus(); field.select(); status.textContent = 'Select and copy the setup code below.'; }
     } catch (error) { status.textContent = error.message; } finally { button.disabled = false; }
   };
   document.getElementById('fp-copy-network').addEventListener('click', event => copyNetwork(event.target));
@@ -39,7 +42,6 @@
     } catch (error) { status.textContent = error.message; }
     timer = setTimeout(sync, 60050);
   };
-  document.getElementById('fp-sync-now').addEventListener('click', () => { lastUse = Date.now(); sync(); });
   document.addEventListener('pointerdown', () => { lastUse = Date.now(); if (!timer) sync(); }, { passive: true });
   document.addEventListener('keydown', () => { lastUse = Date.now(); if (!timer) sync(); });
   document.addEventListener('visibilitychange', () => { clearTimeout(timer); timer = null; if (!document.hidden) { lastUse = Date.now(); sync(); } });

@@ -4,14 +4,14 @@
  * Plugin URI: https://github.com/jonschr/feedbackpress
  * Update URI: https://github.com/jonschr/feedbackpress
  * Description: On-page client feedback, screenshots, and environment synchronization.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Requires at least: 6.6
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  */
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 require_once __DIR__ . '/includes/store.php';
 require_once __DIR__ . '/includes/network.php';
 require_once __DIR__ . '/includes/api.php';
@@ -40,7 +40,6 @@ add_action('rest_api_init', [API::class, 'routes']);
 add_filter('application_password_is_api_request', [API::class, 'hosting_auth']);
 add_action('admin_menu', [Admin::class, 'menu']);
 add_action('admin_post_feedbackpress_save', [Admin::class, 'save']);
-add_action('admin_post_feedbackpress_sync', [Admin::class, 'sync']);
 add_action('admin_post_feedbackpress_network', [Admin::class, 'network']);
 add_action('admin_enqueue_scripts', [Admin::class, 'assets']);
 add_action('wp_enqueue_scripts', function () {
