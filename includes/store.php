@@ -11,23 +11,27 @@ final class Store {
             seq bigint unsigned NOT NULL AUTO_INCREMENT,
             id char(36) NOT NULL,
             issue_id char(36) NOT NULL,
+            network_id char(36) NOT NULL DEFAULT '',
             kind varchar(20) NOT NULL,
             payload longtext NOT NULL,
             created_at varchar(30) NOT NULL,
             environment varchar(12) NOT NULL,
             PRIMARY KEY  (seq),
             UNIQUE KEY event_id (id),
-            KEY issue_id (issue_id)
+            KEY issue_id (issue_id),
+            KEY network_id (network_id)
         ) {$wpdb->get_charset_collate()};");
     }
+    public static function project(): string { return function_exists(__NAMESPACE__ . '\\settings') ? (settings()['project'] ?? '') : ''; }
     public static function uuid($id): bool { return is_string($id) && (bool) preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $id); }
     public static function append(string $issue, string $kind, array $payload): array {
+        $network = self::project();
         $event = ['id' => wp_generate_uuid4(), 'issue_id' => $issue, 'kind' => $kind, 'payload' => $payload, 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => settings()['environment']];
         if ($kind === 'issue') {
             self::number_lock();
-            try { $event['payload']['number'] = self::next_number($event['environment']); self::insert($event); }
+            try { $event['payload']['number'] = self::next_number(); self::insert($event, $network); }
             finally { self::number_unlock(); }
-        } else self::insert($event);
+        } else self::insert($event, $network);
         return $event;
     }
     private static function number_lock(): void {
@@ -38,55 +42,40 @@ final class Store {
         global $wpdb;
         $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', 'fp_numbers_' . md5(DB_NAME . self::table())));
     }
-    private static function next_number(string $environment): string {
-        $prefix = ['local' => '', 'staging' => 'S', 'production' => 'P'][$environment];
-        $key = 'feedbackpress_number_' . $environment;
+    private static function next_number(): string {
+        $prefix = Network::self()['prefix'] ?? '';
+        $key = 'feedbackpress_number_' . md5(self::project() . $prefix);
         $last = (int) get_option($key, 0);
         // Include synced numbers so a copied or restored counter cannot reuse an existing reference.
         foreach (self::events() as $event) {
             if (!in_array($event['kind'], ['issue', 'number'], true)) continue;
             $number = (string) ($event['payload']['number'] ?? '');
-            if (preg_match('/^' . $prefix . '([1-9][0-9]*)$/D', $number, $match)) $last = max($last, (int) $match[1]);
+            if (preg_match('/^' . preg_quote($prefix, '/') . '([1-9][0-9]*)$/D', $number, $match)) $last = max($last, (int) $match[1]);
         }
         update_option($key, $last + 1, false);
         return $prefix . ($last + 1);
     }
-    public static function migrate_numbers(): void {
-        if (get_option('feedbackpress_numbers_version') === '1') return;
-        self::number_lock();
-        try {
-            $roots = []; $numbered = [];
-            foreach (self::events() as $event) {
-                if ($event['kind'] === 'issue') $roots[$event['issue_id']] = $event;
-                if ($event['kind'] === 'number') $numbered[$event['issue_id']] = true;
-            }
-            foreach ($roots as $id => $event) {
-                if (isset($event['payload']['number']) || isset($numbered[$id])) continue;
-                // A new immutable event preserves references when existing feedback is synchronized.
-                self::append($id, 'number', ['number' => self::next_number($event['environment'])]);
-            }
-            update_option('feedbackpress_numbers_version', '1', false);
-        } finally { self::number_unlock(); }
-    }
-    public static function insert(array $e): bool {
+    public static function insert(array $e, ?string $network = null): bool {
         global $wpdb;
+        $project = $network ?? self::project();
+        if ($project !== self::project()) throw new \RuntimeException('The network changed before feedback was saved.');
         // INSERT IGNORE only deduplicates immutable events; existing data is never replaced.
-        $ok = $wpdb->query($wpdb->prepare('INSERT IGNORE INTO ' . self::table() . ' (id,issue_id,kind,payload,created_at,environment) VALUES (%s,%s,%s,%s,%s,%s)', $e['id'], $e['issue_id'], $e['kind'], wp_json_encode($e['payload']), $e['created_at'], $e['environment']));
+        $ok = $wpdb->query($wpdb->prepare('INSERT IGNORE INTO ' . self::table() . ' (id,issue_id,network_id,kind,payload,created_at,environment) VALUES (%s,%s,%s,%s,%s,%s,%s)', $e['id'], $e['issue_id'], $project, $e['kind'], 'fp1:' . base64_encode(wp_json_encode($e['payload'])), $e['created_at'], $e['environment']));
         if ($ok === false) throw new \RuntimeException('Could not save feedback. Please retry.');
         return $ok > 0;
     }
     public static function events(?string $issue = null): array {
         global $wpdb;
-        $sql = 'SELECT * FROM ' . self::table();
-        if ($issue !== null) $sql .= $wpdb->prepare(' WHERE issue_id=%s', $issue);
+        $sql = 'SELECT * FROM ' . self::table() . $wpdb->prepare(' WHERE network_id=%s', self::project());
+        if ($issue !== null) $sql .= $wpdb->prepare(' AND issue_id=%s', $issue);
         return self::decode($wpdb->get_results($sql . ' ORDER BY seq', ARRAY_A));
     }
-    public static function page(int $after): array {
+    public static function cursor(): int {
         global $wpdb;
-        return self::decode($wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE seq>%d ORDER BY seq LIMIT 50', $after), ARRAY_A));
+        return (int) $wpdb->get_var($wpdb->prepare('SELECT MAX(seq) FROM ' . self::table() . ' WHERE network_id=%s', self::project()));
     }
     private static function decode(array $rows): array {
-        foreach ($rows as &$r) { $r['seq'] = (int) $r['seq']; $r['payload'] = json_decode($r['payload'], true); }
+        foreach ($rows as &$r) { $r['seq'] = (int) $r['seq']; $r['payload'] = json_decode(str_starts_with($r['payload'], 'fp1:') ? base64_decode(substr($r['payload'], 4)) : $r['payload'], true); }
         return $rows;
     }
     public static function reduce(array $events): ?array {
@@ -141,7 +130,7 @@ final class Store {
     public static function file_path(string $id): string { return self::directory() . '/' . $id; }
     public static function file_event(string $id): ?array {
         global $wpdb;
-        $rows = self::decode($wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . " WHERE id=%s AND kind='file'", $id), ARRAY_A));
+        $rows = self::decode($wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . " WHERE network_id=%s AND id=%s AND kind='file'", self::project(), $id), ARRAY_A));
         return $rows[0] ?? null;
     }
     public static function live_file(string $id): ?array {
@@ -163,9 +152,17 @@ final class Store {
         return $ok;
     }
     public static function cleanup(): void {
-        foreach (self::events() as $e) {
-            if ($e['kind'] !== 'file') continue;
-            if (!self::live_file($e['id']) && is_file(self::file_path($e['id']))) unlink(self::file_path($e['id']));
+        global $wpdb;
+        $events = self::decode($wpdb->get_results('SELECT * FROM ' . self::table() . " WHERE kind IN ('file','expire','delete')", ARRAY_A));
+        $expired = []; $deleted = [];
+        foreach ($events as $event) {
+            if ($event['kind'] === 'expire') $expired[$event['payload']['file_id']] = true;
+            if ($event['kind'] === 'delete') $deleted[$event['issue_id']] = true;
+        }
+        // Retention applies to archived networks too, without scheduling background jobs.
+        foreach ($events as $event) if ($event['kind'] === 'file' && ($event['payload']['expires_at'] <= time() || isset($expired[$event['id']]) || isset($deleted[$event['issue_id']]))) {
+            $path = self::file_path($event['id']);
+            if (is_file($path)) unlink($path);
         }
     }
 }

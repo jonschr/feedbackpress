@@ -17,6 +17,7 @@ final class API {
     public static function read(\WP_REST_Request $r) { return self::key($r) || self::can_view() ? true : self::error('Feedback is private.', 403); }
     public static function write(\WP_REST_Request $r) {
         if (self::key($r)) return true;
+        if ($r->get_header('x-feedbackpress-network') && !hash_equals(settings()['project'], (string) $r->get_header('x-feedbackpress-network'))) return self::error('The network changed. Reload before submitting feedback.', 409);
         if (!self::can_view() || !bound()) return self::error('Feedback is unavailable.', 403);
         // Application Passwords authenticate administrators without a browser nonce.
         if (current_user_can('manage_options') && !$r->get_header('origin')) return true;
@@ -30,10 +31,30 @@ final class API {
         set_transient($key, $count + 1, 600);
         return true;
     }
+    public static function hosting_auth(bool $is_api): bool {
+        $route = $GLOBALS['wp']->query_vars['rest_route'] ?? ($_GET['rest_route'] ?? '');
+        $path = wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+        if (!is_string($route)) return $is_api;
+        if (!str_starts_with($route, '/feedbackpress/v1/')) {
+            $prefix = '/' . rest_get_url_prefix() . '/feedbackpress/v1/';
+            $offset = strpos($path, $prefix);
+            if ($offset === false) return $is_api;
+            $route = '/feedbackpress/v1/' . substr($path, $offset + strlen($prefix));
+        }
+        // Hosting Basic Auth is not a WordPress Application Password when plugin credentials are supplied.
+        $plugin_auth = isset($_SERVER['HTTP_X_FEEDBACKPRESS_NETWORK']) || isset($_SERVER['HTTP_X_FEEDBACKPRESS_KEY']) || isset($_SERVER['HTTP_X_WP_NONCE']);
+        return $plugin_auth || rtrim($route, '/') === '/feedbackpress/v1/network/join' ? false : $is_api;
+    }
     public static function routes(): void {
         $route = function ($path, $method, $callback, $permission) {
             register_rest_route('feedbackpress/v1', $path, ['methods' => $method, 'callback' => $callback, 'permission_callback' => $permission]);
         };
+        $route('/sync/exchange', 'POST', [Sync::class, 'exchange'], [Network::class, 'authenticate']);
+        $route('/sync/log', 'GET', function () { return Log::entries(); }, [Network::class, 'admin']);
+        $route('/sync/activity', 'POST', [Sync::class, 'activity'], function ($r) { return Network::admin($r) === true ? true : self::write($r); });
+        $route('/network/join', 'POST', [Network::class, 'accept_join'], '__return_true');
+        $route('/network/code', 'POST', function ($r) { try { return ['code' => $r->get_param('provision') ? Network::provision((string) $r->get_param('provision')) : Network::export()]; } catch (\Throwable $e) { return self::error($e->getMessage()); } }, [Network::class, 'admin']);
+        $route('/network/invite', 'POST', function () { try { return Network::issue_invite(); } catch (\Throwable $e) { return self::error($e->getMessage()); } }, function ($r) { return Network::admin($r) === true || Network::authenticate($r) === true ? true : self::error('Network administrator access required.', 403); });
         $route('/issues', 'GET', [self::class, 'listing'], [self::class, 'read']);
         $route('/issues', 'POST', [self::class, 'create'], [self::class, 'write']);
         $route('/issues/(?P<id>[a-f0-9-]{36})', 'GET', function ($r) { return Store::issue($r['id']) ?: self::error('Issue not found.', 404); }, [self::class, 'read']);
@@ -41,8 +62,6 @@ final class API {
         $route('/issues/(?P<id>[a-f0-9-]{36})/replies', 'POST', [self::class, 'reply'], [self::class, 'write']);
         $route('/issues/(?P<id>[a-f0-9-]{36})/files', 'POST', [self::class, 'upload'], [self::class, 'write']);
         $route('/files/(?P<id>[a-f0-9-]{36})', 'GET', [self::class, 'download'], [self::class, 'read']);
-        $route('/sync/events', 'GET', fn($r) => ['events' => Store::page(max(0, (int) $r->get_param('after')))], [Sync::class, 'permission']);
-        $route('/sync/events', 'POST', [Sync::class, 'receive'], [Sync::class, 'permission']);
         $route('/sync/files/(?P<id>[a-f0-9-]{36})', 'GET', [Sync::class, 'get_file'], [Sync::class, 'permission']);
         $route('/sync/files/(?P<id>[a-f0-9-]{36})', 'POST', [Sync::class, 'put_file'], [Sync::class, 'permission']);
         add_filter('rest_post_dispatch', function ($response, $server, $r) {

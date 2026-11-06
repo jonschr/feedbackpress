@@ -29,7 +29,7 @@ try {
     $first = fp_request('POST', 'issues/' . $issue['id'] . '/status', ['author' => 'Agent', 'status' => 'doing', 'revision' => $issue['revision']]);
     fp_check($first->get_data()['status'] === 'doing', 'Agents can change status');
     fp_check(fp_request('POST', 'issues/' . $issue['id'] . '/status', ['author' => 'Agent', 'status' => 'done', 'revision' => $issue['revision']])->get_status() === 409, 'Stale status writes are rejected');
-    $concurrent = ['id' => wp_generate_uuid4(), 'issue_id' => $issue['id'], 'kind' => 'status', 'payload' => ['author' => 'Offline reviewer', 'status' => 'done', 'parents' => $issue['heads']], 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => 'staging'];
+    $concurrent = ['id' => wp_generate_uuid4(), 'issue_id' => $issue['id'], 'kind' => 'status', 'payload' => ['author' => 'Offline reviewer', 'status' => 'done', 'parents' => $issue['heads']], 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => 'remote'];
     fp_check(Sync::validate($concurrent), 'Valid sync events are accepted');
     Store::insert($concurrent); Store::insert($concurrent);
     $conflict = Store::issue($issue['id']);
@@ -51,7 +51,7 @@ try {
     fp_check(fp_request('GET', 'issues', [], false)->get_status() === 403, 'Private mode blocks anonymous API reads');
     fp_check(fp_request('GET', 'files/' . $file['id'], [], false)->get_status() === 403, 'Private mode blocks anonymous attachment downloads');
     fp_check(fp_request('GET', 'issues')->get_status() === 200, 'Project key can read private feedback');
-    fp_check(fp_request('GET', 'sync/events', [], false)->get_status() === 403, 'Sync always requires authentication');
+    fp_check(fp_request('POST', 'sync/exchange', [], false)->get_status() === 403, 'Sync always requires authentication');
     update_option('feedbackpress_settings', $original);
     fp_check(fp_request('POST', 'issues', [], false)->get_status() === 403, 'Public writes require a browser nonce or agent credentials');
     fp_check(!Sync::validate(['id' => 'bad']), 'Malformed sync events are rejected');
@@ -71,12 +71,12 @@ try {
     fp_check(Store::reduce(array_reverse(Store::events($issue['id'])))['revision'] === Store::issue($issue['id'])['revision'], 'Status reduction is independent of arrival order');
     fp_check(Store::reduce(array_reverse(Store::events($issue['id'])))['number'] === $issue['number'], 'Event arrival order does not change issue numbers');
     $root = Store::events($issue['id'])[0]; unset($root['payload']['number']);
-    $assignment = ['id' => wp_generate_uuid4(), 'issue_id' => $issue['id'], 'kind' => 'number', 'payload' => ['number' => 'S123'], 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => 'staging'];
+    $assignment = ['id' => wp_generate_uuid4(), 'issue_id' => $issue['id'], 'kind' => 'number', 'payload' => ['number' => 'S123'], 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => 'remote'];
     fp_check(Sync::validate($assignment) && Store::reduce([$assignment, $root])['number'] === 'S123', 'Legacy numbering assignments remain stable when synchronized');
     $order_ids = [];
     for ($n = 1; $n <= 52; $n++) {
         $id = wp_generate_uuid4(); $ids[] = $id; $order_ids[] = $id;
-        Store::insert(['id' => wp_generate_uuid4(), 'issue_id' => $id, 'kind' => 'issue', 'payload' => ['author' => 'Integration test', 'body' => 'Ordering fixture', 'number' => 'S' . $n, 'path' => '/fp-pagination/', 'target' => ['selector' => '', 'text' => '', 'x' => .5, 'y' => .5], 'context' => []], 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => 'staging']);
+        Store::insert(['id' => wp_generate_uuid4(), 'issue_id' => $id, 'kind' => 'issue', 'payload' => ['author' => 'Integration test', 'body' => 'Ordering fixture', 'number' => 'S' . $n, 'path' => '/fp-pagination/', 'target' => ['selector' => '', 'text' => '', 'x' => .5, 'y' => .5], 'context' => []], 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'environment' => 'remote']);
     }
     $ordered = fp_request('GET', 'issues', ['path' => '/fp-pagination/', 'order' => 'number'])->get_data();
     fp_check(count($ordered['issues']) === 50 && $ordered['issues'][0]['number'] === 'S1' && $ordered['issues'][9]['number'] === 'S10', 'Natural issue-number sorting happens before pagination');

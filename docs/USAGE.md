@@ -1,4 +1,4 @@
-# FeedbackPress 0.1.22
+# FeedbackPress 0.2.0
 
 A self-hosted WordPress client review plugin. Requires WordPress 6.6+, PHP 8.1+, and a writable private attachment directory. Single-site activation; multisite/network activation is not supported in this initial release.
 
@@ -13,13 +13,13 @@ Leave feedback, or the C key, starts element selection. V toggles the issues sid
 - **Review:** client approval or clarification needed.
 - **Done:** resolved; agents may use this for fixes they have verified.
 
-Pin numbers are assigned once and stored with the issue. Adding feedback, filtering, pagination, status changes, and synchronization never renumber an issue. Existing feedback receives numbers in original creation order on upgrade. Local references are numeric; issues created on Staging use S-prefixed numbers and Production uses P-prefixed numbers, preventing clashes when environments create feedback independently. All peers must run 0.1.4 or later before synchronizing numbered feedback.
+Pin numbers are assigned once and stored with the issue. Adding feedback, filtering, pagination, status changes, and synchronization never renumber an issue. The first installation uses numeric references; joined installations receive a permanent member prefix, such as `AB12CD34-1`, so independent copies can create feedback without reusing each other’s references. Existing numbers stay unchanged.
 
 The status filter is a checkbox dropdown: choose any combination of To do, Doing, Review, and Done. Its default remains To do + Review. Selections persist within the browser tab, including an empty selection. Escape first closes the open filter menu; a subsequent Escape dismisses the interface. Each issue has a status-colored leading edge and a light hover tint matching that status, with a stronger selected tint. Status action hover colors match their destination. Done issues remain muted gray even when selected, with grayscale thumbnails; opening an attachment still shows its original colors. Anyone allowed to review can change status. Conflict notices list competing changes; choosing a status resolves the conflict. An agent should explain the change and its verification environment in a reply before updating status.
 
 ## Access and files
 
-Settings offer Everyone, Logged-in administrators, or Disabled. These settings are local to each installation and do not sync. Administrators means WordPress users with `manage_options`. Project-key access remains available independently for agents and synchronization. Keep the key private.
+Settings offer Everyone, Logged-in administrators, or Disabled. These settings are local to each installation and do not sync. Administrators means WordPress users with `manage_options`. Each installation has its own agent API key, available in these settings. Network synchronization uses separate member credentials. Keep both private.
 
 Images (PNG/JPEG/WebP/GIF) and PDFs are limited to 5 MB each. SVG, video, and arbitrary documents are rejected. Files never enter the Media Library and are served as downloads through permission-checked REST endpoints. Default storage is a plugin-owned directory beside the WordPress web root. If the parent is not writable, set `FEEDBACKPRESS_STORAGE_DIR` in wp-config.php to a writable path **outside** the public web root. A custom directory must not be shared between separate installations.
 
@@ -29,26 +29,51 @@ Screenshot rendering uses bundled html2canvas-pro 2.6.3 (MIT). It reconstructs t
 
 General widget controls use a self-contained black, white, and gray palette; status indicators retain their semantic colors. Pin-placement instructions and the launch buttons share one bottom toolbar, centered on the same row on desktop and stacked on narrow screens.
 
-## Connect environments
+## Connect a network
 
-1. Enter Production, Staging, and Local site base URLs (including a WordPress subdirectory if applicable). Remote URLs require HTTPS. Local can use HTTP.
-2. Select the environment of the current installation. Its URL must match WordPress’s home URL.
-3. Use the same generated project UUID and 64-character random hexadecimal key on all participating installations. Copying the database preserves both.
-4. Save settings on each installation, then use Sync now.
+1. Open Settings → FeedbackPress on the existing installation, give the network a name, and save. The name is a label; the independent network UUID determines which feedback belongs together.
+2. The two URL lists support any number of local and remote installations (up to 50). Each row has a label and a connection type; changing its type and saving moves it to the other list. This site is identified by its WordPress home URL, without a separate installation selector. Local-looking domains and private IPs are suggestions, not authority: you choose the type for each URL.
+3. For a host protected by HTTP Basic Auth, enter its credentials in that remote row and save **before copying the setup code**. REST does not bypass hosting Basic Auth. These credentials travel privately with the network configuration so every member can contact that host.
+4. Click **Copy network setup**. On the installation joining, paste it into the single setup-code field, select Local or Remote for that URL, and click **Join network**. Registration adds the joining URL to the shared directory and gives it separate credentials. A pre-entered URL does not become trusted until it joins.
+5. For a **local-only network**, first add and save its intended remote URL. Copy network setup then produces a first-remote provisioning code: paste it at that exact remote URL and select Remote. This adopts the existing network, preserves local feedback, and rotates the temporary provisioning credential immediately. Local can then connect outbound to the remote. That initial code is URL-bound and expires after 24 hours.
+6. Further installations use a fresh invitation code for each join. These codes authorize one registration, expire after 24 hours, and contain a reachable remote bootstrap URL plus its Basic Auth credentials when needed. A local site requests them through an already connected remote. Treat all setup codes as passwords.
 
-After copying a database to a different URL, feedback and sync pause until the environment is confirmed in settings. Select the correct environment and update its URL. Production can be administrators only while staging remains open.
+Joining adopts the supplied network configuration. All participants must use this network protocol; compatibility with the earlier environment/key sync was intentionally omitted. This release preserves existing feedback on the current installation.
 
-Local initiates a two-way exchange with Production and Staging. Remote sites skip contacting Local. Remote sites exchange with each other. A local site must be running to catch up. HTTPS certificate verification stays enabled; local development CAs may need to be trusted by PHP’s HTTP client separately from the browser.
+Removing a row creates a revocation that propagates to other active peers. Until those peers receive it, they may still accept that member. Changing a label does not change network identity. **Create a separate network** generates a new identity, credentials, and blank feedback workspace; previous feedback remains in a separate database namespace. To return to another network, join it again with a fresh code.
 
-WP-Cron schedules sync and cleanup every 30 minutes. On quiet sites use server cron, for example `wp cron event run --due-now` every five minutes. The Sync now button performs the same exchange immediately and shows per-peer results.
+After a database is copied to a different home URL, copied credentials cannot automatically authorize that new installation. Join it explicitly. If a database copy replaces the identity of your only remote, use **Reconnect** beside that remote URL on a still-connected installation. Paste its URL-bound code on the affected remote. Reconnect rotates that URL’s credential; it is an explicit repair action, not an automatic response to a temporary connection failure. Shared URLs, credentials, and configuration history are stored as encoded values, so normal literal URL find/replace does not rewrite them. Encoding is not encryption. No migration-plugin hooks or preservation promises are required. A full database rollback can still restore older configuration; a peer retaining the newer configuration can supply the missing events at the next exchange. Sync is not a backup, and it cannot recover information lost from every copy.
 
-An append-only `{prefix}feedbackpress_events` table stores issues, replies, statuses, and attachment metadata. Events use UUIDs, so retries do not duplicate content. Relative page paths and locally generated attachment URLs avoid embedding environment domains in feedback. Each peer keeps sequence cursors. A run exchanges up to 250 events in each direction per peer; later runs continue. Status changes reference their predecessors instead of trusting wall clocks. Concurrent status changes remain visible until resolved. Replies merge independently. Attachment transfers retry independently when metadata has already arrived.
+### When syncing runs
 
-This is synchronization between trusted peers, not a backup. Do not overwrite a peer’s table with an older copy while sync is active: sequence cursors assume that its event history is retained. If deliberately rebuilding a peer, clear the `feedbackpress_cursor_*` and `feedbackpress_file_*` WordPress options on its peers to replay history and files. Separate project keys/IDs should be used for unrelated client sites. Rotating a key requires updating every peer.
+An authorized visitor landing on a page with the review tools starts an asynchronous sync through that installation’s REST API. The settings page does the same for administrators. Further review activity keeps checks active, with a hard **one initiated run per 60 seconds per installation**, shared across users and browser tabs. Sync now and `wp feedbackpress sync` honor that gate too. Browser checks pause after two minutes without review interaction, and immediately when the tab is hidden. Returning or interacting resumes them. There is no recurring feedback-sync cron job or unattended hourly traffic.
+
+Each participating installation initiates two-way exchanges with joined remote members. Remote sites never try to contact local entries. For example, a production change can push to staging during production review activity; local pulls from either remote when its reviewer next arrives or continues working. A local change reaches remotes on its next eligible active check. With no active reviewer, convergence waits until the next visit or manual check. This is relatively live polling while in use, not an always-on notification service.
+
+The first local save is immediate and never waits for peer requests. Background snapshots update pins and issue data, append newly arriving issues, and preserve the positions of existing list rows. Typed replies keep their text, caret, and focus; popup redraws wait until editing finishes. An explicit Refresh, filter/sort change, or reload reapplies the list order and membership.
+
+An append-only `{prefix}feedbackpress_events` table stores issue, reply, status, and attachment events, partitioned by network UUID. Exchanges compare UUID inventories rather than copied sequence cursors, so retrying is idempotent and a restored database can recover missing events. Status and configuration changes reference their predecessor events. UTC timestamps describe when they happened, while causal parents detect concurrent changes even with different site time zones or skewed clocks. Configuration conflicts suspend the affected member rather than silently choosing its credentials; save the intended directory or join from a healthy member to resolve them.
+
+Attachment metadata travels with events; missing images and PDFs transfer separately through private REST endpoints, with size/type/SHA-256 validation. Each exchange checks actual file availability, so a database-only copy or missing file is repaired without clearing old “sent” flags. Transfers use bounded batches and time budgets; later active checks continue remaining work. Expired files cannot be revived and cleanup includes archived networks. No recurring cleanup job is created; expired files become inaccessible immediately and are physically removed during active sync cleanup.
+
+Peer requests are sequential REST requests identified as `FeedbackPress/<version> (+https://github.com/jonschr/feedbackpress)`, following [SiteDistrict’s service and crawler request rules](https://sitedistrict.com/service-and-crawler-request-rules). TLS verification stays enabled, redirects are disabled, and failures receive per-peer backoff. HTTP 429 honors Retry-After. A 403 may indicate a firewall or revoked membership; it is not automatically treated as a rate limit. Hosting Basic Auth uses the Authorization header, while network authentication uses separate FeedbackPress headers. On these routes, requests carrying plugin credentials or a browser nonce do not mistake hosting credentials for WordPress Application Passwords; the ordinary agent Application Password flow remains supported. Review-overlay code never receives member tokens or host passwords; administrator-only setup codes carry the credentials needed to connect.
+
+### Connection log
+
+Settings → FeedbackPress shows recent sync results. The local encoded log is capped at **100 entries and 64 KB**, with entries older than **three days** excluded. It records UTC time, peer URL, operation, HTTP status, request duration, retries, and transfer totals. HTTP 401/403/429/500 and non-JSON login pages are distinguishable. Credentials, setup codes, request payloads, and response bodies are excluded.
+
+From the WordPress root:
+
+```sh
+wp feedbackpress sync-log
+wp feedbackpress sync
+```
+
+The first command only reads local diagnostics; the second initiates a cooldown-limited exchange. `GET sync/log` is administrator-and-nonce protected. Keep logs outside public pages when sharing diagnostics.
 
 ## Agent REST API
 
-Base: `/wp-json/feedbackpress/v1/` (plain permalinks also support `/?rest_route=/feedbackpress/v1/...`). Use `X-FeedbackPress-Key: <shared key>`, or an administrator Application Password over HTTPS. Never put the key in query strings, frontend code, or source control.
+Base: `/wp-json/feedbackpress/v1/` (plain permalinks also support `/?rest_route=/feedbackpress/v1/...`). Use `X-FeedbackPress-Key: <this installation’s agent key>`, or an administrator Application Password over HTTPS. Never put the key in query strings, frontend code, or source control.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -62,11 +87,11 @@ Base: `/wp-json/feedbackpress/v1/` (plain permalinks also support `/?rest_route=
 
 Lists default to natural issue-number ordering across all pages; `order=page` groups by page, then issue number. `order=number` sorts across pages by issue reference. `order=completed` and `order=updated` sort newest first by the returned `completed_at` and `updated_at` UTC timestamps, with natural issue references breaking ties and incomplete issues last for completion order. `search` matches all whitespace-separated terms, case-insensitively, across the original issue body and every reply. Search and status/path filters apply before sorting and pagination; `status=none` selects no statuses. `focus` chooses the list page containing a matching issue. Status values are `todo`, `doing`, `review`, `done`. Read the issue first and send its current `revision` with a status update. HTTP 409 means it changed: fetch again, inspect, and decide. Replies do not need a status revision. To associate files with a reply, use the returned `reply_id` as `comment_id` when uploading. The server rejects comment IDs not belonging to that issue; omitted comment IDs mean the original issue comment. The association is preserved by sync. Public GET endpoints follow review visibility; browser writes require a REST nonce and same-origin checks.
 
-Sync-only endpoints `sync/events` and `sync/files/{uuid}` require both `X-FeedbackPress-Key` and `X-FeedbackPress-Project`. Configured peers are trusted writers. Requests never follow redirects, which prevents forwarding the shared key to a redirected destination. The server generates keys with cryptographic randomness. There are no external SaaS dependencies.
+Sync-only endpoints `sync/exchange` and `sync/files/{uuid}` require the registered member’s `X-FeedbackPress-Network`, `X-FeedbackPress-Member`, and `X-FeedbackPress-Token` headers. These credentials are separate from the agent API key. Configured members are trusted peers. `POST sync/activity` is available to authorized reviewers with the normal browser nonce or to agents, and observes the same installation-wide cooldown. `POST network/code` is administrator-only; `POST network/join` authorizes registration using an unexpired, single-use invitation. No external SaaS service is required.
 
 ## Verification
 
-Run `wp --path=/path/to/site eval-file /path/to/feedbackpress/tests/integration.php` on a local test site. It checks creation, replies, statuses, stale writes, conflicting offline changes, resolution, privacy, invalid uploads, expiration, and idempotency; test issues are removed in `finally`. Run `php tests/search-sort.php` for standalone search/date-sort checks without a database. With Playwright available and Chrome installed, `node tests/tooltips.cjs` checks instant tooltips using intercepted fixtures without changing client feedback. `node tests/screenshot-pin.cjs` checks marked screenshot uploads using the bundled renderer and intercepted writes. `node tests/passive-pins.cjs` checks passive visibility, filters, immediate saved pins, and delayed requests without touching client feedback. `node tests/navigation-shortcuts.cjs` checks C/V actions, tooltip badges, and typing guards. Run PHP lint and `node --check assets/review.js` after edits.
+Run `wp --path=/path/to/site eval-file /path/to/feedbackpress/tests/integration.php` on a local test site. It checks creation, replies, statuses, stale writes, conflicting offline changes, resolution, privacy, invalid uploads, expiration, and idempotency; test issues are removed in `finally`. Run `php tests/network-sync.php` for isolated three-site/configuration/file/HTTP-error checks using PDO SQLite and no external requests. `node tests/activity-sync.cjs` checks browser landing/live updates, idle/hidden pauses, reply preservation, and error recovery. Run `php tests/search-sort.php` for standalone search/date-sort checks without a database. With Playwright available and Chrome installed, `node tests/tooltips.cjs` checks instant tooltips using intercepted fixtures without changing client feedback. `node tests/screenshot-pin.cjs` checks marked screenshot uploads using the bundled renderer and intercepted writes. `node tests/passive-pins.cjs` checks passive visibility, filters, immediate saved pins, and delayed requests without touching client feedback. `node tests/navigation-shortcuts.cjs` checks C/V actions, tooltip badges, and typing guards. Run PHP lint and `node --check assets/review.js` after edits.
 
 Initial release limits: no notifications, video, issue text editing, deletion UI, assignments, or automated code changes. The REST API supplies feedback to an agent; it does not run an agent. Public review mode intentionally permits visitors to see feedback and change statuses. Basic per-IP write throttling is included; public internet deployments may need edge-level abuse protection appropriate to their traffic.
 
@@ -74,6 +99,8 @@ Initial release limits: no notifications, video, issue text editing, deletion UI
 
 FeedbackPress uses bundled Plugin Update Checker 5.6 to read `update.json` from this repository’s `main` branch. Its download URL points to a numbered GitHub tag archive, matching Recently Edited and Ollie Bridge. Plugin update checks are separate from feedback synchronization.
 
-For each release, update the plugin header, `FeedbackPress\VERSION`, and `update.json` to the same version, and set `download_url` to that tag’s ZIP. Publish the matching tag (for example `0.1.22`, without a `v` prefix) and the manifest on `main`. Keep older tags unchanged. WordPress can then offer the newer version through its normal plugin updates UI.
+For each release, update the plugin header, `FeedbackPress\VERSION`, and `update.json` to the same version, and set `download_url` to that tag’s ZIP. Publish the matching tag (for example `0.2.0`, without a `v` prefix) and the manifest on `main`. Keep older tags unchanged. WordPress can then offer the newer version through its normal plugin updates UI.
 
 Run `wp eval-file tests/update-checker.php` from this plugin directory to check registration and JSON parsing using intercepted metadata. Run `wp --require=tests/update-checker.php eval-file tests/update-checker.php` to verify update-AJAX boot. The tests simulate an update offer in memory and do not install it or save the synthetic version.
+
+Changing a status updates its existing card in place. Its position, neighboring issues, and previous/next navigation stay stable while you continue reviewing, even if the new status falls outside the selected filter or changes its date-sort position. Reloading, Refresh, or explicitly changing search, filters, sort, or list page rebuilds the list. Passive page pins still follow the current filters.

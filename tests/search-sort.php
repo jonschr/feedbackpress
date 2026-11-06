@@ -11,6 +11,7 @@ class WP_REST_Request {
 $wpdb = new class {
     public string $prefix = 'test_';
     public array $rows = [];
+    public function prepare($sql, ...$args) { return $sql; }
     public function get_results($sql, $format) { return $this->rows; }
 };
 require dirname(__DIR__) . '/includes/store.php';

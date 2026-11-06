@@ -38,6 +38,7 @@
   }
   let issues = [], pageIssues = [], selected = null, sort = 'number', search = '', searchTimer, filter = ['todo', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
+  let keepListOrder = false, localWriteVersion = 0;
   const replyDrafts = new Map();
   const replyFiles = new Map();
   const pendingReplyIds = new Map();
@@ -128,10 +129,11 @@
   window.visualViewport?.addEventListener('scroll', hideTooltip);
   new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
   async function api(path, options = {}) {
-    const headers = { 'X-WP-Nonce': c.nonce, ...options.headers };
+    const headers = { 'X-WP-Nonce': c.nonce, ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
     if (options.body && !(options.body instanceof FormData)) { headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(options.body); }
     const response = await fetch(c.api + path, { credentials: 'same-origin', ...options, headers });
     if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || `Request failed (${response.status}). Try again.`); }
+    if (options.method === 'POST' && !path.startsWith('sync/')) { localWriteVersion++; activity(); }
     return response;
   }
   function message(text) { notice.replaceChildren(el('span', {}, text), button('Dismiss', () => { notice.hidden = true; }, { class: 'notice-close' })); notice.hidden = false; }
@@ -151,7 +153,7 @@
     if (busy) return;
     issueRequest++; if (!value) closeStatusFilter(); closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
     panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
-    if (value) { render(); load(); } else viewButton.focus();
+    if (value) { render(); load(null, true); } else viewButton.focus();
   }
   async function loadPagePins(statusFilter) {
     const result = [];
@@ -165,7 +167,7 @@
       if (result.length >= data.total || !data.issues.length) return result;
     }
   }
-  async function load(focus = null) {
+  async function load(focus = null, preserveOrder = false) {
     clearTimeout(searchTimer);
     const ticket = ++requestNumber;
     const params = new URLSearchParams({ page: String(listPage), order: sort });
@@ -173,8 +175,11 @@
     if (typeof focus === 'string') params.set('focus', focus);
     params.set('status', filter.join(',') || 'none');
     try {
-      const [data, currentPins] = await Promise.all([(async () => (await api('issues?' + params)).json())(), loadPagePins(filter)]); if (ticket !== requestNumber) return;
-      pageIssues = currentPins; issues = data.issues; total = data.total; listPage = data.page; saveView();
+      const retained = preserveOrder && keepListOrder;
+      const [data, currentPins] = await Promise.all([retained ? null : (async () => (await api('issues?' + params)).json())(), loadPagePins(filter)]); if (ticket !== requestNumber) return;
+      pageIssues = currentPins;
+      if (data) { issues = data.issues; total = data.total; listPage = data.page; keepListOrder = false; }
+      saveView();
       if (open && !draft) render(); updateNavigation(); drawPins(); positionDraft();
     } catch (error) { if (ticket === requestNumber) message(error.message); }
   }
@@ -295,12 +300,12 @@
       const issue = await (await api('issues/' + id)).json();
       if (ticket !== issueRequest) return;
       if (issue.path !== pagePath) { saveView(); location.assign(c.home + issue.path + '#feedbackpress=' + issue.id); return; }
-      closeDraft(); cancelPick(); selected = issue; if (scroll) open = true; panel.hidden = !open || innerWidth < 760; viewButton.setAttribute('aria-expanded', String(open)); render(); renderIssue();
+      closeDraft(); cancelPick(); selected = issue; issues = issues.map(existing => existing.id === issue.id ? issue : existing); if (scroll) open = true; panel.hidden = !open || innerWidth < 760; viewButton.setAttribute('aria-expanded', String(open)); render(); renderIssue();
       if (scroll && issue.target.selector) {
         locate(issue);
         if (document.readyState !== 'complete') addEventListener('load', () => { if (selected?.id === issue.id && open) locate(issue); }, { once: true });
       }
-      await load(scroll ? issue.id : null); positionDraft();
+      await load(scroll ? issue.id : null, true); positionDraft();
       if (scroll && !panel.hidden && selected?.id === issue.id) panel.querySelector(`[data-issue="${issue.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
     }
     catch (error) { if (ticket === issueRequest) message(error.message); }
@@ -429,19 +434,28 @@
     try { await work(); return true; } catch (error) { if (session === uiSession) message(error.message); return false; } finally { busy = false; form.removeAttribute('aria-busy'); root.querySelectorAll('[data-fp-busy-disabled]').forEach(control => { control.disabled = false; control.removeAttribute('data-fp-busy-disabled'); }); }
   }
   async function setStatus(issue, status, control) {
+    if (selected?.id === issue.id) issue = selected;
     const session = uiSession;
+    const updateInPlace = updated => {
+      keepListOrder = true;
+      issues = issues.map(existing => existing.id === updated.id ? updated : existing);
+      pageIssues = pageIssues.map(existing => existing.id === updated.id ? updated : existing);
+      if (selected?.id === updated.id) { selected = updated; if (!issuePopup.hidden) renderIssue(); }
+    };
     const saved = await perform(control, async () => {
       const updated = await (await api(`issues/${issue.id}/status`, { method: 'POST', body: { author: name, status, revision: issue.revision } })).json();
       if (session !== uiSession) return;
-      if (selected?.id === issue.id) { selected = updated; if (!issuePopup.hidden) renderIssue(); }
-      await load();
+      updateInPlace(updated);
+      if (open) render(); updateNavigation(); drawPins();
+      await load(null, true);
     });
     if (!saved && session === uiSession) {
       try {
         const current = await (await api('issues/' + issue.id)).json();
         if (session !== uiSession) return;
-        if (selected?.id === current.id) { selected = current; if (!issuePopup.hidden) renderIssue(); }
-        await load();
+        updateInPlace(current);
+        if (open) render(); updateNavigation(); drawPins();
+        await load(null, true);
       } catch (_) { /* Keep the existing view when the connection is unavailable. */ }
     }
   }
@@ -536,7 +550,10 @@
       const issue = await (await api('issues', { method: 'POST', body: { author: name, body: data.get('body'), path: pagePath, target, viewport: `${innerWidth} × ${innerHeight}` } })).json();
       requestNumber++;
       const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-      if (filter.includes(issue.status) && terms.every(term => issue.body.toLowerCase().includes(term))) pageIssues = [...pageIssues.filter(existing => existing.id !== issue.id), issue];
+      if (filter.includes(issue.status) && terms.every(term => issue.body.toLowerCase().includes(term))) {
+        pageIssues = [...pageIssues.filter(existing => existing.id !== issue.id), issue];
+        if (keepListOrder && !issues.some(existing => existing.id === issue.id)) { issues.push(issue); total++; }
+      }
       if (session === uiSession) draftPin.hidden = true;
       drawPins();
       const errors = [];
@@ -544,7 +561,7 @@
       if (image) { try { await upload(issue.id, image, true); } catch (error) { errors.push(error.message); } } else errors.push('Automatic screenshot was unavailable. You can attach one manually.');
       for (const file of files) { try { await upload(issue.id, file); } catch (error) { errors.push(error.message); } }
       if (session !== uiSession) return;
-      closeDraft(); await load();
+      closeDraft(); await load(null, true);
       if (session !== uiSession) return;
       picking = true; drawPins();
       message((errors.length ? 'Feedback saved. ' + errors.join(' ') + ' ' : 'Feedback saved. ') + 'Click to drop another pin. Press Escape to exit.'); launcher.focus();
@@ -594,7 +611,7 @@
     closeStatusFilter(); uiSession++; issueRequest++; openingIssue = 0;
     selected = null; open = false; cancelPick(); closeDraft(); clearAttachments();
     identity.hidden = true; panel.hidden = true; issuePopup.hidden = true; notice.hidden = true;
-    viewButton.setAttribute('aria-expanded', 'false'); drawPins(); launcher.focus();
+    viewButton.setAttribute('aria-expanded', 'false'); drawPins(); launcher.focus(); hideTooltip();
   }
   window.addEventListener('keydown', event => {
     if (event.isComposing) return;
@@ -654,7 +671,7 @@
     visible.filter(i => i.path === pagePath && i.target.selector).forEach(issue => {
       const target = targetFor(issue); if (!target) return;
       const rect = target.getBoundingClientRect(); if (!rect.width || !rect.height) return;
-      const pin = button(String(issue.number), () => withIdentity(() => showIssue(issue.id)), { class: 'pin ' + issue.status + (selected?.id === issue.id ? ' is-selected' : ''), 'aria-label': `Issue ${issue.number}, ${labels[issue.status]}: ${issue.body.slice(0, 90)}` }); pin.style.left = `${rect.left + rect.width * issue.target.x}px`; pin.style.top = `${rect.top + rect.height * issue.target.y}px`; pins.append(pin);
+      const pin = button(String(issue.number), () => withIdentity(() => showIssue(issue.id)), { class: 'pin ' + (String(issue.number).length > 4 ? 'is-wide ' : '') + issue.status + (selected?.id === issue.id ? ' is-selected' : ''), 'aria-label': `Issue ${issue.number}, ${labels[issue.status]}: ${issue.body.slice(0, 90)}` }); pin.style.left = `${rect.left + rect.width * issue.target.x}px`; pin.style.top = `${rect.top + rect.height * issue.target.y}px`; pins.append(pin);
     });
   }
   let frame = null;
@@ -670,5 +687,51 @@
   const id = location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1];
   if (id) withIdentity(() => showIssue(id)); else if (new URLSearchParams(location.search).get('feedbackpress') === 'open') withIdentity(() => toggle(true));
   if (name && !c.userName) remember(name);
+  let syncTimer = null, syncBusy = false, syncAttempt = 0, lastActivity = Date.now(), syncCursor = c.cursor || 0, deferredIssueRender = false;
+  function activity() {
+    if (!c.activitySync) return;
+    lastActivity = Date.now();
+    if (!syncTimer && !syncBusy) syncActivity();
+  }
+  async function syncActivity() {
+    clearTimeout(syncTimer); syncTimer = null;
+    if (syncBusy || document.hidden || Date.now() - lastActivity > 120000) return;
+    const wait = 60000 - (Date.now() - syncAttempt);
+    if (wait > 0) { syncTimer = setTimeout(syncActivity, wait + 50); return; }
+    syncBusy = true; syncAttempt = Date.now(); const writeVersion = localWriteVersion;
+    try {
+      const data = await (await api('sync/activity', { method: 'POST', body: { since: syncCursor } })).json();
+      if (c.network && data.network !== c.network) { message('The feedback network changed. Reload this page to continue.'); return; }
+      if (Array.isArray(data.issues) && writeVersion === localWriteVersion) {
+        const byId = new Map(data.issues.map(issue => [issue.id, issue]));
+        const matches = issue => filter.includes(issue.status) && search.trim().split(/\s+/).filter(Boolean).every(term => [issue.body, ...issue.activity.filter(event => event.kind === 'reply').map(event => event.payload.body)].join('\n').toLocaleLowerCase().includes(term.toLocaleLowerCase()));
+        const visible = new Set(issues.map(issue => issue.id));
+        // Keep each visible row in place, including status changes received from another site.
+        issues = issues.filter(issue => byId.has(issue.id)).map(issue => byId.get(issue.id));
+        for (const id of data.new_issues || []) { const issue = byId.get(id); if (issue && !visible.has(id) && matches(issue)) { issues.push(issue); total++; } }
+        keepListOrder = true;
+        pageIssues = data.issues.filter(issue => issue.path === pagePath && matches(issue));
+        const editing = root.activeElement?.matches('input, textarea, select, [contenteditable]') || draft || busy;
+        if (selected && byId.has(selected.id)) { selected = byId.get(selected.id); deferredIssueRender = Boolean(editing); if (!editing && !issuePopup.hidden) renderIssue(); }
+        if (!editing) {
+          if (open) render();
+          updateNavigation();
+        }
+        drawPins(); syncCursor = data.cursor;
+      }
+    } catch (_) { /* Background connection details remain in the bounded server-side sync log. */ }
+    finally {
+      syncBusy = false;
+      if (!document.hidden && Date.now() - lastActivity <= 120000) syncTimer = setTimeout(syncActivity, 60050);
+    }
+  }
+  root.addEventListener('focusout', () => { setTimeout(() => {
+    if (deferredIssueRender && !busy && !draft && !root.activeElement?.matches('input, textarea, select, [contenteditable]')) { deferredIssueRender = false; if (selected && !issuePopup.hidden) renderIssue(); if (open) render(); }
+  }, 0); });
+  root.addEventListener('pointerdown', activity, { passive: true });
+  root.addEventListener('keydown', activity);
+  window.addEventListener('keydown', event => { if (['c', 'v'].includes(event.key.toLowerCase()) && !event.composedPath().some(node => node instanceof Element && (node.matches('input, textarea, select') || node.isContentEditable))) activity(); });
+  document.addEventListener('visibilitychange', () => { clearTimeout(syncTimer); syncTimer = null; if (!document.hidden) activity(); });
+  if (c.activitySync) syncActivity();
   load();
 })();

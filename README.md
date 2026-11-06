@@ -5,7 +5,7 @@ Self-hosted visual feedback for WordPress websites.
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.
 - Track To do, Doing, Review, and Done statuses.
-- Search feedback, sync environments, and work through a REST API.
+- Search feedback, connect site networks, and work through a REST API.
 
 ## Get started
 
