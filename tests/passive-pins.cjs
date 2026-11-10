@@ -42,7 +42,7 @@ const path = require('node:path');
       }, expected);
       const begin = () => page.getByRole('button', { name: 'Leave feedback', exact: true }).click();
       let drops = 0;
-      const submit = async body => { await page.mouse.click(220, 250 + 30 * drops++); await composer.waitFor(); await composer.getByRole('textbox', { name: 'What needs to change?', exact: true }).fill(body); await composer.getByRole('button', { name: 'Submit feedback', exact: true }).click(); };
+      const submit = async body => { await page.mouse.click(220, 250 + 30 * drops++); await composer.waitFor(); await composer.getByRole('textbox', { name: 'Issue title', exact: true }).fill('Test issue title'); await composer.getByRole('textbox', { name: 'What needs to change?', exact: true }).fill(body); await composer.getByRole('button', { name: 'Submit feedback', exact: true }).click(); };
       const finished = () => page.waitForFunction(() => { const r = document.querySelector('#feedbackpress-root').shadowRoot; return r.querySelector('.composer:not(.issue-popup)').hidden && !r.querySelector('.launcher button').disabled; });
       return { ctx, page, errors, host, panel, composer, pins, begin, submit, finished, items, releaseLists: () => releaseLists(), releaseCreate: () => releaseCreate(), holdUpload: () => { uploadGate = new Promise(resolve => releaseUpload = resolve); }, releaseUpload: () => releaseUpload(), failLists: value => failLists = value };
     }

@@ -6,6 +6,7 @@ use FeedbackPress\Sync;
 function fp_check($ok, $message) { if (!$ok) throw new RuntimeException($message); echo "PASS $message\n"; }
 $ids = []; $original = FeedbackPress\settings();
 function fp_request($method, $path, $data = [], $key = true) {
+    if (isset($data['author']) && !isset($data['author_email'])) $data['author_email'] = 'integration@example.test';
     $r = new WP_REST_Request($method, '/feedbackpress/v1/' . $path);
     if ($key) $r->set_header('X-FeedbackPress-Key', FeedbackPress\settings()['secret']);
     foreach ($data as $k => $v) $r->set_param($k, $v);

@@ -43,17 +43,42 @@ final class Store {
         $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', 'fp_numbers_' . md5(DB_NAME . self::table())));
     }
     private static function next_number(): string {
-        $prefix = Network::self()['prefix'] ?? '';
-        $key = 'feedbackpress_number_' . md5(self::project() . $prefix);
+        $key = 'feedbackpress_number_' . md5(self::project());
         $last = (int) get_option($key, 0);
         // Include synced numbers so a copied or restored counter cannot reuse an existing reference.
         foreach (self::events() as $event) {
             if (!in_array($event['kind'], ['issue', 'number'], true)) continue;
             $number = (string) ($event['payload']['number'] ?? '');
-            if (preg_match('/^' . preg_quote($prefix, '/') . '([1-9][0-9]*)$/D', $number, $match)) $last = max($last, (int) $match[1]);
+            if (self::numeric_number($number)) $last = max($last, (int) $number);
         }
         update_option($key, $last + 1, false);
-        return $prefix . ($last + 1);
+        return (string) ($last + 1);
+    }
+    public static function numeric_number($number): bool { return is_string($number) && (bool) preg_match('/^[1-9][0-9]{0,9}$/D', $number); }
+    /** UUIDs identify issues; these monotonic numeric labels converge after offline collisions. */
+    public static function normalize_numbers(): int {
+        self::number_lock();
+        try {
+            $groups = []; $assigned = []; $used = []; $active = []; $pending = [];
+            foreach (self::events() as $event) {
+                $groups[$event['issue_id']][] = $event;
+                if (in_array($event['kind'], ['issue', 'number'], true) && self::numeric_number($event['payload']['number'] ?? null)) $assigned[$event['issue_id']] = true;
+            }
+            ksort($groups);
+            foreach ($groups as $id => $events) {
+                $deleted = in_array('delete', array_column($events, 'kind'), true);
+                $issue = self::reduce(array_values(array_filter($events, fn($e) => $e['kind'] !== 'delete')));
+                if (!$issue) continue;
+                if ($deleted) { if (isset($assigned[$id])) $used[$issue['number']] = true; }
+                else $active[$id] = $issue;
+            }
+            foreach ($active as $id => $issue) {
+                if (!isset($assigned[$id]) || isset($used[$issue['number']])) $pending[] = $id;
+                else $used[$issue['number']] = true;
+            }
+            foreach ($pending as $id) self::append($id, 'number', ['number' => self::next_number()]);
+            return count($pending);
+        } finally { self::number_unlock(); }
     }
     public static function insert(array $e, ?string $network = null): bool {
         global $wpdb;
@@ -78,16 +103,39 @@ final class Store {
         foreach ($rows as &$r) { $r['seq'] = (int) $r['seq']; $r['payload'] = json_decode(str_starts_with($r['payload'], 'fp1:') ? base64_decode(substr($r['payload'], 4)) : $r['payload'], true); }
         return $rows;
     }
+    public static function title(string $body): string {
+        $text = trim(preg_replace('/\s+/u', ' ', $body));
+        if (preg_match('/^.{0,120}$/usD', $text)) return $text ?: 'Untitled issue';
+        preg_match('/^.{0,119}/us', $text, $match);
+        return rtrim($match[0]) . '…';
+    }
+    private static function edited(string $comment, string $base, array $payload, array $events): array {
+        $versions = [$base => ['body' => $payload['body'], 'title' => $payload['title'] ?? null, 'edited_at' => null]]; $parents = [];
+        foreach ($events as $event) if ($event['kind'] === 'edit' && $event['payload']['comment_id'] === $comment) {
+            $p = $event['payload'];
+            $versions[$event['id']] = ['body' => $p['body'], 'title' => $p['title'] ?? ($payload['title'] ?? null), 'edited_at' => $event['created_at']];
+            foreach ($p['parents'] as $parent) $parents[$parent] = true;
+        }
+        $heads = array_diff_key($versions, $parents); ksort($heads); $version = reset($heads);
+        $payload['body'] = $version['body'];
+        if ($version['title'] !== null) $payload['title'] = $version['title'];
+        return $payload + ['edit_heads' => array_keys($heads), 'edit_revision' => hash('sha256', implode(',', array_keys($heads))), 'edit_conflict' => count($heads) > 1, 'edited_at' => $version['edited_at']];
+    }
     public static function reduce(array $events): ?array {
-        $issue = null; $number = null; $statuses = []; $referenced = []; $files = []; $expired = []; $deleted = false; $updated = '';
+        $issue = null; $number = null; $statuses = []; $referenced = []; $files = []; $expired = []; $deleted = false; $updated = ''; $authors = []; $authorParents = []; $targets = []; $targetParents = []; $rootId = '';
         foreach ($events as $e) {
             $p = $e['payload'];
-            if (in_array($e['kind'], ['issue', 'reply', 'status', 'file'], true)) $updated = max($updated, $e['created_at']);
+            if (in_array($e['kind'], ['issue', 'reply', 'status', 'file', 'author', 'target', 'edit'], true)) $updated = max($updated, $e['created_at']);
             if ($e['kind'] === 'issue') {
+                $rootId = $e['id'];
+                $targets[$e['id']] = $p['target'] ?? [];
+                $authors[$e['id']] = $p;
                 $issue = array_merge($p, ['id' => $e['issue_id'], 'created_at' => $e['created_at'], 'environment' => $e['environment']]);
-                $statuses[$e['id']] = ['status' => 'todo', 'author' => $p['author'], 'environment' => $e['environment'], 'created_at' => $e['created_at']];
+                $statuses[$e['id']] = ['status' => $p['status'] ?? 'todo', 'author' => $p['author'], 'environment' => $e['environment'], 'created_at' => $e['created_at']];
             }
-            if ($e['kind'] === 'number') $number = $p['number'];
+            if ($e['kind'] === 'target') { $targets[$e['id']] = $p['target']; foreach ($p['parents'] as $parent) $targetParents[$parent] = true; }
+            if ($e['kind'] === 'author') { $authors[$e['id']] = $p; foreach ($p['parents'] as $parent) $authorParents[$parent] = true; }
+            if ($e['kind'] === 'number' && self::numeric_number($p['number'] ?? null)) $number = max($number ?? 0, (int) $p['number']);
             if ($e['kind'] === 'status') {
                 $statuses[$e['id']] = ['status' => $p['status'], 'author' => $p['author'], 'environment' => $e['environment'], 'created_at' => $e['created_at']];
                 foreach ($p['parents'] as $parent) $referenced[$parent] = true;
@@ -97,7 +145,23 @@ final class Store {
             if ($e['kind'] === 'delete') $deleted = true;
         }
         if (!$issue || $deleted) return null;
-        $issue['number'] = $issue['number'] ?? $number ?? substr($issue['id'], 0, 8);
+        $issue = self::edited($issue['id'], $rootId, $issue, $events);
+        $targetHeads = array_diff_key($targets, $targetParents); ksort($targetHeads);
+        $issue['target'] = reset($targetHeads);
+        $issue['target_heads'] = array_keys($targetHeads);
+        $issue['target_revision'] = hash('sha256', implode(',', $issue['target_heads']));
+        $issue['target_conflict'] = count($targetHeads) > 1;
+        $authorHeads = array_diff_key($authors, $authorParents); ksort($authorHeads);
+        $person = reset($authorHeads);
+        $issue['author_heads'] = array_keys($authorHeads);
+        $issue['author_revision'] = hash('sha256', implode(',', $issue['author_heads']));
+        $issue['author_conflict'] = count($authorHeads) > 1;
+        $issue['author'] = class_exists(Identity::class) ? Identity::name($person) : $person['author'];
+        $issue['author_id'] = class_exists(Identity::class) ? Identity::payload_id($person) : ($person['author_id'] ?? null);
+        $issue['title_generated'] = !isset($issue['title']);
+        $issue['title'] = $issue['title'] ?? self::title($issue['body']);
+        if (self::numeric_number($issue['number'] ?? null)) $number = max($number ?? 0, (int) $issue['number']);
+        $issue['number'] = $number !== null ? (string) $number : ($issue['number'] ?? substr($issue['id'], 0, 8));
         $heads = array_diff_key($statuses, $referenced); ksort($heads);
         $issue['heads'] = array_keys($heads);
         $issue['revision'] = hash('sha256', implode(',', $issue['heads']));
@@ -115,6 +179,10 @@ final class Store {
             $issue['files'][] = $f;
         }
         $issue['activity'] = array_values(array_filter($events, fn($e) => in_array($e['kind'], ['reply', 'status'], true)));
+        foreach ($issue['activity'] as &$activity) {
+            if ($activity['kind'] === 'reply') $activity['payload'] = self::edited($activity['id'], $activity['id'], $activity['payload'], $events);
+            if (class_exists(Identity::class)) { $activity['payload']['author_id'] = Identity::payload_id($activity['payload']); $activity['payload']['author'] = Identity::name($activity['payload']); }
+        }
         return $issue;
     }
     public static function issue(string $id): ?array { return self::reduce(self::events($id)); }

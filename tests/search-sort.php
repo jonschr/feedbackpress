@@ -37,6 +37,9 @@ $events[] = event(24, 3, 'expire', ['file_id' => uid(23)], '09');
 $events[] = event(25, 3, 'number', ['number' => '3'], '10');
 // Stub only the table read; listing and reduction are the production implementation.
 $wpdb->rows = array_map(fn($e) => array_merge($e, ['seq' => 1, 'payload' => json_encode($e['payload'])]), array_reverse($events));
+$titleFixture=$events[0];$titleFixture['payload']['title']='Unique title phrase';foreach ($wpdb->rows as &$row) if ($row['id'] === $titleFixture['id']) $row['payload'] = json_encode($titleFixture['payload']); unset($row);
+check(numbers(['search'=>'Unique title phrase','status'=>'todo'])===['1'],'Full-text search includes issue titles');
+$wpdb->rows=array_map(fn($e)=>array_merge($e,['seq'=>1,'payload'=>json_encode($e['payload'])]),array_reverse($events));
 check(numbers(['search' => 'HERO', 'status' => 'todo,review']) === ['1'], 'Search intersects the selected statuses');
 check(numbers(['search' => 'hero', 'status' => 'done']) === ['2'], 'Reply-only matches surface completed issues when selected');
 check(numbers(['search' => 'heading café']) === ['1'], 'All search terms match across issue and replies, case-insensitively with Unicode');

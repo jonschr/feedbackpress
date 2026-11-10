@@ -96,6 +96,91 @@ final class Network {
         if (!$row || ($local['network'] ?? '') !== $view['id'] || ($local['url'] ?? '') !== self::home() || $row['url'] !== self::home() || !hash_equals($row['token_hash'], hash('sha256', $local['token'] ?? ''))) return null;
         return $row;
     }
+    private static function credential(array $identity): bool {
+        if (!Store::uuid($identity['member'] ?? null) || !Store::uuid($identity['network'] ?? null) || !is_string($identity['token'] ?? null) || !preg_match('/^[a-f0-9]{64}$/D', $identity['token'])) return false;
+        $view = self::view(); $row = $view['peers'][$identity['member'] ?? ''] ?? null;
+        return $row && $identity['network'] === $view['id'] && hash_equals($row['token_hash'], hash('sha256', $identity['token']));
+    }
+    private static function removed(string $url, string $member = ''): bool {
+        $data = self::data(); $view = self::view($data);
+        $removed = [];
+        foreach ($data['events'] as $event) if ($event['kind'] === 'peer' && $event['value'] === null && in_array($event['id'], $view['heads']['peer:' . $event['key']] ?? [], true)) $removed[$event['key']] = true;
+        if (isset($removed[$member])) return true;
+        foreach ($view['peers'] as $peer) if ($peer['url'] === $url) return false;
+        foreach ($data['events'] as $event) {
+            if ($event['kind'] === 'peer' && ($event['value']['url'] ?? '') === $url && isset($removed[$event['key']])) return true;
+        }
+        return false;
+    }
+    /** A database copy keeps its network, but never impersonates the source URL. */
+    public static function identify_copy(): void {
+        $local = self::local(); $home = self::home();
+        if (($local['url'] ?? '') === $home || !self::credential($local) || self::removed($home)) return;
+        self::locked('identity', function () use ($home) {
+            $local = self::local();
+            if (($local['url'] ?? '') === $home || !self::credential($local) || self::removed($home)) return;
+            $data = self::data(); $peers = self::view($data)['peers']; $row = null;
+            foreach ($peers as $peer) if ($peer['url'] === $home) $row = $peer;
+            if (!$row && count($peers) >= 50) throw new \RuntimeException('The network already has 50 sites.');
+            $member = $row['id'] ?? wp_generate_uuid4(); $token = bin2hex(random_bytes(32));
+            $row = self::row(array_merge($row ?? [], ['id' => $member, 'url' => $home, 'type' => $row['type'] ?? (wp_parse_url($home, PHP_URL_SCHEME) === 'http' ? 'local' : self::suggested_type($home)), 'label' => $row['label'] ?? '', 'token_hash' => hash('sha256', $token), 'prefix' => $row['prefix'] ?? strtoupper(substr($member, 0, 8)) . '-']));
+            self::change($data, 'peer', $member, $row); self::persist($data);
+            update_option(self::LOCAL, self::pack(['network' => $data['id'], 'member' => $member, 'token' => $token, 'url' => $home, 'copy' => ['network' => $data['id'], 'member' => $local['member'], 'token' => $local['token']], 'copy_pending' => true]), false);
+            delete_option('feedbackpress_sync_lock');
+            delete_option('feedbackpress_sync_started_' . hash('sha256', $home));
+            delete_option('feedbackpress_peer_cooldowns');
+            Log::add(['operation' => 'identify_copy', 'url' => $home]);
+        });
+    }
+    /** Only an unfinished copy may reconcile its own credential after meeting newer directory history. */
+    private static function restore_copy(): void {
+        $local = self::local();
+        if (empty($local['copy_pending']) || ($local['url'] ?? '') !== self::home() || !self::credential($local['copy'] ?? []) || self::removed(self::home(), $local['member'])) return;
+        $data = self::data(); $view = self::view($data); $row = null; $changed = false;
+        foreach ($data['events'] as $event) if ($event['kind'] === 'peer' && $event['key'] === $local['member'] && ($event['value']['url'] ?? '') === self::home() && in_array($event['id'], $view['heads']['peer:' . $local['member']] ?? [], true)) {
+            if (!$row || $event['value']['token_hash'] !== hash('sha256', $local['token'])) $row = $event['value'];
+        }
+        if (!$row) return;
+        foreach ($view['peers'] as $peer) if ($peer['url'] === self::home() && $peer['id'] !== $local['member']) {
+            $row = array_merge($peer, ['id' => $local['member']]);
+            self::change($data, 'peer', $peer['id'], null); $changed = true;
+        }
+        $row['token_hash'] = hash('sha256', $local['token']);
+        if (($view['peers'][$local['member']] ?? null) !== $row) { self::change($data, 'peer', $row['id'], $row); $changed = true; }
+        if ($changed) self::persist($data);
+    }
+    public static function copy_claim(\WP_REST_Request $r): ?array {
+        if (!self::self() || strlen($r->get_body()) > 1500000) return null;
+        $copy = $r->get_param('copy');
+        if (!is_array($copy) || !self::credential($copy) || ($copy['network'] ?? '') !== $r->get_header('x-feedbackpress-network') || !Store::uuid($r->get_header('x-feedbackpress-member')) || !preg_match('/^[a-f0-9]{64}$/D', (string) $r->get_header('x-feedbackpress-token'))) return null;
+        try { $url = self::url($copy['url'] ?? '', 'local'); } catch (\Throwable $e) { return null; }
+        $member = $r->get_header('x-feedbackpress-member'); $existing = self::view()['peers'][$member] ?? null;
+        if ($url === self::home() || $member === $copy['member'] || ($existing && $existing['url'] !== $url) || self::removed($url, $member)) return null;
+        return array_merge($copy, ['url' => $url]);
+    }
+    public static function exchange_permission(\WP_REST_Request $r) {
+        $permission = self::authenticate($r);
+        return $permission === true || self::copy_claim($r) !== null ? true : $permission;
+    }
+    public static function register_copy(\WP_REST_Request $r, array $claim, array $previous): void {
+        if (!self::credential($claim) || self::removed($claim['url'], $r->get_header('x-feedbackpress-member'))) throw new \RuntimeException('The copied network membership was revoked.');
+        $incoming = self::view(['id' => $claim['network'], 'events' => $r->get_param('config')]);
+        $id = $r->get_header('x-feedbackpress-member'); $row = $incoming['peers'][$id] ?? null;
+        if (!$row || $row['url'] !== $claim['url'] || !hash_equals($row['token_hash'], hash('sha256', $r->get_header('x-feedbackpress-token')))) throw new \RuntimeException('Invalid copied site registration.');
+        // Keep the destination's saved host credentials and issue prefix when an older database is copied over it.
+        foreach ($previous['peers'] as $peer) if ($peer['url'] === $row['url']) $row = array_merge($peer, ['id' => $id, 'token_hash' => $row['token_hash']]);
+        $data = self::data(); $view = self::view($data);
+        foreach ($view['peers'] as $peer) if ($peer['url'] === $row['url'] && $peer['id'] !== $id) self::change($data, 'peer', $peer['id'], null);
+        if (($view['peers'][$id] ?? null) !== $row) self::change($data, 'peer', $id, $row);
+        self::persist($data);
+    }
+    public static function copy_synced(): void {
+        if (empty(self::local()['copy_pending'])) return;
+        self::locked('identity', function () {
+            $local = self::local();
+            if (!empty($local['copy_pending']) && self::self()) { $local['copy_pending'] = false; update_option(self::LOCAL, self::pack($local), false); }
+        });
+    }
     public static function change(array &$data, string $kind, string $key, $value): void {
         $view = self::view($data);
         $data['events'][] = ['id' => wp_generate_uuid4(), 'kind' => $kind, 'key' => $key, 'parents' => $view['heads'][$kind . ':' . $key] ?? [], 'at' => gmdate('Y-m-d\TH:i:s\Z'), 'value' => $value];
@@ -110,7 +195,7 @@ final class Network {
             if (isset($known[$event['id']]) && $known[$event['id']] !== $event) throw new \RuntimeException('Network configuration event differs from the stored event.');
             $known[$event['id']] = $event;
         }
-        $data['events'] = array_values($known); self::persist($data);
+        $data['events'] = array_values($known); self::persist($data); self::restore_copy();
     }
     public static function configure(string $name, array $rows, string $revision): void {
         $data = self::data(); $view = self::view($data);
@@ -144,6 +229,7 @@ final class Network {
     }
     public static function upgrade(): void {
         if (!self::data()) self::create('FeedbackPress network');
+        try { self::identify_copy(); } catch (\Throwable $e) { Log::add(['operation' => 'identify_copy', 'error' => 'copy_not_registered', 'reason' => substr($e->getMessage(), 0, 200)]); }
         if (get_option('feedbackpress_activity_sync_version') !== '1') {
             wp_clear_scheduled_hook('feedbackpress_tick');
             $old = get_option('feedbackpress_settings', []);
@@ -174,11 +260,11 @@ final class Network {
     public static function export(): string {
         $view = self::view(); $self = self::self();
         if (!$self) throw new \RuntimeException('This installation is not a network member.');
-        $issuer = $self; $invite = null;
+        $issuer = $self; $invite = null; $failure = null;
         if ($self['type'] === 'remote') $invite = self::issue_invite();
         else foreach ($view['peers'] as $peer) {
             if ($peer['type'] !== 'remote' || !$peer['token_hash']) continue;
-            try { $invite = Sync::request($peer, 'network/invite', []); $issuer = $peer; break; } catch (\Throwable $e) { continue; }
+            try { $invite = Sync::request($peer, 'network/invite', []); $issuer = $peer; break; } catch (\Throwable $e) { $failure = $e; continue; }
         }
         if (!$invite) {
             $local = self::local();
@@ -186,7 +272,8 @@ final class Network {
                 $pending = $local['seeds'][$peer['id']] ?? [];
                 if ($peer['type'] === 'remote' && (!$peer['token_hash'] || (isset($pending['token']) && hash_equals($peer['token_hash'], hash('sha256', $pending['token']))))) return self::provision($peer['id']);
             }
-            throw new \RuntimeException('Add and save the first remote URL, then copy its setup code onto that remote installation. To reconnect an existing remote after a database copy, use its Reconnect button.');
+            if ($failure) throw new \RuntimeException('Could not create a connection code through the connected remote sites. ' . $failure->getMessage());
+            throw new \RuntimeException('Add and save the first remote URL. A migrated copy connects automatically; for a separate installation, copy its setup code after saving.');
         }
         return self::pack(['format' => 1, 'id' => $view['id'], 'name' => $view['name'], 'bootstrap' => ['url' => $issuer['url'], 'type' => 'remote', 'basic_user' => $issuer['basic_user'], 'basic_password' => $issuer['basic_password']], 'ticket' => $invite['ticket'], 'expires' => $invite['expires']]);
     }

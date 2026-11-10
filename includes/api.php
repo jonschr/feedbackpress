@@ -49,12 +49,18 @@ final class API {
         $route = function ($path, $method, $callback, $permission) {
             register_rest_route('feedbackpress/v1', $path, ['methods' => $method, 'callback' => $callback, 'permission_callback' => $permission]);
         };
-        $route('/sync/exchange', 'POST', [Sync::class, 'exchange'], [Network::class, 'authenticate']);
+        $route('/sync/exchange', 'POST', [Sync::class, 'exchange'], [Network::class, 'exchange_permission']);
         $route('/sync/log', 'GET', function () { return Log::entries(); }, [Network::class, 'admin']);
         $route('/sync/activity', 'POST', [Sync::class, 'activity'], function ($r) { return Network::admin($r) === true ? true : self::write($r); });
         $route('/network/join', 'POST', [Network::class, 'accept_join'], '__return_true');
         $route('/network/code', 'POST', function ($r) { try { return ['code' => $r->get_param('provision') ? Network::provision((string) $r->get_param('provision')) : Network::export()]; } catch (\Throwable $e) { return self::error($e->getMessage()); } }, [Network::class, 'admin']);
         $route('/network/invite', 'POST', function () { try { return Network::issue_invite(); } catch (\Throwable $e) { return self::error($e->getMessage()); } }, function ($r) { return Network::admin($r) === true || Network::authenticate($r) === true ? true : self::error('Network administrator access required.', 403); });
+        $route('/issues/(?P<id>[a-f0-9-]{36})/target', 'POST', [self::class, 'move'], [self::class, 'write']);
+        $route('/identity', 'POST', function ($r) { try { return Identity::request($r); } catch (\InvalidArgumentException $e) { return self::error($e->getMessage()); } }, [self::class, 'write']);
+        $route('/issues/(?P<id>[a-f0-9-]{36})/comments/(?P<comment_id>[a-f0-9-]{36})', 'POST', [Comments::class, 'edit'], [self::class, 'write']);
+        $route('/authors', 'GET', fn() => Identity::people(), [self::class, 'read']);
+        $route('/authors', 'POST', [Identity::class, 'register'], [self::class, 'write']);
+        $route('/issues/(?P<id>[a-f0-9-]{36})/author', 'POST', [Identity::class, 'assign'], [self::class, 'write']);
         $route('/issues', 'GET', [self::class, 'listing'], [self::class, 'read']);
         $route('/issues', 'POST', [self::class, 'create'], [self::class, 'write']);
         $route('/issues/(?P<id>[a-f0-9-]{36})', 'GET', function ($r) { return Store::issue($r['id']) ?: self::error('Issue not found.', 404); }, [self::class, 'read']);
@@ -74,7 +80,7 @@ final class API {
         $terms = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY);
         $issues = array_filter(Store::issues(), function ($i) use ($r, $terms) {
             if (($r->get_param('path') && $i['path'] !== $r->get_param('path')) || ($r->get_param('status') && !in_array($i['status'], explode(',', $r->get_param('status')), true))) return false;
-            $text = $i['body'];
+            $text = $i['title'] . "\n" . $i['body'];
             foreach ($i['activity'] as $event) if ($event['kind'] === 'reply') $text .= "\n" . $event['payload']['body'];
             foreach ($terms as $term) if (!preg_match('/' . preg_quote($term, '/') . '/iu', $text)) return false;
             return true;
@@ -100,16 +106,33 @@ final class API {
         return is_string($r->get_param('author')) ? sanitize_text_field($r->get_param('author')) : '';
     }
     public static function create(\WP_REST_Request $r) {
-        $author = self::author($r); $body = sanitize_textarea_field(is_string($r->get_param('body')) ? $r->get_param('body') : '');
+        try { $person = Identity::request($r); } catch (\InvalidArgumentException $e) { return self::error($e->getMessage()); }
+        $author = $person['author']; $body = sanitize_textarea_field(is_string($r->get_param('body')) ? $r->get_param('body') : '');
+        $title = $r->get_param('title') === null ? Store::title($body) : (is_string($r->get_param('title')) ? sanitize_text_field($r->get_param('title')) : '');
+        if (!preg_match('/^.{1,120}$/usD', $title)) return self::error('Enter an issue title of up to 120 characters.');
         $path = is_string($r->get_param('path')) ? $r->get_param('path') : ''; $target = $r->get_param('target');
         if (!$author || strlen($author) > 120 || !$body || strlen($body) > 10000) return self::error('Enter your name and a comment (up to 10,000 characters).');
         if (!self::valid_path($path) || !is_array($target) || !is_string($target['selector'] ?? '') || !is_string($target['text'] ?? '') || !is_numeric($target['x'] ?? .5) || !is_numeric($target['y'] ?? .5)) return self::error('Invalid page or element.');
         $target = ['selector' => substr(sanitize_text_field((string) ($target['selector'] ?? '')), 0, 2000), 'text' => substr(sanitize_text_field((string) ($target['text'] ?? '')), 0, 240), 'x' => max(0, min(1, (float) ($target['x'] ?? .5))), 'y' => max(0, min(1, (float) ($target['y'] ?? .5)))];
+        $status = $r->get_param('status') ?? 'todo';
+        if (!in_array($status, self::STATUSES, true)) return self::error('Choose a valid initial status.');
         $id = wp_generate_uuid4();
-        Store::append($id, 'issue', ['author' => $author, 'body' => $body, 'path' => $path, 'target' => $target, 'context' => ['viewport' => substr(sanitize_text_field(is_string($r->get_param('viewport')) ? $r->get_param('viewport') : ''), 0, 40), 'browser' => substr(sanitize_text_field((string) $r->get_header('user-agent')), 0, 300)]]);
+        Store::append($id, 'issue', array_merge($person, ['status' => $status, 'title' => $title, 'body' => $body, 'path' => $path, 'target' => $target, 'context' => ['viewport' => substr(sanitize_text_field(is_string($r->get_param('viewport')) ? $r->get_param('viewport') : ''), 0, 40), 'browser' => substr(sanitize_text_field((string) $r->get_header('user-agent')), 0, 300)]]));
         return new \WP_REST_Response(Store::issue($id), 201);
     }
     public static function valid_path($path): bool { return is_string($path) && strlen($path) <= 2000 && str_starts_with($path, '/') && !str_starts_with($path, '//') && !preg_match('/[?#\\\\\x00-\x20]/', $path); }
+    public static function valid_target($target): bool {
+        return is_array($target) && is_string($target['selector'] ?? null) && strlen($target['selector']) > 0 && strlen($target['selector']) <= 2000 && is_string($target['text'] ?? null) && strlen($target['text']) <= 960 && is_numeric($target['x'] ?? null) && is_numeric($target['y'] ?? null) && $target['x'] >= 0 && $target['x'] <= 1 && $target['y'] >= 0 && $target['y'] <= 1;
+    }
+    public static function move(\WP_REST_Request $r) {
+        $issue = Store::issue($r['id']);
+        if (!$issue) return self::error('Issue not found.', 404);
+        if (!is_string($r->get_param('revision')) || !hash_equals($issue['target_revision'], $r->get_param('revision'))) return self::error('The pin moved elsewhere. Reopen the issue and try again.', 409);
+        $target = $r->get_param('target'); $author = self::author($r);
+        if (!self::valid_target($target) || !$author || strlen($author) > 120) return self::error('Choose a page element and identify yourself before moving the pin.');
+        Store::append($issue['id'], 'target', ['target' => array_intersect_key($target, array_flip(['selector', 'text', 'x', 'y'])), 'parents' => $issue['target_heads'], 'author' => $author]);
+        return Store::issue($issue['id']);
+    }
     public static function status(\WP_REST_Request $r) {
         $issue = Store::issue($r['id']);
         if (!$issue) return self::error('Issue not found.', 404);
@@ -120,9 +143,10 @@ final class API {
     }
     public static function reply(\WP_REST_Request $r) {
         if (!Store::issue($r['id'])) return self::error('Issue not found.', 404);
+        try { $person = Identity::request($r); } catch (\InvalidArgumentException $e) { return self::error($e->getMessage()); }
         $body = sanitize_textarea_field(is_string($r->get_param('body')) ? $r->get_param('body') : '');
-        if (!self::author($r) || strlen(self::author($r)) > 120 || !$body || strlen($body) > 10000) return self::error('Enter your name and reply (up to 10,000 characters).');
-        $event = Store::append($r['id'], 'reply', ['author' => self::author($r), 'body' => $body]);
+        if (!$person['author'] || strlen($person['author']) > 120 || !$body || strlen($body) > 10000) return self::error('Enter your name and reply (up to 10,000 characters).');
+        $event = Store::append($r['id'], 'reply', $person + ['body' => $body]);
         return array_merge(Store::issue($r['id']), ['reply_id' => $event['id']]);
     }
     public static function upload(\WP_REST_Request $r) {

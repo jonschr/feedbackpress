@@ -77,6 +77,16 @@ function site($name, $url) {
     $sites[$name] = ['url' => $url, 'options' => [], 'db' => new TestDB(), 'basic' => ''];
     select_site($name); Network::upgrade();
 }
+function copy_site($source, $destination, $url, ?array $options = null) {
+    global $sites;
+    if (!isset($sites[$destination])) site($destination, $url);
+    $sites[$destination]['options'] = $options ?? $sites[$source]['options'];
+    $sites[$destination]['db'] = new TestDB();
+    foreach ($sites[$source]['db']->get_results('SELECT * FROM test_feedbackpress_events', ARRAY_A) as $event) {
+        $sites[$destination]['db']->db->prepare('INSERT INTO test_feedbackpress_events (seq,id,issue_id,network_id,kind,payload,created_at,environment) VALUES (?,?,?,?,?,?,?,?)')->execute(array_values($event));
+    }
+    select_site($destination); Network::upgrade();
+}
 function unlock() { delete_option('feedbackpress_sync_started_' . hash('sha256', Network::home())); delete_option('feedbackpress_peer_cooldowns'); }
 function headers() { $l = Network::local(); return ['X-FeedbackPress-Network' => $l['network'], 'X-FeedbackPress-Member' => $l['member'], 'X-FeedbackPress-Token' => $l['token']]; }
 function wp_remote_request($url, $args) {
@@ -91,10 +101,11 @@ function wp_remote_request($url, $args) {
     if ($sites[$peer]['basic'] && ($args['headers']['Authorization'] ?? '') !== $sites[$peer]['basic']) return ['response' => ['code' => 401], 'headers' => [], 'body' => 'Unauthorized'];
     select_site($peer);
     try {
+        Network::upgrade();
         $params = json_decode($args['body'] ?? '{}', true); $r = new WP_REST_Request($params, $args['headers']);
         if ($path === 'network/join') $result = Network::accept_join($r);
         else {
-            $permission = Network::authenticate($r);
+            $permission = $path === 'sync/exchange' ? Network::exchange_permission($r) : Network::authenticate($r);
             if ($permission !== true) $result = $permission;
             elseif ($path === 'network/invite') $result = Network::issue_invite();
             elseif ($path === 'sync/exchange') $result = Sync::exchange($r);
@@ -102,6 +113,7 @@ function wp_remote_request($url, $args) {
             else throw new RuntimeException('Unexpected route ' . $path);
         }
         if (!empty($faults[$peer]['lost_join']) && $path === 'network/join') { unset($faults[$peer]['lost_join']); return new WP_Error('timeout', 'lost response'); }
+        if (!empty($faults[$peer]['lost_exchange']) && $path === 'sync/exchange') { unset($faults[$peer]['lost_exchange']); return new WP_Error('timeout', 'lost response'); }
         return ['response' => ['code' => $result instanceof WP_Error ? ($result->data['status'] ?? 400) : 200], 'headers' => [], 'body' => json_encode($result)];
     } finally { select_site($from); }
 }
@@ -126,14 +138,17 @@ try {
     check(Network::view()['revision'] === $revision, 'A stale in-flight exchange cannot merge another network’s configuration');
     $localMember = Network::local()['member']; $localIdentity = Network::local(); $localConfig = Network::data();
     check(count(Network::view()['peers']) === 2, 'Join imports the network directory and Basic Auth credentials');
-    $oldHome = $sites['local']['url']; $sites['local']['url'] = 'https://accidental-clone.example';
-    check(Network::self() === null && Sync::run()['state'] === 'disconnected', 'A copied database at another URL cannot sync without joining'); $sites['local']['url'] = $oldHome;
+    $faults['remote'] = ['status' => 403]; unlock(); $beforeExport = Network::view()['revision'];
+    try { Network::export(); check(false, 'A failed invitation cannot produce a code'); }
+    catch (RuntimeException $e) { check(str_contains($e->getMessage(), 'HTTP 403') && !str_contains($e->getMessage(), 'first remote URL'), 'Connection-code generation reports the actual remote error instead of asking to add an existing URL'); }
+    check(Network::view()['revision'] === $beforeExport, 'A failed copy request does not rotate connected site credentials');
+    $faults = []; unlock();
     $code2 = Network::export();
     site('production', 'https://production.example'); Network::join($code2, 'remote');
     select_site('local'); unlock(); Sync::run();
     check(count(Network::view()['peers']) === 3, 'New remote membership propagates through the bootstrap');
     $issueId = wp_generate_uuid4();
-    $issue = Store::append($issueId, 'issue', ['author' => 'Client', 'body' => 'Change the headline', 'path' => '/about/', 'target' => ['selector' => '#hero', 'text' => 'Headline', 'x' => .5, 'y' => .4], 'context' => []]);
+    $issue = Store::append($issueId, 'issue', ['author' => 'Client', 'author_id' => str_repeat('a',64), 'body' => 'Change the headline', 'path' => '/about/', 'target' => ['selector' => '#hero', 'text' => 'Headline', 'x' => .5, 'y' => .4], 'context' => []]);
     $pdf = "%PDF-1.4\n%%EOF";
     $f = Store::append($issueId, 'file', ['comment_id' => $issue['id'], 'name' => 'brief.pdf', 'mime' => 'application/pdf', 'size' => strlen($pdf), 'sha256' => hash('sha256', $pdf), 'expires_at' => time() + 3600, 'screenshot' => false]);
     check(Store::put_file($f['id'], $pdf), 'Attachment bytes are stored privately on the originating site');
@@ -144,6 +159,8 @@ try {
     $productionIssue = Store::issue($issueId); $status = Store::append($issueId, 'status', ['author' => 'Reviewer', 'status' => 'review', 'parents' => $productionIssue['heads']]);
     unlock(); Sync::run(); select_site('local'); unlock(); Sync::run();
     check(Store::issue($issueId)['status'] === 'review', 'A change on a remote reaches local on the next active exchange');
+    $current=Store::issue($issueId);Store::append($issueId,'edit',['comment_id'=>$issueId,'author'=>'Client','author_id'=>str_repeat('a',64),'title'=>'Revised headline issue','body'=>'Revised headline description','parents'=>$current['edit_heads']]);unlock();Sync::run();
+    foreach(['remote','production'] as $peerName){select_site($peerName);check(Store::issue($issueId)['body']==='Revised headline description'&&Store::issue($issueId)['title']==='Revised headline issue','Comment edits synchronize in place to '.$peerName);}select_site('local');
     unlink(Store::file_path($f['id'])); clearstatcache(); unlock(); Sync::run();
     check(is_file(Store::file_path($f['id'])), 'Missing local attachment repairs even when its event was already synchronized');
     select_site('remote'); unlink(Store::file_path($f['id'])); clearstatcache(); select_site('local'); unlock(); Sync::run(); select_site('remote');
@@ -196,9 +213,99 @@ try {
     select_site('seedlocal'); unlock(); Sync::run(); select_site('seedremote');
     check(Store::issue($seedIssue)['body'] === 'Existing local feedback', 'Starting on local preserves and synchronizes existing feedback without creating a replacement network');
     $remoteId = Network::self()['id']; select_site('seedlocal'); $copiedIdentity = Network::local();
-    select_site('seedremote'); update_option(Network::LOCAL, Network::pack($copiedIdentity)); check(Network::self() === null, 'Copying local identity onto the same remote URL disconnects it safely');
-    select_site('seedlocal'); $reconnect = Network::provision($remoteId);
-    select_site('seedremote'); Network::join($reconnect, 'remote'); check(Network::self() !== null && Store::issue($seedIssue) !== null, 'An explicit URL-bound reconnect restores a copied remote while retaining network feedback');
+    select_site('seedremote'); update_option(Network::LOCAL, Network::pack($copiedIdentity)); Network::upgrade();
+    check(Network::self() !== null && Network::self()['id'] === $remoteId, 'A copied local identity automatically binds to the existing remote URL');
+    select_site('seedlocal'); unlock(); $migrated = Sync::run();
+    check(empty(array_filter($migrated['peers'], fn($p) => isset($p['error']))), 'Local authenticates with a migrated remote before its replacement credential has propagated');
+    select_site('seedremote'); unlock(); Sync::run();
+    check(Network::self() !== null && Store::issue($seedIssue) !== null && !Network::view()['conflicts'], 'Repeated migration reconciles the destination credential without a reconnect code or feedback loss');
+    site('migrate-local', 'http://migrate.localhost');
+    $migrationNetwork = Network::data()['id']; $sourceIdentity = Network::local();
+    $migrationIssue = wp_generate_uuid4();
+    Store::append($migrationIssue, 'issue', ['author' => 'Client', 'body' => 'Copied feedback', 'path' => '/', 'target' => ['selector' => '', 'text' => '', 'x' => .5, 'y' => .5], 'context' => []]);
+    $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aT7cAAAAASUVORK5CYII=');
+    $imageEvent = Store::append($migrationIssue, 'file', ['name' => 'capture.png', 'mime' => 'image/png', 'size' => strlen($image), 'sha256' => hash('sha256', $image), 'expires_at' => time() + 3600, 'screenshot' => true]);
+    Store::put_file($imageEvent['id'], $image);
+    $requestsBeforeCopy = count($requests);
+    copy_site('migrate-local', 'migrate-stage', 'https://migrated-staging.example');
+    $stageIdentity = Network::local(); $stageRevision = Network::view()['revision'];
+    check(Network::data()['id'] === $migrationNetwork && Network::self()['url'] === 'https://migrated-staging.example' && Network::self()['type'] === 'remote' && $stageIdentity['member'] !== $sourceIdentity['member'] && $stageIdentity['token'] !== $sourceIdentity['token'], 'An unknown migrated URL stays in its network with a distinct URL-bound identity');
+    Network::upgrade();
+    check(Network::local() === $stageIdentity && Network::view()['revision'] === $stageRevision && count($requests) === $requestsBeforeCopy, 'Copy identification is idempotent and makes no unattended HTTP requests');
+    select_site('migrate-local');
+    check(Network::local() === $sourceIdentity, 'Registering a new copy leaves the original local identity intact');
+    $v = Network::view(); $rows = array_values($v['peers']); $rows[] = ['id' => wp_generate_uuid4(), 'url' => 'https://migrated-staging.example', 'type' => 'remote'];
+    Network::configure($v['name'], $rows, $v['revision']); unlock(); $result = Sync::run();
+    check(empty(array_filter($result['peers'], fn($p) => isset($p['error']))) && count(array_filter(Network::view()['peers'], fn($p) => $p['url'] === 'https://migrated-staging.example')) === 1, 'A configured remote without a known credential can be discovered after migration, without a setup code or duplicate URL: ' . json_encode($result));
+    $migrationSnapshot = $sites['migrate-local']['options'];
+    select_site('migrate-stage');
+    check(is_file(Store::file_path($imageEvent['id'])) && Network::self() !== null && !Network::view()['conflicts'], 'A database-only migrated copy receives missing screenshot bytes through normal sync');
+    copy_site('migrate-stage', 'migrate-laptop', 'http://second-laptop.localhost');
+    $laptopIdentity = Network::local(); unlock(); $result = Sync::run();
+    check(empty(array_filter($result['peers'], fn($p) => isset($p['error']))) && empty(Network::local()['copy_pending']), 'A remote-to-local database copy registers itself using the copied membership during its first active exchange');
+    select_site('migrate-stage');
+    check(isset(Network::view()['peers'][$laptopIdentity['member']]) && Store::issue($migrationIssue) !== null, 'The remote learns the additional local URL without contacting that unreachable local site');
+    select_site('migrate-local'); unlock(); Sync::run();
+    check(isset(Network::view()['peers'][$laptopIdentity['member']]), 'Another active copy retains the newer directory before the destination database is overwritten');
+    // Copy an older local directory over an already-connected destination.
+    copy_site('migrate-local', 'migrate-stage', 'https://migrated-staging.example', $migrationSnapshot);
+    select_site('migrate-local'); unlock(); $result = Sync::run();
+    check(empty(array_filter($result['peers'], fn($p) => isset($p['error']))), 'A full repeat database migration repairs stale destination credentials automatically');
+    select_site('migrate-stage');
+    check(Network::self() !== null && !Network::view()['conflicts'] && isset(Network::view()['peers'][$laptopIdentity['member']]), 'Directory events lost in a repeat migration recover from another active copy');
+    copy_site('migrate-stage', 'migrate-retry', 'http://retry-laptop.localhost');
+    $retryIdentity = Network::local(); $faults['migrate-stage']['lost_exchange'] = true;
+    unlock(); $result = Sync::run();
+    check(count(array_filter($result['peers'], fn($p) => isset($p['error']))) === 1, 'A lost registration response remains a recoverable background connection error');
+    select_site('migrate-stage'); $acceptedRevision = Network::view()['revision'];
+    select_site('migrate-retry'); Network::upgrade(); unlock(); $result = Sync::run();
+    check(empty(array_filter($result['peers'], fn($p) => isset($p['error']))) && Network::local()['member'] === $retryIdentity['member'] && Network::local()['token'] === $retryIdentity['token'], 'Retry after a lost response keeps the same copied-site identity');
+    select_site('migrate-stage');
+    check(Network::view()['revision'] === $acceptedRevision && count(array_filter(Network::view()['peers'], fn($p) => $p['url'] === $retryIdentity['url'])) === 1, 'Retrying automatic registration creates neither duplicate sites nor extra configuration versions');
+    $v = Network::view(); Network::configure($v['name'], array_values(array_filter($v['peers'], fn($p) => $p['id'] !== $laptopIdentity['member'])), $v['revision']);
+    $revokedConfig = Network::data();
+    select_site('migrate-laptop'); unlock(); $result = Sync::run();
+    check(count(array_filter($result['peers'], fn($p) => str_contains($p['error'] ?? '', '403'))) > 0, 'A revoked migrated copy cannot bypass remote authentication using its copied source credentials');
+    Network::merge($revokedConfig['events'], $revokedConfig['id']);
+    check(Network::self() === null, 'Receiving a removal disconnects a previously migrated copy');
+    Network::upgrade(); check(Network::self() === null, 'Automatic copy detection never undoes a received removal');
+    select_site('migrate-stage');
+    $denied = Network::exchange_permission(new WP_REST_Request(['copy' => array_merge($sourceIdentity, ['url' => $laptopIdentity['url']])], ['X-FeedbackPress-Network' => $migrationNetwork, 'X-FeedbackPress-Member' => $laptopIdentity['member'], 'X-FeedbackPress-Token' => $laptopIdentity['token']]));
+    check($denied instanceof WP_Error, 'Copied source credentials cannot silently re-register a revoked URL');
+    $stranger = ['X-FeedbackPress-Network' => $migrationNetwork, 'X-FeedbackPress-Member' => wp_generate_uuid4(), 'X-FeedbackPress-Token' => bin2hex(random_bytes(32))];
+    $badProof = array_merge($sourceIdentity, ['token' => bin2hex(random_bytes(32)), 'url' => 'https://not-a-copy.example']);
+    check(Network::exchange_permission(new WP_REST_Request(['copy' => $badProof], $stranger)) instanceof WP_Error && Network::exchange_permission(new WP_REST_Request([], $stranger)) instanceof WP_Error, 'A network ID or an invalid copied credential cannot authorize a new URL');
+    check(Network::exchange_permission(new WP_REST_Request(['copy' => ['member' => [], 'network' => [], 'token' => []]], $stranger)) instanceof WP_Error, 'Malformed copied credentials are denied cleanly instead of causing a server error');
+    check(!str_contains(json_encode(Log::entries()), $sourceIdentity['token']), 'Automatic registration never puts copied credentials in diagnostics');
+    copy_site('migrate-stage', 'removed-copy', $laptopIdentity['url']);
+    check(Network::self() === null && Network::data()['id'] === $migrationNetwork, 'Migrating onto a URL already removed from the directory requires intentional reconnection');
+    site('numbers-remote', 'https://numbering.example'); $numberCode = Network::export();
+    $originalNumbers = []; $note = ['author' => 'Client', 'body' => 'Numbering check', 'path' => '/', 'target' => ['selector' => '', 'text' => '', 'x' => .5, 'y' => .5], 'context' => []];
+    for ($n = 1; $n <= 3; $n++) { $id = wp_generate_uuid4(); Store::append($id, 'issue', $note); $originalNumbers[$id] = (string) $n; }
+    $codedId = wp_generate_uuid4(); $codedEvent = ['id' => wp_generate_uuid4(), 'issue_id' => $codedId, 'kind' => 'issue', 'payload' => $note + ['number' => '61F84166-1'], 'created_at' => '2026-11-10T12:00:00Z', 'environment' => 'remote'];
+    Store::insert($codedEvent); $beforeNumbering = Store::issue($codedId);
+    check(Store::normalize_numbers() === 1 && Store::issue($codedId)['number'] === '4', 'A prefixed issue becomes number 4 while existing 1, 2, and 3 are retained');
+    $afterNumbering = Store::issue($codedId); unset($beforeNumbering['number'], $afterNumbering['number']);
+    check($beforeNumbering === $afterNumbering, 'Converting an issue number preserves all content, authors, statuses, IDs, and dates');
+    $cursor = Store::cursor(); check(Store::normalize_numbers() === 0 && Store::cursor() === $cursor, 'Number conversion is idempotent');
+    site('numbers-local', 'http://numbering.localhost'); Network::join($numberCode, 'local'); unlock(); Sync::run();
+    check(Store::issue($codedId)['number'] === '4', 'Corrected numeric references propagate to another environment');
+    $localIssue = '10000000-1111-4111-8111-111111111111'; Store::append($localIssue, 'issue', $note);
+    check(Store::issue($localIssue)['number'] === '5', 'A joined environment uses the next network number instead of its member prefix');
+    select_site('numbers-remote'); $remoteIssue = '20000000-1111-4111-8111-111111111111'; Store::append($remoteIssue, 'issue', $note);
+    check(Store::issue($remoteIssue)['number'] === '5', 'Disconnected environments can initially allocate the same provisional number');
+    select_site('numbers-local'); unlock(); $result = Sync::run();
+    check(empty(array_filter($result['peers'], fn($p) => isset($p['error']))) && Store::issue($localIssue)['number'] === '5' && Store::issue($remoteIssue)['number'] === '6', 'Sync deterministically resolves an offline number collision without overwriting either issue');
+    foreach ($originalNumbers as $id => $n) check(Store::issue($id)['number'] === $n, 'Existing issue ' . $n . ' keeps its reference after synchronization');
+    select_site('numbers-remote');
+    check(Store::issue($localIssue)['number'] === '5' && Store::issue($remoteIssue)['number'] === '6', 'Both environments agree on the repaired numeric references');
+    Store::append($remoteIssue, 'delete', ['author' => 'Client']); $nextId = wp_generate_uuid4(); Store::append($nextId, 'issue', $note);
+    check(Store::issue($nextId)['number'] === '7', 'Deleted issue numbers are never reused');
+    $missingId = '12345678-1111-4111-8111-111111111111'; $missingEvent = $codedEvent; $missingEvent['id'] = wp_generate_uuid4(); $missingEvent['issue_id'] = $missingId; $missingEvent['payload'] = $note;
+    Store::insert($missingEvent); Store::normalize_numbers();
+    check(Store::issue($missingId)['number'] === '8', 'An unnumbered old issue receives the next number instead of treating its UUID fragment as a numeric reference');
+    update_option('feedbackpress_number_' . md5(Network::data()['id']), 0); $restoredId = wp_generate_uuid4(); Store::append($restoredId, 'issue', $note);
+    check(Store::issue($restoredId)['number'] === '9', 'Restoring an old counter cannot reuse synchronized or corrected numbers');
     foreach ($requests as $request) {
         check($request['args']['headers']['User-Agent'] === Sync::user_agent() && $request['args']['redirection'] === 0 && $request['args']['sslverify'], 'Transport identifies FeedbackPress and keeps TLS/redirect safeguards'); break;
     }

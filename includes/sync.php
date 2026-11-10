@@ -6,11 +6,27 @@ final class Sync {
     public static function validate($e): bool {
         if (!is_array($e) || !Store::uuid($e['id'] ?? null) || !Store::uuid($e['issue_id'] ?? null) || !in_array($e['environment'] ?? '', ['local', 'remote'], true) || !is_string($e['created_at'] ?? null) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/D', $e['created_at']) || !is_array($e['payload'] ?? null)) return false;
         $p = $e['payload'];
+        if (isset($p['title']) && (!is_string($p['title']) || !preg_match('/^.{1,120}$/usD', $p['title']) || sanitize_text_field($p['title']) !== $p['title'])) return false;
+        if (isset($p['author_id']) && (!is_string($p['author_id']) || !preg_match('/^[a-f0-9]{64}$/D', $p['author_id']))) return false;
         $text = fn($s, $n) => is_string($s) && strlen($s) > 0 && strlen($s) <= $n && sanitize_textarea_field($s) === $s;
         if (isset($p['number']) && (!is_string($p['number']) || !preg_match('/^(?:[A-Z0-9]{1,12}-?)?[1-9][0-9]{0,9}$/D', $p['number']))) return false;
         switch ($e['kind'] ?? '') {
-            case 'number': return isset($p['number']);
+            case 'edit':
+                if (!Store::uuid($p['comment_id'] ?? null) || !isset($p['author_id']) || !$text($p['author'] ?? null, 120) || !$text($p['body'] ?? null, 10000) || !is_array($p['parents'] ?? null) || !count($p['parents']) || count($p['parents']) > 100 || (isset($p['title']) && $p['comment_id'] !== $e['issue_id'])) return false;
+                foreach ($p['parents'] as $parent) if (!Store::uuid($parent) || $parent === $e['id']) return false;
+                return true;
+            case 'target':
+                if (!API::valid_target($p['target'] ?? null) || !$text($p['author'] ?? null, 120) || !is_array($p['parents'] ?? null) || !count($p['parents']) || count($p['parents']) > 100) return false;
+                foreach ($p['parents'] as $parent) if (!Store::uuid($parent) || $parent === $e['id']) return false;
+                return true;
+            case 'person': return $text($p['author'] ?? null, 120) && isset($p['author_id']);
+            case 'author':
+                if (!$text($p['author'] ?? null, 120) || !isset($p['author_id']) || !is_array($p['parents'] ?? null) || !count($p['parents']) || count($p['parents']) > 100) return false;
+                foreach ($p['parents'] as $parent) if (!Store::uuid($parent) || $parent === $e['id']) return false;
+                return true;
+            case 'number': return Store::numeric_number($p['number'] ?? null);
             case 'issue':
+                if (isset($p['status']) && !in_array($p['status'], API::STATUSES, true)) return false;
                 return $text($p['author'] ?? null, 120) && $text($p['body'] ?? null, 10000) && API::valid_path($p['path'] ?? null) && is_array($p['context'] ?? null) && is_array($p['target'] ?? null) && is_string($p['target']['selector'] ?? null) && strlen($p['target']['selector']) <= 2000 && is_string($p['target']['text'] ?? null) && strlen($p['target']['text']) <= 240 && is_numeric($p['target']['x'] ?? null) && is_numeric($p['target']['y'] ?? null);
             case 'reply': return $text($p['author'] ?? null, 120) && $text($p['body'] ?? null, 10000);
             case 'status':
@@ -30,14 +46,21 @@ final class Sync {
             if (!is_array($known) || count($known) > 20000 || !is_array($events) || count($events) > 50 || !is_array($config)) return API::error('Invalid exchange.');
             foreach ($known as $id) if (!Store::uuid($id)) return API::error('Invalid event inventory.');
             foreach ($events as $event) if (!self::validate($event)) return API::error('Invalid feedback event.');
+            $authenticated = Network::authenticate($r) === true;
+            $claim = $authenticated ? null : Network::copy_claim($r);
+            if (!$authenticated && !$claim) return API::error('Network membership is invalid or revoked.', 403);
+            $previous = Network::view();
             Network::merge($config, (string) $r->get_header('x-feedbackpress-network'));
+            if ($claim) Network::register_copy($r, $claim, $previous);
             // Recheck membership after applying a removal/configuration event.
             if (self::permission($r) !== true) return API::error('Network membership is no longer active.', 403);
             foreach ($events as $event) Store::insert($event, (string) $r->get_header('x-feedbackpress-network'));
+            Store::normalize_numbers();
             $all = Store::events(); $known = array_fill_keys($known, true);
             $missing = array_values(array_filter($all, fn($event) => !isset($known[$event['id']])));
             $files = [];
             foreach (Store::issues() as $issue) foreach ($issue['files'] as $file) if ($file['available']) $files[] = $file['id'];
+            Network::copy_synced();
             return ['network' => Network::data()['id'], 'config' => Network::data()['events'], 'ids' => array_column($all, 'id'), 'events' => array_slice($missing, 0, 50), 'more' => count($missing) > 50, 'files' => $files];
         } catch (\Throwable $e) { return API::error($e->getMessage()); }
     }
@@ -117,27 +140,32 @@ final class Sync {
             $last = (int) get_option($key, 0);
             if ($last > $stamp - 60) return ['state' => 'cooldown', 'next' => $last + 60];
             update_option($key, $stamp, false);
+            Store::normalize_numbers();
             $network = Network::data()['id']; $deadline = microtime(true) + 20; $results = [];
             foreach (Network::view()['peers'] as $id => $peer) {
-                if ($peer['type'] !== 'remote' || !$peer['token_hash'] || $peer['url'] === Network::home()) continue;
+                if ($peer['type'] !== 'remote' || $peer['url'] === Network::home()) continue;
                 if (microtime(true) >= $deadline) break;
                 try {
                     $remote = []; $sent = 0; $received = 0; $files = 0;
                     for ($round = 0; $round < 20 && microtime(true) < $deadline; $round++) {
                         if (Network::data()['id'] !== $network || !bound()) throw new \RuntimeException('Network changed during sync.');
                         $fresh = Network::view()['peers'][$id] ?? null;
-                        if (!$fresh || !$fresh['token_hash'] || $fresh['url'] !== $peer['url']) throw new \RuntimeException('Peer membership changed during sync.');
+                        if (!$fresh || $fresh['url'] !== $peer['url']) throw new \RuntimeException('Peer membership changed during sync.');
                         $peer = $fresh;
                         $all = Store::events(); $knownRemote = array_fill_keys($remote, true);
                         $outgoing = $round ? array_slice(array_values(array_filter($all, fn($event) => !isset($knownRemote[$event['id']]))), 0, 50) : [];
-                        $data = self::request($peer, 'sync/exchange', ['known' => array_column($all, 'id'), 'events' => $outgoing, 'config' => Network::data()['events']]);
+                        $local = Network::local();
+                        $copy = isset($local['copy']) ? $local['copy'] + ['url' => $local['url']] : null;
+                        $data = self::request($peer, 'sync/exchange', ['known' => array_column($all, 'id'), 'events' => $outgoing, 'config' => Network::data()['events'], 'copy' => $copy]);
                         if (($data['network'] ?? '') !== $network || !is_array($data['config'] ?? null) || !is_array($data['ids'] ?? null) || !is_array($data['events'] ?? null) || count($data['events']) > 50 || !is_array($data['files'] ?? null)) throw new \RuntimeException('Peer returned an invalid exchange.');
                         if (count($data['ids']) > 20000 || count($data['files']) > 20000) throw new \RuntimeException('Peer inventory is too large.');
                         foreach (array_merge($data['ids'], $data['files']) as $uuid) if (!Store::uuid($uuid)) throw new \RuntimeException('Peer returned an invalid inventory.');
                         foreach ($data['events'] as $event) if (!self::validate($event)) throw new \RuntimeException('Peer returned invalid feedback.');
                         Network::merge($data['config'], $network);
                         if (Network::data()['id'] !== $network || !bound()) throw new \RuntimeException('This installation was removed or its identity changed.');
+                        foreach (Network::view()['peers'] as $member) if ($member['url'] === $peer['url']) $id = $member['id'];
                         foreach ($data['events'] as $event) { Store::insert($event, $network); $received++; }
+                        Store::normalize_numbers();
                         $sent += count($outgoing); $remote = $data['ids'];
                         $remaining = array_diff(array_column(Store::events(), 'id'), $remote);
                         if (!$remaining && empty($data['more'])) break;
@@ -157,6 +185,7 @@ final class Sync {
                         }
                     }
                     $results[$id] = ['sent' => $sent, 'received' => $received, 'files' => $files];
+                    Network::copy_synced();
                     Log::add(['peer' => $id, 'operation' => 'complete', 'events' => $sent + $received, 'files' => $files]);
                 } catch (\Throwable $e) { $results[$id] = ['error' => $e->getMessage()]; Log::add(['peer' => $id, 'url' => $peer['url'], 'operation' => 'sync', 'error' => 'exchange_incomplete', 'reason' => substr($e->getMessage(), 0, 200)]); }
             }

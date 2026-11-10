@@ -4,8 +4,10 @@
   if (!c) return;
   const request = async (path, body = {}) => {
     const response = await fetch(c.api + path, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': c.nonce, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Request failed.');
+    let data;
+    try { data = await response.json(); }
+    catch (_) { throw new Error('The server returned an unreadable response (HTTP ' + response.status + '). Check connection diagnostics.'); }
+    if (!response.ok) throw new Error(data?.message || 'Request failed (HTTP ' + response.status + ').');
     return data;
   };
   let rowNumber = 0;
@@ -18,14 +20,32 @@
   document.addEventListener('change', event => { if (event.target.matches('.fp-site-type')) event.target.closest('.fp-site').querySelector('.fp-basic-auth').hidden = event.target.value === 'local'; });
   document.getElementById('fp-join-code').addEventListener('input', event => { document.querySelector('.fp-join-type').hidden = !event.target.value.trim(); });
   const copyNetwork = async (button, provision) => {
-    const status = document.getElementById('fp-copy-status'); button.disabled = true;
+    const status = document.getElementById('fp-copy-status'), field = document.getElementById('fp-network-code');
+    const label = provision ? 'Copy reconnect code' : 'Copy connection code';
+    button.disabled = true; button.textContent = 'Copying…'; status.textContent = 'Preparing connection code…'; field.hidden = true; field.value = '';
     try {
-      const data = await request('network/code', provision ? { provision } : {}); const field = document.getElementById('fp-network-code'); field.value = data.code;
-      try { await navigator.clipboard.writeText(data.code); button.textContent = 'Code copied'; status.textContent = 'Paste the code in FeedbackPress on your other WordPress installation. Codes expire after 24 hours.'; }
-      catch (_) { field.hidden = false; field.focus(); field.select(); status.textContent = 'Select and copy the setup code below.'; }
-    } catch (error) { status.textContent = error.message; } finally { button.disabled = false; }
+      const code = request('network/code', provision ? { provision } : {}).then(data => {
+        if (typeof data?.code !== 'string' || !data.code.startsWith('fp1:')) throw new Error('The server did not return a valid connection code.');
+        return data.code;
+      });
+      let copied;
+      if (navigator.clipboard?.write && window.ClipboardItem) {
+        // Start the clipboard operation in the click gesture; Safari cannot start it after fetch resolves.
+        const content = code.then(text => new Blob([text], { type: 'text/plain' }));
+        content.catch(() => {});
+        try { copied = navigator.clipboard.write([new ClipboardItem({ 'text/plain': content })]).then(() => true, () => false); }
+        catch (_) { copied = Promise.resolve(false); }
+      } else {
+        copied = code.then(async text => {
+          try { await navigator.clipboard.writeText(text); return true; } catch (_) { return false; }
+        }, () => false);
+      }
+      field.value = await code;
+      if (await copied) { button.textContent = 'Code copied'; status.textContent = 'Connection code copied. Paste it in FeedbackPress on your other WordPress installation. Codes expire after 24 hours.'; }
+      else { button.textContent = label; field.hidden = false; field.focus(); field.select(); status.textContent = 'Automatic copying was blocked. The connection code is selected below; press Command+C or Ctrl+C to copy it.'; }
+    } catch (error) { button.textContent = label; status.textContent = error.message; } finally { button.disabled = false; }
   };
-  document.getElementById('fp-copy-network').addEventListener('click', event => copyNetwork(event.target));
+  document.getElementById('fp-copy-network').addEventListener('click', event => copyNetwork(event.currentTarget));
   document.querySelectorAll('.fp-provision-peer').forEach(button => button.addEventListener('click', () => copyNetwork(button, button.dataset.peer)));
   document.getElementById('fp-show-agent-key').addEventListener('click', event => { const field = document.getElementById('fp-agent-key'); field.type = field.type === 'password' ? 'text' : 'password'; event.target.textContent = field.type === 'password' ? 'Show key' : 'Hide key'; });
   let attempted = 0, lastUse = Date.now(), timer;
