@@ -43,13 +43,13 @@ const path = require('node:path');
       const begin = () => page.getByRole('button', { name: 'Leave feedback', exact: true }).click();
       let drops = 0;
       const submit = async body => { await page.mouse.click(220, 250 + 30 * drops++); await composer.waitFor(); await composer.getByRole('textbox', { name: 'Issue title', exact: true }).fill('Test issue title'); await composer.getByRole('textbox', { name: 'What needs to change?', exact: true }).fill(body); await composer.getByRole('button', { name: 'Submit feedback', exact: true }).click(); };
-      const finished = () => page.waitForFunction(() => { const r = document.querySelector('#feedbackpress-root').shadowRoot; return r.querySelector('.composer:not(.issue-popup)').hidden && !r.querySelector('.launcher button').disabled; });
+      const finished = () => page.waitForFunction(() => { const r = document.querySelector('#feedbackpress-root').shadowRoot; return r.querySelector('.composer:not(.issue-popup)').hidden && !r.querySelector('.work-item[data-state=text],.work-item[data-state=files]'); });
       return { ctx, page, errors, host, panel, composer, pins, begin, submit, finished, items, releaseLists: () => releaseLists(), releaseCreate: () => releaseCreate(), holdUpload: () => { uploadGate = new Promise(resolve => releaseUpload = resolve); }, releaseUpload: () => releaseUpload(), failLists: value => failLists = value };
     }
     const t = await setup(), { page, panel, composer } = t;
     await t.pins([1, 3]); assert.equal(await panel.isVisible(), false);
     await t.begin(); await t.pins([1, 3]);
-    t.holdUpload(); await t.submit('matching new issue'); await t.pins([1, 3, 5]); assert.equal(await composer.isVisible(), true); assert.equal(await t.host.locator('.draft-pin').isVisible(), false);
+    t.holdUpload(); await t.submit('matching new issue'); await t.pins([1, 3, 5]); assert.equal(await composer.isVisible(), false); assert.equal(await t.host.locator('.draft-pin').isVisible(), false);
     t.failLists(true); t.releaseUpload(); await t.finished(); await t.pins([1, 3, 5]); assert.equal(await panel.isVisible(), false); t.failLists(false);
     await t.submit('matching second issue'); await t.finished(); await t.pins([1, 3, 5, 6]);
     await page.keyboard.press('Escape'); await t.pins([1, 3, 5, 6]);

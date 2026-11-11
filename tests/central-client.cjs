@@ -22,8 +22,9 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  await page.getByRole('button',{name:'Leave feedback',exact:true}).click();await page.locator('#target').click();
  await page.getByRole('textbox',{name:'Issue title',exact:true}).fill('Retry without duplication');await page.getByRole('button',{name:'Submit feedback',exact:true}).click();
  await page.getByRole('status').filter({hasText:'Failed to fetch'}).waitFor();
- await page.getByRole('button',{name:'Submit feedback',exact:true}).click();
+ await page.getByRole('complementary',{name:'Background activity'}).getByRole('button',{name:'Retry',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.composer:not(.issue-popup)').hidden);
+ await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.work-item[data-state=done]'));
  assert.equal(attempts,2);await page.getByRole('button',{name:'View issues',exact:true}).click();await page.locator('.issue-row').waitFor();assert.equal(await page.locator('.issue-row').count(),1);assert.deepEqual(errors,[]);
  console.log('PASS Plain-permalink query routing and retry after a lost create acknowledgment reuse the operation ID and produce one issue.');
 }finally{await browser.close()}})().catch(error=>{console.error(error);process.exitCode=1});

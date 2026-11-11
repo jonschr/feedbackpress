@@ -28,10 +28,16 @@ wp --user=<login> feedbackpress reply <issue-uuid> --body='Shared client-facing 
 wp --user=<login> feedbackpress convert <issue-uuid> <note-uuid> --revision=<note-revision>
 ```
 
-`note` defaults to private. `reply` is explicitly shared. Private notes sync centrally but are returned only for the server-resolved logged-in WordPress email matching their owner. Guest-entered emails and browser-supplied actor headers do not grant access. Connected administrators/project credential holders are trusted to attest actors. Convert to my note preserves body, timestamp and privacy while keeping protected agent audit history.
+`note` defaults to private. `reply` and `convert` are explicitly shared. Private notes sync centrally but are returned only for the server-resolved logged-in WordPress email matching their owner. Guest-entered emails and browser-supplied actor headers do not grant access. Connected administrators/project credential holders are trusted to attest actors. Convert to shared note publishes one human comment while preserving body/timestamp and protected agent audit. REST conversion requires `publish:true`; an old private-conversion payload is rejected. Existing private human notes remain private.
 
 REST mirrors the overlay under `feedbackpress/v1`: issues, replies, status, target, comments, files, and `issues/<uuid>/notes`. Use WordPress Application Password authentication for remote agents and a UUID `Idempotency-Key` for each mutation. Retry the same payload with the same ID; fetch the current issue revision before a deliberate new change. Project/account credentials never need to be given to the agent.
 
 ## Checks
 
 `tests/central-gateway.php` runs only on a disposable `feedbackpress-qa-*` WordPress site and creates test issues. Frontend `.cjs` fixtures intercept all writes; legacy peer-storage tests have been retired. See the service repository's `npm run verify` for PostgreSQL isolation, retries, media quota/expiry, private-note ownership and export/restore checks.
+
+The current uncommitted revision also includes layered anchors, complete query-bearing page URLs, short-lived shared browser caching and persistent shared upload jobs. See UPDATE-REVIEW.md for verification, runtime status and the coordinated rollout gate.
+
+The pending revision adds Up/Down navigation through the current list, including pagination and query-bearing pages. Outside typing controls, 1 To do / 2 Doing / 3 Review / 4 Done affect the last issue used with the mouse or keyboard. Move the mouse over another row/pin to retarget; a stationary pointer or redraw cannot override keyboard navigation. Run `NODE_PATH=/tmp/feedbackpress-browser/node_modules node tests/issue-keyboard.cjs` for isolated acceptance; it sends no real requests.
+
+Cross-page review now restores a recent shared list/selection and list/thread scroll before refreshing. It skips repeated drawer animation and placeholders for a warm view, while the site still performs normal navigation. The existing scoped session cache includes a 30-second navigation handoff for visible rows (including visible Done rows), with the same 200-entry/1 MiB bound and no private content. `tests/navigation-continuity.cjs` holds API delivery until after first styled paint and checks query-page/mobile navigation, long reading pauses, exact scroll, failure/expiry and project/actor isolation. `tests/list-navigation.cjs` also models the real gateway's all-ID activity snapshots to keep old pages from being appended as new issues.

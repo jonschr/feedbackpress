@@ -240,7 +240,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
   .filters > select, .status-filter-trigger { font-size: 16px; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .panel { animation: fp-dock-in .18s cubic-bezier(.16, 1, .3, 1); }
+  .panel:not([data-continuing]) { animation: fp-dock-in .18s cubic-bezier(.16, 1, .3, 1); }
   @keyframes fp-dock-in { from { transform: translateX(16px); opacity: .65; } to { transform: translateX(0); opacity: 1; } }
 }
 
@@ -248,3 +248,16 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .private-label { font-size:11px; color:#615570; }
 .private-reply-toggle { display:flex; align-items:center; gap:6px; font-size:12px; color:#615570; padding:0; margin-inline-end:auto; }
 .private-reply-toggle input { appearance:auto; width:14px; height:14px; margin:0; }
+
+.work-panel { position: fixed; left: 20px; bottom: 82px; z-index: 2147483610; display: grid; gap: 8px; width: min(380px, calc(100vw - 40px)); max-height: min(360px, 45vh); overflow: auto; }
+.work-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--fp-line); border-radius: 6px; background: var(--fp-surface); color: var(--fp-ink); font-size: 12px; line-height: 18px; }
+.work-item > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.work-item button { padding: 3px 6px; font-size: 12px; }
+.work-indicator { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid var(--fp-line); border-top-color: var(--fp-muted); border-radius: 50%; animation: fp-working 1s linear infinite; }
+.work-item[data-state=done] .work-indicator, .work-item[data-state=error] .work-indicator { animation: none; border: 0; border-radius: 0; }
+@keyframes fp-working { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .work-indicator { animation: none; } }
+@media (max-width: 899px) { .work-panel { left: 12px; width: min(350px, calc(100vw - 24px)); } }
+.work-indicator svg { width: 14px; height: 14px; }
+.work-item:has(input[type=file]) { flex-wrap: wrap; }
+.work-item input[type=file] { flex-basis: 100%; min-width: 0; font-size: 12px; }

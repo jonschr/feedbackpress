@@ -7,7 +7,7 @@ if (defined('WP_CLI') && WP_CLI) {
         if (!is_user_logged_in()) \WP_CLI::error('Select a WordPress user with --user=<login|ID|email>.');
         $command = $args[0] ?? 'help'; $id = $args[1] ?? ''; $method = 'GET'; $body = [];
         try {
-            if ($command === 'help') { \WP_CLI::line('list | get <issue> | status <issue> --status=done --revision=N | reply <issue> --body=TEXT --revision=N | note <issue> --body=TEXT [--agent=NAME] | notes <issue> | convert <issue> <note> --revision=N | connect --file=PRIVATE_KEY_JSON [--project=UUID] | projects | project <UUID> | log\nPrivate agent notes are the default for note; reply is explicitly shared. Use --request-id=UUID to retry the same mutation safely.'); return; }
+            if ($command === 'help') { \WP_CLI::line('list | get <issue> | status <issue> --status=done --revision=N | reply <issue> --body=TEXT --revision=N | note <issue> --body=TEXT [--agent=NAME] | notes <issue> | convert <issue> <note> --revision=N | connect --file=PRIVATE_KEY_JSON [--project=UUID] | projects | project <UUID> | log\nPrivate agent notes are the default for note; reply and convert are explicitly shared. Use --request-id=UUID to retry the same mutation safely.'); return; }
             if ($command === 'connect') {
                 if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.');
                 if (empty($flags['file'])) throw new \InvalidArgumentException('Use --file with private JSON containing a license_key or account token.');
@@ -23,7 +23,7 @@ if (defined('WP_CLI') && WP_CLI) {
             elseif ($command === 'get') $path = '/issues/' . $id;
             elseif ($command === 'notes') $path = '/issues/' . $id . '/notes';
             elseif ($command === 'note') { $path = '/issues/' . $id . '/notes'; $method = 'POST'; $body = ['body' => $flags['body'] ?? '', 'agent' => $flags['agent'] ?? 'Agent', 'kind' => 'agent']; }
-            elseif ($command === 'convert') { $path = '/issues/' . $id . '/notes/' . ($args[2] ?? '') . '/convert'; $method = 'POST'; $body = ['revision' => (int) ($flags['revision'] ?? 0)]; }
+            elseif ($command === 'convert') { $path = '/issues/' . $id . '/notes/' . ($args[2] ?? '') . '/convert'; $method = 'POST'; $body = ['revision' => (int) ($flags['revision'] ?? 0), 'publish' => true]; }
             elseif (in_array($command, ['status', 'reply'], true)) {
                 if (!isset($flags['revision'])) throw new \InvalidArgumentException('Read the issue and pass its current --revision=N.');
                 $path = '/issues/' . $id . '/' . ($command === 'reply' ? 'replies' : 'status'); $method = 'POST';

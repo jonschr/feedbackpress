@@ -80,9 +80,12 @@ final class API {
         $route($notes, 'POST', fn($r) => Service::request('POST', '/issues/' . $r['id'] . '/notes', ['body' => $r->get_param('body'), 'kind' => $r->get_param('kind') ?? 'agent', 'agent' => $r->get_param('agent') ?? 'Agent'], self::key($r), true), fn($r) => self::privateWrite($r));
         $route($notes . '/(?P<note>[a-f0-9-]{36})(?P<convert>/convert)?', ['POST', 'DELETE'], function ($r) {
             $convert = (bool) $r->get_param('convert');
+            if ($convert && $r->get_param('publish') !== true) throw new \InvalidArgumentException('Use Convert to shared note to explicitly publish this private note.');
             $method = $convert ? 'POST' : ($r->get_method() === 'DELETE' ? 'DELETE' : 'PATCH');
-            $body = ['revision' => (int) $r->get_param('revision')]; if ($r->has_param('body')) $body['body'] = $r->get_param('body');
-            return Service::request($method, '/issues/' . $r['id'] . '/notes/' . $r['note'] . ($convert ? '/convert' : ''), $body, self::key($r), true);
+            $body = ['revision' => (int) $r->get_param('revision')]; if ($convert) $body['publish'] = true; if ($r->has_param('body')) $body['body'] = $r->get_param('body');
+            $result = Service::request($method, '/issues/' . $r['id'] . '/notes/' . $r['note'] . ($convert ? '/convert' : ''), $body, self::key($r), true);
+            if (isset($result['issue'])) $result['issue'] = Service::view($result['issue']);
+            return $result;
         }, fn($r) => self::privateWrite($r));
         Admin::routes($route);
         add_filter('rest_post_dispatch', function ($response, $server, $r) { if (str_starts_with($r->get_route(), '/feedbackpress/')) { $response->header('Cache-Control', 'private, no-store, max-age=0'); $response->header('Vary', 'Cookie, Authorization'); } return $response; }, 10, 3);

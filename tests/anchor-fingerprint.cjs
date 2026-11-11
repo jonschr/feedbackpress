@@ -1,0 +1,30 @@
+// Create real fingerprints through the composer; intercept every request and preserve saved targets.
+const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const context=await browser.newContext({viewport:{width:1200,height:900},reducedMotion:'reduce'}),base='https://feedbackpress.test';let issue,writes=0,mode='initial';
+ const footer=()=>mode==='removed'?'':mode==='ambiguous'?'<a class="site-title" href="/about/">Footer identity</a><a class="site-title" href="/about/">Footer identity</a>':mode==='image'?'<img class="brand-image" alt="" src="/brand.png?secret=ignored">':`<h2><a class="site-title" id="${mode==='initial'?'wp-block-abcdef':'wp-block-fedcba'}" href="/about/?token=ignored">${mode==='edited'?'New wording':'Footer identity'}</a></h2>`;
+ await context.route(base+'/**',async route=>{const req=route.request(),u=new URL(req.url());
+  if(u.pathname.endsWith('.css'))return route.fulfill({contentType:'text/css',body:fs.readFileSync('assets/review.css','utf8')});
+  if(u.pathname.endsWith('.png'))return route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jB0cAAAAASUVORK5CYII=','base64')});
+  if(u.pathname==='/api/issues'&&req.method()==='POST'){writes++;issue={...req.postDataJSON(),id:'11111111-1111-4111-8111-111111111111',number:1,author:'Reviewer',revision:1,target_revision:1,activity:[],files:[],created_at:'2026-11-11T12:00:00Z'};return route.fulfill({json:issue})}
+  if(u.pathname==='/api/issues')return route.fulfill({json:{issues:issue?[issue]:[],total:issue?1:0,page:1}});
+  if(u.pathname.startsWith('/api/')){if(req.method()!=='GET'&&!u.pathname.endsWith('/files'))writes++;return route.fulfill({json:issue||{}})}
+  const content=`<header><a class="site-title" href="/about/">Footer identity</a></header><main>Content</main><footer>${mode==='wrapped'?'<section><div>'+footer()+'</div></section>':footer()}</footer>`;
+  return route.fulfill({contentType:'text/html',body:`<!doctype html><meta charset="utf-8"><style>body{margin:0}header{height:60px}main{height:300px}footer{margin:20px;padding:40px;height:250px}footer a{display:inline-block;width:340px;height:50px}footer img{display:block;width:180px;height:100px}</style>${mode==='initial'?'<div id="wpadminbar"></div>':''}<div class="wp-site-blocks">${content}</div><script>window.FeedbackPressConfig={api:'${base}/api/',home:'${base}',css:'${base}/review.css',nonce:'fixture',userName:'Reviewer',maxBytes:5242880};window.html2canvas=async()=>{const c=document.createElement('canvas');c.width=1200;c.height=900;return c};</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`})
+ });
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
+ await page.getByRole('button',{name:'Leave feedback',exact:true}).click();await page.locator('footer a').click();await page.getByRole('textbox',{name:'Issue title',exact:true}).fill('Portable fingerprint');await page.getByRole('button',{name:'Submit feedback',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.composer:not(.issue-popup)').hidden);await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.work-item[data-state=done]'));await page.keyboard.press('Escape');
+ const target=structuredClone(issue.target);assert.equal(target.fingerprint.version,1);assert.equal(target.fingerprint.id,'');assert.equal(target.fingerprint.href,'/about/');assert.equal(target.fingerprint.landmark.tag,'footer');assert.ok(target.fingerprint.selectors.length>=2);assert.ok(target.page.x>0&&target.page.y>0&&target.page.width===1200);assert.ok(!JSON.stringify(target).includes('token='));
+ const pin=page.getByRole('button',{name:/Issue 1,/});
+ const check=async approximate=>{await page.waitForFunction(expected=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.pins .pin')?.dataset.approximate===expected,String(approximate));assert.equal(await pin.count(),1);await pin.waitFor({state:'visible'})};
+ mode='wrapped';await page.reload();await check(false);let rect=await page.locator('footer a').boundingBox(),p=await pin.boundingBox();assert.ok(Math.abs(p.x+p.width/2-(rect.x+rect.width*target.x))<1);assert.equal(writes,1);
+ mode='edited';await page.reload();await check(false); // href + landmark identify changed text/generated ID.
+ mode='removed';await page.reload();await check(true);p=await pin.boundingBox();let expected=await page.evaluate(t=>({x:t.page.x/t.page.width*Math.max(innerWidth,document.documentElement.scrollWidth)-scrollX,y:t.page.y/t.page.height*Math.max(innerHeight,document.documentElement.scrollHeight)-scrollY}),target);assert.ok(Math.abs(p.x+p.width/2-expected.x)<1&&Math.abs(p.y+p.height/2-expected.y)<1);
+ mode='ambiguous';await page.reload();await check(true); // Identical siblings must not be assigned by stale nth-of-type.
+ mode='wrapped';await page.reload();await check(false);assert.deepEqual(issue.target,target);assert.equal(writes,1);
+ await page.setViewportSize({width:390,height:844});await check(false);
+ // A unique stable ID can follow a text change and a move to another landmark.
+ issue.target={...target,selector:'#stable-brand',fingerprint:{...target.fingerprint,id:'stable-brand',selectors:['#stable-brand']}};
+ await page.reload();await page.evaluate(()=>{const a=document.querySelector('footer a');a.id='stable-brand';a.textContent='Completely new copy';document.querySelector('main').append(a)});await check(false);
+ assert.deepEqual(errors,[]);console.log('PASS Composer fingerprints, query stripping, generated-ID/wrapper/admin changes, text edits by resource, ambiguous/deleted fallback coordinates, restoration, mobile, stable-ID relocation, and no automatic target writes.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

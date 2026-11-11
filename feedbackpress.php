@@ -31,7 +31,11 @@ add_action('admin_enqueue_scripts', [Admin::class, 'assets']);
 add_action('wp_enqueue_scripts', function () {
     if (!API::can_view() || !bound() || is_feed()) return;
     $assetVersion = VERSION . '.' . max(filemtime(__DIR__ . '/assets/review.js'), filemtime(__DIR__ . '/assets/review.css'));
+    $stylesheet = plugins_url('assets/review.css', __FILE__) . '?ver=' . $assetVersion;
+    add_action('wp_head', static function () use ($stylesheet) {
+        echo '<link rel="preload" href="' . esc_url($stylesheet) . '" as="style">' . "\n";
+    });
     wp_enqueue_script('feedbackpress-capture', plugins_url('assets/vendor/html2canvas-pro.min.js', __FILE__), [], '2.6.3', true);
     wp_enqueue_script('feedbackpress', plugins_url('assets/review.js', __FILE__), ['feedbackpress-capture'], $assetVersion, true);
-    wp_localize_script('feedbackpress', 'FeedbackPressConfig', ['api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => wp_create_nonce('wp_rest'), 'home' => untrailingslashit(home_url()), 'environment' => 'central', 'maxBytes' => API::MAX_FILE, 'css' => plugins_url('assets/review.css', __FILE__) . '?ver=' . $assetVersion, 'activitySync' => true, 'network' => Service::connection()['project'], 'cursor' => '0', 'privateNotes' => is_user_logged_in(), 'authorId' => is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : '', 'userName' => is_user_logged_in() ? wp_get_current_user()->display_name : '']);
+    wp_localize_script('feedbackpress', 'FeedbackPressConfig', ['api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => wp_create_nonce('wp_rest'), 'home' => untrailingslashit(home_url()), 'environment' => 'central', 'maxBytes' => API::MAX_FILE, 'css' => $stylesheet, 'activitySync' => true, 'network' => Service::connection()['project'], 'cursor' => '0', 'privateNotes' => is_user_logged_in(), 'authorId' => is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : '', 'userName' => is_user_logged_in() ? wp_get_current_user()->display_name : '']);
 });
