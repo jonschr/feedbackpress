@@ -41,11 +41,15 @@
   }
   let issues = [], pageIssues = [], selected = null, sort = 'number', search = '', searchTimer, filter = ['todo', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
-  let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoading = false, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
+  let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
   const replyFiles = new Map();
   const pendingReplyIds = new Map();
+  const replyOperations = new Map();
+  let draftOperation = null;
+  const privateNotes = new Map();
+  const privateReply = new Set();
   const attachmentCache = new Map();
   let previewIssueId = null, viewerRequest = 0, returnFocus = null;
   try {
@@ -149,13 +153,36 @@
   window.visualViewport?.addEventListener('resize', hideTooltip);
   window.visualViewport?.addEventListener('scroll', hideTooltip);
   new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
+  const pendingRequests = new Map(), fileIds = new WeakMap();
   async function api(path, options = {}) {
     const headers = { 'X-WP-Nonce': c.nonce, ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
+    const writes = options.method && options.method !== 'GET';
+    let signature;
+    if (writes) {
+      const body = options.body;
+      const identity = body instanceof FormData ? [...body.entries()].map(([key, value]) => {
+        if (value instanceof File) { if (!fileIds.has(value)) fileIds.set(value, crypto.randomUUID()); return [key, fileIds.get(value)]; }
+        return [key, value];
+      }) : body;
+      signature = path + '\n' + JSON.stringify(identity);
+      if (!pendingRequests.has(signature)) pendingRequests.set(signature, crypto.randomUUID());
+      headers['Idempotency-Key'] = options.requestId || pendingRequests.get(signature);
+    }
     if (options.body && !(options.body instanceof FormData)) { headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(options.body); }
-    const response = await fetch(c.api + path, { credentials: 'same-origin', ...options, headers });
-    if (!response.ok) { const data = await response.json().catch(() => ({})); const error = new Error(data.message || `Request failed (${response.status}). Try again.`); error.status = response.status; throw error; }
-    if (options.method === 'POST' && path !== 'identity' && !path.startsWith('sync/')) { localWriteVersion++; activity(); }
-    return response;
+    const [route, query] = path.split('?');
+    const requestUrl = new URL(c.api + route);
+    for (const [key, value] of new URLSearchParams(query || '')) requestUrl.searchParams.set(key, value);
+    const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
+      const error = new Error(data.message || `Request failed (${response.status}). Try again.`); error.status = response.status; throw error;
+    }
+    if (!writes) return response;
+    // Keep the key until the complete JSON acknowledgment arrives, including uploads.
+    const data = await response.json(); pendingRequests.delete(signature);
+    if (path !== 'identity' && !path.startsWith('sync/')) { localWriteVersion++; activity(); }
+    return { json: async () => data };
   }
   function message(text) { notice.replaceChildren(el('span', {}, text), button('Dismiss', () => { notice.hidden = true; positionDraft(); }, { class: 'notice-close' })); notice.hidden = false; positionDraft(); }
   function remember(value, address = email) {
@@ -211,7 +238,8 @@
     if (typeof focus === 'string') params.set('focus', focus);
     params.set('status', filter.join(',') || 'none');
     try {
-      const retained = preserveOrder && keepListOrder;
+      // A sync response cannot stand in for the first filtered, paginated list read.
+      const retained = preserveOrder && keepListOrder && listLoaded;
       listLoading = !retained; listError = '';
       if (open && !draft && !issues.length) render();
       const pinRead = loadPagePins(filter).then(currentPins => {
@@ -220,7 +248,7 @@
       });
       const [data] = await Promise.all([retained ? null : (async () => (await api('issues?' + params)).json())(), pinRead]); if (ticket !== requestNumber) return;
       listLoading = false;
-      if (data) { issues = data.issues; total = data.total; listPage = data.page; keepListOrder = false; }
+      if (data) { issues = data.issues; total = data.total; listPage = data.page; listLoaded = true; keepListOrder = false; }
       saveView();
       if (open && !draft) render(); updateNavigation(); drawPins(); positionDraft();
     } catch (error) { if (ticket === requestNumber) { listLoading = false; listError = error.message; if (open) render(); if (!open || issues.length) message(error.message); } }
@@ -290,7 +318,7 @@
       clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 200);
     } });
     const order = el('select', { 'aria-label': 'Order issues', onchange: event => { sort = event.target.value; listPage = 1; resetListScroll(); saveView(); load(); } }, el('option', { value: 'number' }, 'By issue number'), el('option', { value: 'page' }, 'By page'), el('option', { value: 'completed' }, 'Completed: newest'), el('option', { value: 'updated' }, 'Last edited: newest')); order.value = sort;
-    const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading) });
+    const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
     panel.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, order, statusFilterControl())), list);
     if (!issues.length) {
       if (listLoading) list.append(el('div', { class: 'list-placeholder', role: 'status', 'aria-label': 'Loading issues' }, ...Array.from({ length: 3 }, () => el('div', {}, el('span'), el('span'), el('span')))));
@@ -302,10 +330,13 @@
       if (sort === 'page' && path !== issue.path) { path = issue.path; list.append(el('h3', { class: 'page-heading' }, pageLabel(path))); }
       list.append(issueRow(issue));
     }
-    if (selected && !issues.some(issue => issue.id === selected.id)) list.append(el('small', { class: 'outside-filter' }, 'Selected issue outside this list'), issueRow(selected));
+    if (selected && !listLoading && !issues.some(issue => issue.id === selected.id)) list.append(el('small', { class: 'outside-filter' }, 'Selected issue outside this list'), issueRow(selected));
     if (total > 50) panel.append(el('nav', { class: 'actions pagination', 'aria-label': 'Issue pages' }, button(icon('previous'), () => { listPage--; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Previous list page', disabled: listPage <= 1 }), el('small', {}, `${listPage} / ${Math.ceil(total / 50)}`), button(icon('next'), () => { listPage++; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Next list page', disabled: listPage * 50 >= total })));
     // Hidden/mobile and loading lists have no usable scroll range; retain the saved position until visible.
-    if (stylesReady && !panel.hidden && issues.length && !listLoading) { list.scrollTop = listScroll; listScroll = list.scrollTop; hasListPosition = true; saveView(); }
+    if (stylesReady && !panel.hidden && issues.length) {
+      list.scrollTop = listScroll;
+      if (!listLoading) { listScroll = list.scrollTop; hasListPosition = true; saveView(); }
+    }
     if (filterOpen && focusedStatus) panel.querySelector(`[data-filter-status="${focusedStatus}"]`)?.focus();
     else if (focusedTrigger) panel.querySelector('.status-filter-trigger')?.focus();
     else if (searchSelection) { searchField.focus({ preventScroll: true }); searchField.setSelectionRange(...searchSelection); }
@@ -318,7 +349,7 @@
   }
   function navigationIssues() {
     if (!selected || issues.some(issue => issue.id === selected.id)) return issues;
-    return [...issues, selected].sort((a, b) => (['completed', 'updated'].includes(sort) ? (b[sort + '_at'] || '').localeCompare(a[sort + '_at'] || '') : 0) || (sort === 'page' ? a.path.localeCompare(b.path, 'en', { numeric: true }) : 0) || a.number.localeCompare(b.number, 'en', { numeric: true }) || a.id.localeCompare(b.id));
+    return [...issues, selected].sort((a, b) => (['completed', 'updated'].includes(sort) ? (b[sort + '_at'] || '').localeCompare(a[sort + '_at'] || '') : 0) || (sort === 'page' ? a.path.localeCompare(b.path, 'en', { numeric: true }) : 0) || String(a.number).localeCompare(String(b.number), 'en', { numeric: true }) || a.id.localeCompare(b.id));
   }
   function updateNavigation() {
     if (!selected || issuePopup.hidden) return;
@@ -347,20 +378,21 @@
     if (scroll) closeStatusFilter();
     captureListScroll(); const keepPosition = hasListPosition;
     const ticket = ++issueRequest; openingIssue = ticket;
+    panel.querySelector('.issue-list')?.setAttribute('aria-busy', 'true');
     try {
       const issue = await (await api('issues/' + id)).json();
       if (ticket !== issueRequest) return;
       if (issue.path !== pagePath) { captureListScroll(); saveView(); location.assign(c.home + issue.path + '#feedbackpress=' + issue.id); return; }
-      closeDraft(); cancelPick(); selected = issue; issues = issues.map(existing => existing.id === issue.id ? issue : existing); if (scroll) open = true; panel.hidden = !open || innerWidth < 900; viewButton.setAttribute('aria-expanded', String(open)); render(); renderIssue();
+      closeDraft(); cancelPick(); selected = issue; issues = issues.map(existing => existing.id === issue.id ? issue : existing); if (scroll) open = true; panel.hidden = !open || innerWidth < 900; viewButton.setAttribute('aria-expanded', String(open)); render(); renderIssue(); loadNotes(issue.id);
       if (scroll && issue.target.selector) {
         locate(issue);
         if (document.readyState !== 'complete') addEventListener('load', () => { if (selected?.id === issue.id && open) locate(issue); }, { once: true });
       }
-      await load(scroll ? issue.id : null, true); positionDraft();
+      await load(scroll && !keepPosition ? issue.id : null, true); positionDraft();
       if (scroll && !keepPosition && !panel.hidden && selected?.id === issue.id) { panel.querySelector(`[data-issue="${issue.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'instant' }); captureListScroll(); saveView(); }
     }
     catch (error) { if (ticket === issueRequest) message(error.message); }
-    finally { if (openingIssue === ticket) openingIssue = 0; }
+    finally { if (openingIssue === ticket) { openingIssue = 0; panel.querySelector('.issue-list')?.setAttribute('aria-busy', String(listLoading || !stylesReady)); } }
   }
   function closeLightbox() {
     viewerRequest++;
@@ -476,7 +508,7 @@
     } });
     if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (selected?.id !== draft.issue) return; selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && latest.author_id === actorId) editComment({ ...latest, id: comment.id }); else { editDrafts.delete(comment.id); renderIssue(); } }), { class: 'fp-quiet' }));
     if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
-    form.append(el('textarea', { rows: 3, required: true, maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
+    form.append(el('textarea', { rows: 3, required: comment.id !== draft.issue, maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
     return form;
   }
   function commentView(comment, files) {
@@ -494,6 +526,24 @@
     return el('div', { class: 'thread-comment' + (screenshots.length ? ' has-screenshot' : ''), 'data-comment': comment.id }, copy,
       screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null);
   }
+  async function loadNotes(id) {
+    if (!c.privateNotes) return;
+    try {
+      const data = await (await api(`issues/${id}/notes`)).json();
+      privateNotes.set(id, data.notes);
+      if (selected?.id === id && !issuePopup.hidden && !busy && !root.activeElement?.matches('input,textarea,select,[contenteditable]')) renderIssue();
+    } catch (error) {
+      privateNotes.delete(id);
+      if (error.status === 403) { c.privateNotes = false; privateNotes.clear(); privateReply.clear(); }
+    }
+  }
+  function privateNoteView(note) {
+    const byline = el('div', { class: 'comment-byline' }, el('strong', { class: 'comment-author' }, note.author_kind === 'agent' ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, note.author_kind === 'agent' ? 'Private agent note' : 'Private note'));
+    if (note.author_kind === 'agent') byline.append(button('Convert to my note', event => perform(event.currentTarget.closest('.private-note'), async () => {
+      await api(`issues/${selected.id}/notes/${note.id}/convert`, { method: 'POST', body: { revision: note.revision } }); await loadNotes(selected.id); setTimeout(() => { if (selected && !issuePopup.hidden) renderIssue(); }, 0);
+    }), { class: 'comment-edit', title: 'Keep this private note and attribute it to you' }));
+    return el('div', { class: 'thread-comment private-note' }, el('div', { class: 'comment-copy' }, byline, el('p', { class: 'comment' }, note.body)));
+  }
   function renderIssue() {
     const issue = selected; const threadScroll = previewIssueId === issue.id ? issuePopup.querySelector('.issue-thread')?.scrollTop || 0 : 0; issuePopup.dataset.status = issue.status;
     if (previewIssueId !== issue.id) { clearAttachments(); previewIssueId = issue.id; }
@@ -509,6 +559,7 @@
     const filesFor = id => issue.files.filter(file => (file.comment_id || issue.id) === id);
     const thread = el('div', { class: 'issue-thread', 'aria-label': 'Conversation' }, commentView(issue, filesFor(issue.id)));
     for (const event of replies) thread.append(commentView({ ...event.payload, id: event.id, created_at: event.created_at }, filesFor(event.id)));
+    for (const note of c.privateNotes ? privateNotes.get(issue.id) || [] : []) thread.append(privateNoteView(note));
     const known = new Set([issue.id, ...replies.map(event => event.id)]);
     const unmatched = issue.files.filter(file => !known.has(file.comment_id || issue.id));
     if (unmatched.length) thread.append(el('div', { class: 'attachment-strip', role: 'group', 'aria-label': 'Uploads awaiting comment sync' }, ...unmatched.map(attachmentThumbnail)));
@@ -524,7 +575,7 @@
         else renderQueued();
       }, { class: 'fp-icon-button', 'aria-label': 'Remove ' + file.name })))); positionDraft();
     }
-    const input = el('input', { type: 'file', name: 'files', multiple: true, class: 'visually-hidden', accept: 'image/png,image/jpeg,image/webp,image/gif,application/pdf', 'aria-label': 'Issue attachments' });
+    const input = el('input', { type: 'file', name: 'files', multiple: true, class: 'visually-hidden', accept: 'image/png,image/jpeg,image/webp,application/pdf', 'aria-label': 'Issue attachments' });
     input.addEventListener('change', () => {
       for (const file of input.files) {
         if (file.size > c.maxBytes) { message(`${file.name} exceeds 5 MB.`); continue; }
@@ -533,7 +584,16 @@
       input.value = ''; renderQueued();
     });
     renderQueued();
-    issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => submitReply(event, issue.id) }, reply, input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, pending ? 'Retry uploads' : 'Reply'))));
+    const privateToggle = c.privateNotes ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
+    input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
+    issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
+      if (!privateReply.has(issue.id)) return submitReply(event, issue.id);
+      event.preventDefault(); if (files.length) { message('Remove queued attachments before leaving a private note.'); return; }
+      perform(event.currentTarget, async () => {
+        await api(`issues/${issue.id}/notes`, { method: 'POST', body: { body: reply.value, kind: 'human' } });
+        replyDrafts.delete(issue.id); await loadNotes(issue.id);
+      }).then(saved => { if (saved && selected?.id === issue.id && !issuePopup.hidden) renderIssue(); });
+    } }, reply, privateToggle, input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, pending ? 'Retry uploads' : 'Reply'))));
     issuePopup.hidden = false; positionDraft(); thread.scrollTop = threadScroll;
   }
   async function perform(form, work) {
@@ -571,7 +631,10 @@
     perform(form, async () => {
       let comment = pendingReplyIds.get(id);
       if (!comment) {
-        const saved = await (await api(`issues/${id}/replies`, { method: 'POST', body: { author: name, author_email: email, body } })).json();
+        if (!replyOperations.has(id)) replyOperations.set(id, { key: crypto.randomUUID(), revision: selected?.id === id ? selected.revision : issues.find(issue => issue.id === id)?.revision });
+        const operation = replyOperations.get(id);
+        const saved = await (await api(`issues/${id}/replies`, { method: 'POST', requestId: operation.key, body: { author: name, author_email: email, body, revision: operation.revision } })).json();
+        replyOperations.delete(id);
         comment = saved.reply_id; pendingReplyIds.set(id, comment); replyDrafts.delete(id); form.elements.body.value = '';
       }
       const files = replyFiles.get(id) || [];
@@ -592,7 +655,7 @@
   }
   function renderDraft() {
     const files = [];
-    const input = el('input', { type: 'file', name: 'files', 'aria-label': 'Images or PDFs', class: 'visually-hidden', tabindex: '-1', accept: 'image/png,image/jpeg,image/webp,image/gif,application/pdf', multiple: true });
+    const input = el('input', { type: 'file', name: 'files', 'aria-label': 'Images or PDFs', class: 'visually-hidden', tabindex: '-1', accept: 'image/png,image/jpeg,image/webp,application/pdf', multiple: true });
     const attached = el('div', { class: 'attached-files', 'aria-live': 'polite' });
     function renderFiles() {
       attached.replaceChildren(...files.map((file, index) => el('div', { class: 'attached-file' }, el('small', {}, file.name), button(icon('close'), () => { files.splice(index, 1); renderFiles(); }, { class: 'fp-icon-button', 'aria-label': 'Remove ' + file.name, title: 'Remove ' + file.name }))));
@@ -616,7 +679,7 @@
       el('input', { name: 'title', type: 'text', class: 'composer-title', required: true, maxlength: 120, placeholder: 'Short issue title', 'aria-label': 'Issue title' }),
       el('label', { class: 'visually-hidden', for: 'fp-comment' }, 'What needs to change?'),
       el('div', { class: 'composer-field' },
-        el('textarea', { id: 'fp-comment', name: 'body', rows: 3, maxlength: 10000, required: true, placeholder: 'Describe what needs to change…', 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }),
+        el('textarea', { id: 'fp-comment', name: 'body', rows: 3, maxlength: 10000, placeholder: 'Description (optional)…', 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }),
         button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files', title: 'Attach images or PDFs (5 MB each)' })),
       input, attached,
       el('div', { class: 'composer-footer' }, el('button', { type: 'submit', class: 'fp-primary', title: 'Submit feedback', 'data-tooltip-shortcut': submitShortcut, 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }, 'Submit feedback')));
@@ -627,7 +690,7 @@
   function closeDraft() { draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
   function newDraft(target) {
     if (busy) return;
-    cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; open = false; panel.hidden = true; updateChrome(); viewButton.setAttribute('aria-expanded', 'false');
+    cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); open = false; panel.hidden = true; updateChrome(); viewButton.setAttribute('aria-expanded', 'false');
     notice.hidden = true; drawPins(); screenshot = capture(target); renderDraft();
   }
   function positionDraft() {
@@ -662,7 +725,7 @@
     e.preventDefault(); const session = uiSession; const capturePromise = screenshot; const target = draft; const form = e.target; const data = new FormData(form); const files = [...form.feedbackpressFiles];
     if (files.some(f => f.size > c.maxBytes)) return message('Each attachment must be 5 MB or smaller.');
     perform(form, async () => {
-      const issue = await (await api('issues', { method: 'POST', body: { author: name, author_email: email, title: data.get('title'), status: data.get('status'), body: data.get('body'), path: pagePath, target, viewport: `${innerWidth} × ${innerHeight}` } })).json();
+      const issue = await (await api('issues', { method: 'POST', requestId: draftOperation, body: { author: name, author_email: email, title: data.get('title'), status: data.get('status'), body: data.get('body'), path: pagePath, target, viewport: `${innerWidth} × ${innerHeight}` } })).json();
       requestNumber++;
       const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
       if (filter.includes(issue.status) && terms.every(term => ((issue.title || '') + ' ' + issue.body).toLowerCase().includes(term))) {
@@ -896,6 +959,7 @@
     if (wait > 0) { syncTimer = setTimeout(syncActivity, wait + 50); return; }
     syncBusy = true; syncAttempt = Date.now(); const writeVersion = localWriteVersion;
     try {
+      if (selected && c.privateNotes) loadNotes(selected.id);
       const data = await (await api('sync/activity', { method: 'POST', body: { since: syncCursor } })).json();
       if (c.network && data.network !== c.network) { message('The feedback network changed. Reload this page to continue.'); return; }
       if (Array.isArray(data.issues) && writeVersion === localWriteVersion) {
@@ -905,7 +969,7 @@
         // Keep each visible row in place, including status changes received from another site.
         issues = issues.filter(issue => byId.has(issue.id)).map(issue => byId.get(issue.id));
         for (const id of data.new_issues || []) { const issue = byId.get(id); if (issue && !visible.has(id) && matches(issue)) { issues.push(issue); total++; } }
-        keepListOrder = true;
+        keepListOrder = listLoaded;
         pageIssues = data.issues.filter(issue => issue.path === pagePath && matches(issue));
         const editing = root.activeElement?.matches('input, textarea, select, [contenteditable]') || draft || busy;
         if (selected && byId.has(selected.id)) { selected = byId.get(selected.id); deferredIssueRender = Boolean(editing); if (!editing && !issuePopup.hidden) renderIssue(); }

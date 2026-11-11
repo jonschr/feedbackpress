@@ -1,52 +1,17 @@
-/* Keep native WordPress controls; center this page within the available admin workspace. */
-.wrap.fp-settings { width: calc(100% - 40px); max-width: 960px; margin: 24px auto 0; color: #1d2327; }
-.fp-page-heading { margin-bottom: 16px; }
-.fp-page-heading h1 { padding: 0; }
-.fp-settings h2 { font-size: 18px; line-height: 1.3; margin: 0 0 8px; }
-.fp-settings h3 { font-size: 14px; margin: 0 0 8px; }
-.fp-settings p { max-width: 76ch; }
-.fp-connect { background: #fff; border: 1px solid #c3c4c7; padding: 20px; margin-bottom: 24px; }
-.fp-connect > p { margin: 0 0 16px; }
-.fp-connect-options { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; }
-.fp-connect-options > form { border-left: 1px solid #dcdcde; padding-left: 24px; }
-.fp-connect-options p { margin: 0 0 12px; }
-.fp-settings textarea { width: 100%; resize: vertical; }
-.fp-join-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
-.fp-join-type { font-size: 12px; }
-.fp-settings [hidden] { display: none !important; }
-.fp-connect .fp-copy-status { margin: 16px 0 0; }
-.fp-copy-status:empty { display: none; }
-.fp-connect .fp-first-remote { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid #dcdcde; color: #50575e; }
-/* Section padding survives WordPress's button-margin reset. */
-.fp-sites { padding-bottom: 20px; }
-.fp-sites > p { margin: 0 0 12px; }
-.fp-site { padding: 12px 0; border-top: 1px solid #dcdcde; }
-.fp-site-fields { display: flex; align-items: center; gap: 10px; }
-.fp-site-url { flex: 1; min-width: 0; }
-.fp-site-meta { font-size: 12px; color: #50575e; margin: 6px 0 0; }
-.fp-site-meta .button-link { font-size: 12px; }
-.fp-basic-auth { margin-top: 8px; }
-.fp-settings summary { cursor: pointer; width: fit-content; }
-.fp-credentials { display: flex; gap: 12px; margin-top: 10px; }
-.fp-credentials label { display: grid; gap: 4px; max-width: 45%; }
-.fp-settings .fp-add-peer { margin: 4px 0 0; }
-.fp-secondary { border-top: 1px solid #dcdcde; padding: 14px 0; }
-.fp-secondary > summary { font-size: 14px; font-weight: 600; }
-.fp-secondary[open] > summary { margin-bottom: 12px; }
-.fp-secondary pre { max-height: 280px; overflow: auto; background: #fff; padding: 12px; font-size: 12px; }
-.fp-secondary code { overflow-wrap: anywhere; }
-.fp-settings .submit { margin: 12px 0 20px; padding: 0; }
-.fp-disconnect { margin-bottom: 24px; }
-.fp-disconnect strong { overflow-wrap: anywhere; }
-#fp-retention { width: 80px; }
-@media (max-width: 680px) {
-  .wrap.fp-settings { width: calc(100% - 24px); margin-top: 16px; }
-  .fp-connect { padding: 16px; }
-  .fp-connect-options { grid-template-columns: 1fr; gap: 20px; }
-  .fp-connect-options > form { border-left: 0; border-top: 1px solid #dcdcde; padding: 20px 0 0; }
-  .fp-site-fields { flex-wrap: wrap; gap: 8px; }
-  .fp-site-url { flex-basis: 100%; width: 100%; }
-  .fp-credentials { flex-direction: column; gap: 10px; }
-  .fp-credentials label { max-width: 100%; }
-  .fp-site-fields select { min-width: 100px; }
-}
+.fp-settings { max-width:960px; margin:24px auto; padding:0 24px; }
+.fp-settings h1 { margin-bottom:20px; }
+.fp-section { background:#fff; border:1px solid #dcdcde; padding:20px 24px; margin:0 0 16px; }
+.fp-section h2 { margin:0 0 12px; font-size:18px; }
+.fp-section h3 { margin:24px 0 8px; font-size:14px; }
+.fp-section summary { font-size:14px; font-weight:600; cursor:pointer; }
+.fp-section[open] summary { margin-bottom:16px; }
+.fp-section form { display:flex; flex-direction:column; align-items:flex-start; gap:10px; max-width:620px; margin:16px 0; }
+.fp-section label { font-weight:600; }
+.fp-section textarea,.fp-section input:not([type=checkbox]),.fp-section select { width:100%; max-width:100%; margin:0; }
+.fp-section textarea { resize:vertical; }
+.fp-section [hidden] { display:none !important; }
+.fp-section .fp-project-name { font-size:20px; font-weight:600; margin:8px 0; }
+.fp-section .description { max-width:75ch; overflow-wrap:anywhere; }
+.fp-section pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; font-size:12px; }
+.fp-section li { overflow-wrap:anywhere; }
+@media(max-width:782px) { .fp-settings { padding:0 8px; } .fp-section { padding:16px; } }

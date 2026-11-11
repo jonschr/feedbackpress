@@ -14,8 +14,9 @@ try{
    let page=Math.max(1,Math.min(Number(q.get('page'))||1,Math.ceil(found.length/50)||1));if(q.get('focus')){const n=found.findIndex(i=>i.id===q.get('focus'));if(n>=0)page=Math.floor(n/50)+1}
    return r.fulfill({json:{issues:found.slice((page-1)*50,page*50),total:found.length,page}});
   }
-  if(u.pathname.startsWith('/api/issues/'))return r.fulfill({json:items.find(i=>u.pathname.endsWith(i.id))});
-  return r.fulfill({contentType:'text/html',body:`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;min-height:1800px;background:#eee;font:16px sans-serif}nav{padding:20px}#target{margin:280px 40px;width:280px;height:200px;background:#ddd}</style><nav><a id="ordinary-link" href="/third/">Another website page</a></nav><div id="target">Target</div><script>window.FeedbackPressConfig={api:'${base}/api/',home:'${base}',css:'${base}/review.css',nonce:'fixture',userName:'Reviewer',maxBytes:5242880}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`});
+  if(u.pathname==='/api/sync/activity')return r.fulfill({json:{issues:items,new_issues:[],cursor:1}});
+  if(u.pathname.startsWith('/api/issues/')){await new Promise(resolve=>setTimeout(resolve,40));return r.fulfill({json:items.find(i=>u.pathname.endsWith(i.id))})}
+  return r.fulfill({contentType:'text/html',body:`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;min-height:1800px;background:#eee;font:16px sans-serif}nav{padding:20px}#target{margin:280px 40px;width:280px;height:200px;background:#ddd}</style><nav><a id="ordinary-link" href="/third/">Another website page</a></nav><div id="target">Target</div><script>window.FeedbackPressConfig={api:'${base}/api/',home:'${base}',css:'${base}/review.css',nonce:'fixture',activitySync:true,userName:'Reviewer',maxBytes:5242880}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`});
  });
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/');await page.getByRole('button',{name:'View issues',exact:true}).click();
  const panel=page.getByRole('complementary',{name:'Issues',exact:true}),list=panel.locator('.issue-list');
@@ -26,10 +27,12 @@ try{
  await list.evaluate(e=>{e.scrollTop=1340});await page.waitForFunction(()=>JSON.parse(sessionStorage.getItem('feedbackpress-view:https://feedbackpress.test')).scrollTop===1340);
  const before=await list.evaluate(e=>e.scrollTop),first=await list.evaluate(e=>[...e.querySelectorAll('.issue-row')].find(n=>n.getBoundingClientRect().top>=e.getBoundingClientRect().top)?.dataset.issue);
  const visibleOther=()=>list.evaluate(e=>[...e.querySelectorAll('.issue-row')].find(n=>{const r=n.getBoundingClientRect(),v=e.getBoundingClientRect();return n.querySelector('.page-reference')?.textContent==='/other/'&&r.top>=v.top&&r.bottom<=v.bottom})?.dataset.issue);
- const id=await visibleOther();assert.ok(id);cssDelay=150;listDelay=120;
+ const id=await visibleOther();assert.ok(id);const clickedY=(await list.locator(`[data-issue="${id}"]`).boundingBox()).y;cssDelay=150;listDelay=120;
  await list.locator(`[data-issue="${id}"] .issue-open`).click();await page.waitForURL(base+'/other/#feedbackpress='+id);await ready();
- const same=async()=>{assert.equal(await list.evaluate(e=>e.scrollTop),before);assert.equal(await list.evaluate(e=>[...e.querySelectorAll('.issue-row')].find(n=>n.getBoundingClientRect().top>=e.getBoundingClientRect().top)?.dataset.issue),first);assert.equal(await panel.getByRole('searchbox').inputValue(),'Issue');assert.equal(await panel.getByLabel('Order issues').inputValue(),'updated');assert.equal(await panel.getByText('2 / 3',{exact:true}).count(),1)};
- await same();assert.equal(await list.locator(`[data-issue="${id}"]`).getAttribute('class'),'issue-row is-selected');
+ const same=async()=>{assert.equal(await list.locator('.issue-row').count(),50);assert.equal(await list.locator('.empty').count(),0);assert.equal(await list.locator('.outside-filter').count(),0);assert.equal(await list.evaluate(e=>e.scrollTop),before);assert.equal(await list.evaluate(e=>[...e.querySelectorAll('.issue-row')].find(n=>n.getBoundingClientRect().top>=e.getBoundingClientRect().top)?.dataset.issue),first);assert.equal(await panel.getByRole('searchbox').inputValue(),'Issue');assert.equal(await panel.getByLabel('Order issues').inputValue(),'updated');assert.equal(await panel.getByText('2 / 3',{exact:true}).count(),1)};
+ await same();assert.equal(await list.locator(`[data-issue="${id}"]`).getAttribute('class'),'issue-row is-selected');assert.equal((await list.locator(`[data-issue="${id}"]`).boundingBox()).y,clickedY);
+ await list.locator(`[data-issue="${id}"] .issue-open`).click();await ready();await same();
+ const next=items[items.findIndex(item=>item.id===id)+1];await page.getByRole('region',{name:'Issue details'}).getByRole('button',{name:'Next issue',exact:true}).click();await page.waitForURL(base+next.path+'#feedbackpress='+next.id);await ready();await same();
  await page.locator('#ordinary-link').click();await page.waitForURL(base+'/third/');await ready();await same();
  await page.reload();await ready();await same();
  await page.goBack();await ready();await same();
@@ -38,5 +41,5 @@ try{
  const mobileBefore=await list.evaluate(e=>e.scrollTop),mobileId=await visibleOther();await list.locator(`[data-issue="${mobileId}"] .issue-open`).click();await page.waitForURL(base+'/other/#feedbackpress='+mobileId);
  const popup=page.getByRole('region',{name:'Issue details'});await popup.waitFor();assert.equal(await panel.isVisible(),false);await popup.getByRole('button',{name:'Dismiss issue',exact:true}).click();await ready();assert.equal(await list.evaluate(e=>e.scrollTop),mobileBefore);
  await panel.getByRole('searchbox').fill('Issue 1');await page.waitForTimeout(250);await ready();assert.equal(await list.evaluate(e=>e.scrollTop),0);assert.deepEqual(errors,[]);
- console.log('PASS Full-bleed independently scrolling rows; exact list position, first visible issue, filters, sort, and page survive issue links, ordinary links, reload/back, delayed CSS/data, close/reopen, and mobile popup return.');
+ console.log('PASS Full-bleed independently scrolling rows; exact list position, first visible issue, filters, sort, and page survive issue links with fast background sync, popup navigation, ordinary links, reload/back, delayed CSS/data, close/reopen, and mobile popup return.');
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});
