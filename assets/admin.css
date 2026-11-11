@@ -15,3 +15,26 @@
 .fp-section pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; font-size:12px; }
 .fp-section li { overflow-wrap:anywhere; }
 @media(max-width:782px) { .fp-settings { padding:0 8px; } .fp-section { padding:16px; } }
+.fp-main .description { margin:8px 0 16px; }
+.fp-project-picker { position:relative; max-width:620px; margin:16px 0 0; }
+.fp-project-picker > label { display:block; font-weight:600; margin-bottom:8px; }
+.fp-select-wrap { position:relative; }
+.fp-select-wrap input { padding-inline-end:32px; }
+.fp-select-chevron { position:absolute; inset-inline-end:13px; top:12px; width:7px; height:7px; border-right:1.5px solid #50575e; border-bottom:1.5px solid #50575e; transform:rotate(45deg); pointer-events:none; }
+.fp-project-picker ul { position:absolute; top:100%; left:0; right:0; z-index:10; margin:4px 0 0; max-height:256px; overflow:auto; background:#fff; border:1px solid #8c8f94; border-radius:3px; box-shadow:0 4px 12px #0002; }
+.fp-project-picker [role=option] { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; margin:0; cursor:pointer; }
+.fp-project-picker [role=option].is-active,.fp-project-picker [role=option]:hover { background:#f0f6fc; color:#135e96; }
+.fp-project-picker [aria-selected=true] > span { font-weight:600; }
+.fp-project-picker small { color:#50575e; white-space:nowrap; }
+.fp-no-projects { padding:12px; color:#50575e; }
+.fp-site-list { margin:0; }
+.fp-site-list > li { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0; padding:12px 0; border-bottom:1px solid #f0f0f1; }
+.fp-site-list > li:last-child { border:0; padding-bottom:0; }
+.fp-site-list > li > div { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.fp-site-list a { overflow-wrap:anywhere; }
+.fp-site-list small { color:#50575e; font-size:11px; }
+.fp-site-list button { flex-shrink:0; }
+.fp-service-details { width:100%; margin-top:4px; }
+.fp-service-details summary { font-size:12px; font-weight:400; }
+.fp-service-details[open] summary { margin-bottom:8px; }
+.fp-inline-actions { display:flex; align-items:center; gap:12px; }

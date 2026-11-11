@@ -1,12 +1,15 @@
 <?php
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-/** Server-side central API gateway. No feedback or media is persisted in WordPress. */
 final class Service {
-    const OPTION = 'feedbackpress_connection_v2';
+    const OPTION = 'feedbackpress_connection_v3';
     public static function pack(array $value): string { return rtrim(strtr(base64_encode(wp_json_encode($value)), '+/', '-_'), '='); }
     public static function unpack(string $value): array { $raw = base64_decode(strtr($value, '-_', '+/'), true); $data = $raw === false ? null : json_decode($raw, true); return is_array($data) ? $data : []; }
     public static function connection(): array { return self::unpack((string) get_option(self::OPTION, '')); }
+    public static function home(): string {
+        $p = wp_parse_url(home_url()); $scheme = strtolower($p['scheme']); $port = $p['port'] ?? null;
+        return $scheme . '://' . strtolower($p['host']) . ($port && !(($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80)) ? ':' . $port : '') . rtrim($p['path'] ?? '', '/');
+    }
     public static function origin(string $value): string {
         $value = untrailingslashit(trim($value)); $p = wp_parse_url($value);
         if (!$p || !isset($p['scheme'], $p['host']) || isset($p['user']) || isset($p['pass']) || isset($p['query']) || isset($p['fragment']) || !empty($p['path'])) throw new \InvalidArgumentException('Enter a service origin without a path or credentials.');
@@ -14,28 +17,83 @@ final class Service {
         if ($p['scheme'] !== 'https' && !$local) throw new \InvalidArgumentException('The service must use HTTPS.');
         return $value;
     }
-    public static function connect(string $code): array {
-        if (!str_starts_with(trim($code), 'fp2:')) throw new \InvalidArgumentException('Paste a FeedbackPress project connection code.');
-        $c = self::unpack(substr(trim($code), 4));
-        if (($c['v'] ?? 0) !== 2 || !self::uuid($c['project'] ?? '') || !preg_match('/^fp_[A-Za-z0-9_-]{43}$/D', $c['token'] ?? '')) throw new \InvalidArgumentException('The project connection code is invalid.');
-        $c = ['v' => 2, 'service' => self::origin($c['service'] ?? ''), 'project' => $c['project'], 'token' => $c['token']];
-        $project = self::request('GET', '', null, '', false, $c);
-        $c['name'] = $project['name'];
-        self::request('POST', '/sites', ['url' => untrailingslashit(home_url())], '', false, $c);
-        update_option(self::OPTION, self::pack($c), false);
-        wp_clear_scheduled_hook('feedbackpress_tick');
-        delete_transient('feedbackpress_activity_v2');
-        return ['id' => $c['project'], 'name' => $c['name']];
+    private static function save(array $c): void { update_option(self::OPTION, self::pack($c), false); delete_transient('feedbackpress_activity_v2'); wp_clear_scheduled_hook('feedbackpress_tick'); }
+    private static function locked(callable $work) {
+        $key = 'feedbackpress_connection_lock_v3'; $owner = wp_generate_uuid4(); $acquired = false;
+        for ($n = 0; $n < 40; $n++) {
+            wp_cache_delete($key, 'options'); $old = get_option($key, []);
+            if ($old && ($old['expires'] ?? 0) < time()) delete_option($key);
+            if (add_option($key, ['owner' => $owner, 'expires' => time() + 35], '', false)) { $acquired = true; break; }
+            usleep(100000);
+        }
+        if (!$acquired) throw new \RuntimeException('The project connection is being updated. Try again shortly.', 503);
+        try { wp_cache_delete(self::OPTION, 'options'); return $work(); }
+        finally { wp_cache_delete($key, 'options'); if ((get_option($key, [])['owner'] ?? '') === $owner) delete_option($key); }
+    }
+    public static function manager(string $method, string $path, $body = null, ?array $connection = null) {
+        $c = $connection ?? self::connection();
+        if (empty($c['manager'])) throw new \RuntimeException('Connect your FeedbackPress account in Settings → FeedbackPress.', 503);
+        return self::http($method, self::origin($c['service']) . '/v1' . $path, $c['manager'], $body);
+    }
+    public static function connectAccount(string $origin, string $key): array {
+        $origin = self::origin($origin); $key = trim($key);
+        if (!$key || str_starts_with($key, 'fp2:')) throw new \InvalidArgumentException('Enter your FeedbackPress license or account access key.');
+        if (!str_starts_with($key, 'fp_')) $key = self::http('POST', $origin . '/v1/licenses/session', '', ['license_key' => $key])['token'];
+        $profile = self::http('GET', $origin . '/v1/account', $key);
+        $grant = self::http('POST', $origin . '/v1/account/connections', $key, new \stdClass());
+        return self::locked(function () use ($origin, $profile, $grant) {
+            $old = self::connection(); $same = ($old['account'] ?? '') === $profile['id'] && ($old['service'] ?? '') === $origin;
+            if (!$same && !empty($old['manager']) && !empty($old['project']) && ($old['site_url'] ?? '') === self::home()) {
+                try { self::manager('POST', '/projects/' . $old['project'] . '/sites/disconnect', ['url' => self::home()], $old); } catch (\Throwable $e) { /* Local account changes remain available while an old service is unreachable. */ }
+            }
+            $c = ['v' => 3, 'service' => $origin, 'account' => $profile['id'], 'manager' => $grant['token'], 'manager_id' => $grant['id']];
+            if ($same) $c += array_intersect_key($old, array_flip(['project','token','credential_id','site_url','name','disconnected']));
+            self::save($c); return ['connected' => true];
+        });
+    }
+    private static function applySite(array $c, array $site): array {
+        $c['project'] = $site['project']; $c['token'] = $site['token']; $c['credential_id'] = $site['credential_id'];
+        $c['site_url'] = $site['url']; $c['name'] = $site['name']; $c['disconnected'] = false;
+        self::save($c); return $c;
+    }
+    public static function selectProject(string $id): array {
+        if (!self::uuid($id)) throw new \InvalidArgumentException('Choose a project.');
+        return self::locked(function () use ($id) { $c = self::connection(); return self::applySite($c, self::manager('POST', '/projects/' . $id . '/sites/connect', ['url' => self::home(), 'reconnect' => true], $c)); });
+    }
+    public static function ensureConnection(): array {
+        $c = self::connection();
+        if (empty($c['manager']) || empty($c['project']) || ($c['site_url'] ?? '') === self::home()) return $c;
+        return self::locked(function () {
+            $c = self::connection(); if (($c['site_url'] ?? '') === self::home()) return $c;
+            try { return self::applySite($c, self::manager('POST', '/account/sites/resolve', ['url' => self::home(), 'project' => $c['project']], $c)); }
+            catch (RemoteError $e) { if ($e->remoteCode === 'site_disconnected') { $c['site_url'] = self::home(); $c['disconnected'] = true; self::save($c); } throw $e; }
+        });
+    }
+    public static function removeSite(string $url): array {
+        $c = self::connection(); if (empty($c['project'])) throw new \InvalidArgumentException('Choose a project first.');
+        $result = self::manager('POST', '/projects/' . $c['project'] . '/sites/disconnect', ['url' => $url]);
+        if ($url === self::home()) { $c['disconnected'] = true; self::save($c); }
+        return $result;
+    }
+    public static function disconnect(): array {
+        $c = self::connection(); $removed = true;
+        try { if (!empty($c['project']) && ($c['site_url'] ?? '') === self::home()) self::removeSite(self::home()); }
+        catch (\Throwable $e) { $removed = false; }
+        finally { delete_option(self::OPTION); delete_transient('feedbackpress_activity_v2'); }
+        return ['disconnected' => true, 'remote_removed' => $removed];
     }
     public static function uuid($id): bool { return is_string($id) && (bool) preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/Di', $id); }
     public static function request(string $method, string $path, $body = null, string $key = '', bool $actor = false, ?array $connection = null, bool $raw = false) {
-        $c = $connection ?? self::connection();
-        if (empty($c['token']) || empty($c['project'])) throw new \RuntimeException('Connect this installation to a project in Settings → FeedbackPress.', 503);
+        $c = $connection ?? self::ensureConnection();
+        if (empty($c['token']) || empty($c['project']) || !empty($c['disconnected'])) throw new \RuntimeException('Choose a project in Settings → FeedbackPress.', 503);
         $url = self::origin($c['service']) . '/v1/projects/' . $c['project'] . $path;
-        return self::http($method, $url, $c['token'], $body, $key, $actor, $raw);
+        try { return self::http($method, $url, $c['token'], $body, $key, $actor, $raw, self::home()); }
+        catch (RemoteError $e) { if ($e->getCode() === 401 || in_array($e->remoteCode, ['site_disconnected','site_mismatch'], true)) { $c['disconnected'] = true; self::save($c); } throw $e; }
     }
-    public static function http(string $method, string $url, string $token, $body = null, string $key = '', bool $actor = false, bool $raw = false) {
-        $headers = ['Authorization' => 'Bearer ' . $token, 'Accept' => 'application/json'];
+    public static function http(string $method, string $url, string $token, $body = null, string $key = '', bool $actor = false, bool $raw = false, ?string $site = null) {
+        $headers = ['Accept' => 'application/json'];
+        if ($token) $headers['Authorization'] = 'Bearer ' . $token;
+        if ($site) $headers['X-FeedbackPress-Site'] = $site;
         if ($key) $headers['Idempotency-Key'] = $key;
         if ($actor) {
             if (!is_user_logged_in()) throw new \RuntimeException('Log in to WordPress to access private notes.', 403);
@@ -50,8 +108,8 @@ final class Service {
         $bytes = wp_remote_retrieve_body($r);
         if ($status < 200 || $status >= 300) {
             $data = json_decode($bytes, true); $code = $data['error'] ?? 'service_error';
-            $messages = ['idempotency_conflict' => 'This request was already saved with different content. Check the issue list before submitting another change.', 'stale_revision' => 'This issue changed elsewhere. Reopen it before saving.', 'account_inactive' => 'This FeedbackPress account is inactive.', 'quota_exceeded' => 'The account storage allowance is full. Your text is saved.', 'unauthorized' => 'The project connection is no longer authorized. Reconnect in Settings → FeedbackPress.', 'not_found' => 'The requested issue or file was not found.', 'media_missing' => 'The screenshot or attachment is temporarily unavailable. Try again.', 'wordpress_login_required' => 'Log in to WordPress to access private notes.'];
-            throw new \RuntimeException($messages[$code] ?? ('FeedbackPress request failed (' . $status . ', ' . sanitize_key($code) . ').'), $status);
+            $messages = ['site_disconnected' => 'This site was removed from the project. An administrator can reconnect it in Settings → FeedbackPress.', 'site_mismatch' => 'The site connection changed. Reload this page.', 'license_invalid' => 'This license is invalid or inactive. Check the key from your FeedbackPress receipt.', 'license_product_mismatch' => 'This key is not for the configured FeedbackPress test product.', 'billing_unavailable' => 'License validation is temporarily unavailable. Try again shortly.', 'idempotency_conflict' => 'This request was already saved with different content. Check the issue list before submitting another change.', 'stale_revision' => 'This issue changed elsewhere. Reopen it before saving.', 'account_inactive' => 'This FeedbackPress account is inactive.', 'quota_exceeded' => 'The account storage allowance is full. Your text is saved.', 'unauthorized' => 'The project connection is no longer authorized. Reconnect in Settings → FeedbackPress.', 'not_found' => 'The requested issue or file was not found.', 'media_missing' => 'The screenshot or attachment is temporarily unavailable. Try again.', 'wordpress_login_required' => 'Log in to WordPress to access private notes.'];
+            throw new RemoteError($messages[$code] ?? ('FeedbackPress request failed (' . $status . ', ' . sanitize_key($code) . ').'), $status, $code);
         }
         if ($raw) return ['body' => $bytes, 'mime' => wp_remote_retrieve_header($r, 'content-type'), 'disposition' => wp_remote_retrieve_header($r, 'content-disposition')];
         $data = json_decode($bytes, true);
@@ -84,4 +142,9 @@ final class Service {
         $files = array_map(fn($m) => ['id' => $m['id'], 'comment_id' => $m['comment_id'], 'name' => $m['name'], 'mime' => $m['mime'], 'size' => $m['size'], 'screenshot' => $m['screenshot'], 'available' => $m['state'] === 'ready', 'expired' => $m['state'] === 'expired'], $i['media']);
         return $root + array_intersect_key($i, array_flip(['id', 'number', 'title', 'path', 'target', 'status', 'created_at', 'updated_at', 'completed_at'])) + ['revision' => (string) $i['revision'], 'target_revision' => (string) $i['revision'], 'author_revision' => (string) $i['revision'], 'activity' => $activity, 'files' => $files, 'conflict' => false, 'author_conflict' => false, 'edit_conflict' => false];
     }
+}
+
+final class RemoteError extends \RuntimeException {
+    public string $remoteCode;
+    public function __construct(string $message, int $status, string $code) { parent::__construct($message, $status); $this->remoteCode = $code; }
 }

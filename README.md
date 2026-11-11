@@ -11,7 +11,7 @@ Visual feedback for WordPress, backed by one central FeedbackPress service.
 
 Requires WordPress 6.6+ and PHP 8.1+. Install the `feedbackpress` folder in `wp-content/plugins`, activate it, and open **Settings → FeedbackPress**.
 
-Connect a project using a private connection code from another installation, or create/select one with your account access key. Feedback and media stay in the service; database copies retain the connection automatically.
+Connect your account with a license or access key, then choose a project from the searchable selector. Other installations use the same account and project. Feedback and media stay in the service; database copies register their URL automatically.
 
 Review access initially allows everyone. Choose administrator-only access for private review. Images and PDFs stay outside WordPress and expire after 60 days.
 

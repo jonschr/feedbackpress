@@ -5,8 +5,8 @@ final class API {
     const MAX_FILE = 5242880;
     const STATUSES = ['todo', 'doing', 'review', 'done'];
     public static function error(string $message, int $status = 400): \WP_Error { return new \WP_Error('feedbackpress', $message, ['status' => $status]); }
-    public static function can_view(): bool { $m = settings()['mode']; return bound() && ($m === 'everyone' || ($m === 'admins' && current_user_can('manage_options'))); }
-    public static function read() { return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
+    public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && current_user_can('manage_options')))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
+    public static function read($r = null) { if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
     public static function write(\WP_REST_Request $r) {
         if (!self::can_view()) return self::error('Feedback is unavailable.', 403);
         if ($r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload before saving.', 409);

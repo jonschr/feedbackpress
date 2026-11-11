@@ -7,12 +7,16 @@ if (defined('WP_CLI') && WP_CLI) {
         if (!is_user_logged_in()) \WP_CLI::error('Select a WordPress user with --user=<login|ID|email>.');
         $command = $args[0] ?? 'help'; $id = $args[1] ?? ''; $method = 'GET'; $body = [];
         try {
-            if ($command === 'help') { \WP_CLI::line('list | get <issue> | status <issue> --status=done --revision=N | reply <issue> --body=TEXT --revision=N | note <issue> --body=TEXT [--agent=NAME] | notes <issue> | convert <issue> <note> --revision=N | connect --file=PRIVATE_CODE_FILE | log\nPrivate agent notes are the default for note; reply is explicitly shared. Use --request-id=UUID to retry the same mutation safely.'); return; }
+            if ($command === 'help') { \WP_CLI::line('list | get <issue> | status <issue> --status=done --revision=N | reply <issue> --body=TEXT --revision=N | note <issue> --body=TEXT [--agent=NAME] | notes <issue> | convert <issue> <note> --revision=N | connect --file=PRIVATE_KEY_JSON [--project=UUID] | projects | project <UUID> | log\nPrivate agent notes are the default for note; reply is explicitly shared. Use --request-id=UUID to retry the same mutation safely.'); return; }
             if ($command === 'connect') {
                 if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.');
-                if (empty($flags['file'])) throw new \InvalidArgumentException('Use --file with a private connection-code file.');
-                Service::connect(trim(file_get_contents($flags['file']))); \WP_CLI::success('Connected project.'); return;
+                if (empty($flags['file'])) throw new \InvalidArgumentException('Use --file with private JSON containing a license_key or account token.');
+                $data = json_decode(file_get_contents($flags['file']), true);
+                if (!is_array($data)) throw new \InvalidArgumentException('A private JSON key file is required.');
+                Service::connectAccount($flags['service'] ?? $data['service'] ?? 'https://feedbackpress.elod.in', $data['license_key'] ?? $data['token'] ?? $data['key'] ?? '');
+                if (!empty($flags['project'])) Service::selectProject($flags['project']); \WP_CLI::success(empty($flags['project']) ? 'Account connected. Choose a project next.' : 'Project connected.'); return;
             }
+            if (in_array($command, ['projects', 'project'], true)) { if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.'); if ($command === 'project') Service::selectProject($id); \WP_CLI::line(wp_json_encode(Service::manager('GET', '/account')['projects'], JSON_PRETTY_PRINT)); return; }
             if ($command === 'log') { if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.'); \WP_CLI::line(wp_json_encode(Log::entries(), JSON_PRETTY_PRINT)); return; }
             if (!API::can_view()) throw new \RuntimeException('This user does not have review access.');
             if ($command === 'list') { $path = '/issues'; $body = ['status' => $flags['statuses'] ?? 'todo,review', 'search' => $flags['search'] ?? '', 'page' => (int) ($flags['page'] ?? 1), 'order' => $flags['sort'] ?? 'number']; }

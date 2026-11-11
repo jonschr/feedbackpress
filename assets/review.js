@@ -593,7 +593,7 @@
         await api(`issues/${issue.id}/notes`, { method: 'POST', body: { body: reply.value, kind: 'human' } });
         replyDrafts.delete(issue.id); await loadNotes(issue.id);
       }).then(saved => { if (saved && selected?.id === issue.id && !issuePopup.hidden) renderIssue(); });
-    } }, reply, privateToggle, input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, pending ? 'Retry uploads' : 'Reply'))));
+    } }, reply, input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, pending ? 'Retry uploads' : 'Reply'))));
     issuePopup.hidden = false; positionDraft(); thread.scrollTop = threadScroll;
   }
   async function perform(form, work) {

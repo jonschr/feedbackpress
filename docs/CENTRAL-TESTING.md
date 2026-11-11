@@ -1,12 +1,14 @@
 # Central service pilot
 
-FeedbackPress now saves shared issues, replies, authors, statuses and files to a central API. WordPress stores only its encoded project connection, local review access and bounded diagnostics. Existing peer-sync feedback is not imported or deleted. This is a breaking beta; do not use the old peer-sync APIs/tests against it.
+FeedbackPress now saves shared issues, replies, authors, statuses and files to a central API. WordPress stores its encoded limited account-management and active site/project connections, local review access and bounded diagnostics. Existing peer-sync feedback is not imported or deleted. This is a breaking beta; do not use the old peer-sync APIs/tests against it.
 
 ## Connect sites
 
-Open Settings → FeedbackPress. Use an account access key to create/select a project, or paste a project connection code from an existing installation. Account keys are used only for the current management request and are not saved in WordPress. Project credentials stay server-side; keep connection codes private.
+Open Settings → FeedbackPress. Connect your account with a license or account access key, then search and select a project. License/root keys are used once and never saved in WordPress. A limited manager credential stays server-side for project selection and site management; a separate site-bound token accesses feedback. WordPress administrators can manage projects in the connected account. No connection codes are needed.
 
-A database clone keeps the encoded connection and automatically registers the new home URL when the overlay is used. It does not need to know whether it is local, staging or production. Unrelated copies should disconnect and choose a different project.
+Switching projects removes this URL from the old project without moving feedback. Remove beside a site revokes its project access and prevents automatic rejoining; an administrator can explicitly select a project to reconnect it.
+
+A database clone keeps the encoded connection and automatically registers the new home URL when the overlay is used. A known destination URL keeps its centrally selected project even when the copied database names a different project. It does not need to know whether it is local, staging or production. Unrelated copies should disconnect and choose a different project.
 
 Every review-capable page can display filtered passive pins. Active views refresh automatically, at most once per minute per installation, and pause when idle/hidden. There is no WordPress sync cron or manual sync button. Writes go directly to the service; failed writes retain the draft for retry.
 

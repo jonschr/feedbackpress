@@ -21,7 +21,7 @@ require_once __DIR__ . '/includes/cli.php';
 require_once __DIR__ . '/includes/update-checker.php';
 function defaults(): array { return ['mode' => 'everyone']; }
 function settings(): array { return (array) get_option('feedbackpress_settings', []) + defaults(); }
-function bound(): bool { return !empty(Service::connection()['project']); }
+function bound(): bool { $c = Service::connection(); return !empty($c['project']) && !empty($c['token']) && empty($c['disconnected']); }
 register_deactivation_hook(__FILE__, function () { wp_clear_scheduled_hook('feedbackpress_tick'); });
 register_activation_hook(__FILE__, function () { wp_clear_scheduled_hook('feedbackpress_tick'); });
 add_action('rest_api_init', [API::class, 'routes']);
