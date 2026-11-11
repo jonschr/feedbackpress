@@ -155,7 +155,7 @@
   const highlight = el('div', { class: 'highlight', hidden: true });
   const notice = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite', hidden: true });
   const launcher = button('Leave feedback', () => withIdentity(startPick), { class: 'fp-primary', title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' });
-  const viewButton = button('View issues', () => withIdentity(() => { if (selected && innerWidth < 900 && panel.hidden) { open = true; viewButton.setAttribute('aria-expanded', 'true'); issuePopup.hidden = true; tether.hidden = true; panel.hidden = false; render(); } else toggle(!open); }), { 'aria-expanded': 'false', title: 'Toggle issues panel', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' });
+  const viewButton = button('View issues', () => withIdentity(() => { if (selected && innerWidth < 900 && panel.hidden) { prepareListReveal(); open = true; viewButton.setAttribute('aria-expanded', 'true'); issuePopup.hidden = true; tether.hidden = true; panel.hidden = false; render(); } else toggle(!open); }), { 'aria-expanded': 'false', title: 'Toggle issues panel', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' });
   const launchers = el('div', { class: 'launcher' }, viewButton, launcher);
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
@@ -166,6 +166,10 @@
   function captureListScroll() {
     const list = panel.querySelector('.issue-list');
     if (stylesReady && !panel.hidden && !listLoading && list?.feedbackpressPositioned && list.querySelector('.issue-row')) { listScroll = list.scrollTop; hasListPosition = true; }
+  }
+  function prepareListReveal() {
+    const list = panel.querySelector('.issue-list');
+    if (panel.hidden && list) list.feedbackpressPositioned = false;
   }
   function captureThreadScroll() {
     const thread = issuePopup.querySelector('.issue-thread');
@@ -332,7 +336,7 @@
     if (busy) return;
     captureListScroll();
     issueRequest++; openingIssue = 0; if (!value) closeStatusFilter(); closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
-    panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
+    if (value) prepareListReveal(); panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
     updateChrome(); positionDraft();
     if (value) { render(); load(null, true); } else { panel.removeAttribute('data-continuing'); viewButton.focus(); }
   }
@@ -491,7 +495,7 @@
       else if (busy) control.setAttribute('data-fp-busy-disabled', '');
     }
   }
-  function closeIssue() { captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) panel.hidden = false; render(); drawPins(); }
+  function closeIssue() { captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
   async function stepIssue(direction) {
     if (busy || steppingPage) return;
     const items = navigationIssues();
