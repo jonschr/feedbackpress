@@ -229,6 +229,11 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .tooltip-line { display: flex; align-items: center; gap: 12px; }
 .fp-tooltip kbd { flex-shrink: 0; padding: 2px 5px; border: 1px solid #7a838f; border-radius: 4px; background: #363c45; color: #fff; font: inherit; font-size: 11px; line-height: 16px; white-space: nowrap; }
 .fp-tooltip small { margin-top: 4px; color: #e0e4e9; font-size: 11px; }
+.mention-picker { position: fixed; inset: auto; margin: 0; max-width: calc(100vw - 24px); overflow: auto; padding: 4px; border: 0; border-radius: 8px; background: var(--fp-surface); color: var(--fp-ink); box-shadow: 0 6px 24px #151c2a30; }
+.mention-picker [role=option] { padding: 8px 10px; border-radius: 4px; font-size: 13px; line-height: 20px; cursor: pointer; overflow-wrap: anywhere; }
+.mention-picker .is-active { background: var(--fp-soft); font-weight: 600; }
+.mention-help { margin: 4px 0 0; padding: 8px 10px; border-top: 1px solid var(--fp-line); color: var(--fp-muted); font-size: 11px; line-height: 16px; }
+.comment-mention { padding: 1px 2px; border-radius: 3px; background: var(--fp-soft); font-weight: 600; }
 .fp-tooltip::before { content: ""; position: absolute; left: var(--tooltip-arrow); width: 7px; height: 7px; background: var(--fp-action); transform: translateX(-50%) rotate(45deg); }
 .fp-tooltip[data-side=above]::before { bottom: -3px; }
 .fp-tooltip[data-side=below]::before { top: -3px; }
@@ -254,6 +259,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
   .fp-icon-button { min-width: 32px; min-height: 32px; }
   input, textarea, select { font-size: 16px; }
   .filters > select, .status-filter-trigger { font-size: 16px; }
+  .mention-picker [role=option] { min-height: 44px; padding-block: 12px; font-size: 16px; }
   .sort-filters { flex-wrap: wrap; }
   .sort-filters > select, .sort-filters .status-filter { flex: 1 1 100%; width: 100%; }
 }

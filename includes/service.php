@@ -151,7 +151,7 @@ final class Service {
         $pageTitle = $pageTitles[$pageKey] ??= self::pageTitle($i['path']);
         $comments = $i['comments']; $root = null; $activity = [];
         foreach ($comments as $comment) {
-            $p = self::person($comment['author']) + ['body' => $comment['body'], 'edit_revision' => (string) $i['revision'], 'edited_at' => $comment['edited_at']];
+            $p = self::person($comment['author']) + ['body' => $comment['body'], 'mentions' => $comment['mentions'] ?? [], 'edit_revision' => (string) $i['revision'], 'edited_at' => $comment['edited_at']];
             if ($comment['id'] === $i['id']) $root = $p;
             else $activity[] = ['id' => $comment['id'], 'kind' => 'reply', 'created_at' => $comment['created_at'], 'payload' => $p];
         }

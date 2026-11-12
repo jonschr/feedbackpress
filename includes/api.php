@@ -31,23 +31,28 @@ final class API {
         $read = [self::class, 'read']; $id = '/issues/(?P<id>[a-f0-9-]{36})';
         $route('/issues', 'GET', [self::class, 'listing'], $read);
         $route('/issues', 'POST', function ($r) {
-            $body = ['title' => $r->get_param('title'), 'body' => $r->get_param('body') ?? '', 'path' => $r->get_param('path'), 'target' => $r->get_param('target'), 'status' => $r->get_param('status') ?? 'todo', 'author' => Identity::request($r)];
+            $body = ['title' => $r->get_param('title'), 'body' => $r->get_param('body') ?? '', 'mentions' => $r->get_param('mentions') ?? [], 'path' => $r->get_param('path'), 'target' => $r->get_param('target'), 'status' => $r->get_param('status') ?? 'todo', 'author' => Identity::request($r)];
             return Service::view(Service::request('POST', '/issues', $body, self::key($r)));
         });
         $route($id, 'GET', fn($r) => Service::view(Service::request('GET', '/issues/' . $r['id'])), $read);
         foreach (['status', 'target'] as $action) $route($id . '/' . $action, 'POST', fn($r) => Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/' . $action, ['revision' => (int) $r->get_param('revision'), $action => $r->get_param($action)], self::key($r))));
         $route($id . '/replies', 'POST', function ($r) {
-            $raw = Service::request('POST', '/issues/' . $r['id'] . '/replies', ['revision' => (int) $r->get_param('revision'), 'body' => $r->get_param('body'), 'author' => Identity::request($r)], self::key($r));
+            $raw = Service::request('POST', '/issues/' . $r['id'] . '/replies', ['revision' => (int) $r->get_param('revision'), 'body' => $r->get_param('body'), 'mentions' => $r->get_param('mentions') ?? [], 'author' => Identity::request($r)], self::key($r));
             $reply = end($raw['comments']);
             return Service::view($raw) + ['reply_id' => $reply['id']];
         });
         $route($id . '/comments/(?P<comment_id>[a-f0-9-]{36})', 'POST', function ($r) {
             $body = ['revision' => (int) $r->get_param('revision'), 'body' => $r->get_param('body'), 'author' => Identity::request($r)];
             if ($r->has_param('title')) $body['title'] = $r->get_param('title');
+            if ($r->has_param('mentions')) $body['mentions'] = $r->get_param('mentions');
             return Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/comments/' . $r['comment_id'], $body, self::key($r)));
         });
         $route('/identity', 'POST', fn($r) => Service::person(Service::request('POST', '/people', Identity::request($r))));
         $route('/authors', 'GET', fn() => Identity::people(), $read);
+        $route('/mentions', 'GET', function () {
+            $data = Service::request('GET', '/mentions');
+            return ['people' => array_map(fn($p) => ['id' => $p['id'], 'name' => $p['name']], $data['people']), 'review_site' => $data['review_site'], 'delivery' => $data['delivery']];
+        }, $read);
         $route('/authors', 'POST', fn($r) => self::personResult(Service::request('POST', '/people', ['name' => $r->get_param('name'), 'email' => $r->get_param('email')])));
         $route($id . '/author', 'POST', function ($r) {
             $person = null;

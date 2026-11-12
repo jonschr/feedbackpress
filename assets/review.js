@@ -45,6 +45,8 @@
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
+  const mentionDrafts = new Map();
+  let mentionData = null, mentionRead = null, mentionAt = 0, mentionActive = null, mentionPicker = null, mentionList = null;
   const replyFiles = new Map();
   const replyOperations = new Map();
   const threadScrolls = new Map();
@@ -305,6 +307,7 @@
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
         issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); threadScrolls.clear();
         listLoading = false; listError = data.message || 'Feedback access changed. Refresh this page.';
+        mentionData = null; closeMentionMenu();
         restoringList = false; listLoaded = false; total = 0; issuePopup.hidden = true; tether.hidden = true;
         if (open) render(); drawPins();
       }
@@ -674,6 +677,7 @@
     const link = el('a', { href: url, download: file.name }); root.append(link); link.click(); link.remove();
   }
   async function openAttachment(file, trigger) {
+    closeMentionMenu();
     const ticket = ++viewerRequest; returnFocus = trigger; previewFileId = file.id;
     const body = el('div', { class: 'lightbox-body', role: 'status' }, 'Loading preview…');
     const toolbar = el('div', { class: 'lightbox-tools' }, button(icon('close'), closeLightbox, { class: 'fp-icon-button', 'aria-label': 'Dismiss attachment', title: 'Dismiss', 'data-tooltip-shortcut': 'Esc' }));
@@ -740,19 +744,119 @@
   }
   function editComment(comment) {
     if (!selected || actorId !== comment.author_id) return;
-    editDrafts.set(comment.id, { issue: selected.id, body: comment.body, title: comment.title || '', revision: comment.edit_revision });
+    mentionDrafts.delete('edit:' + comment.id);
+    editDrafts.set(comment.id, { issue: selected.id, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
     renderIssue(); issuePopup.querySelector(`[data-edit-comment="${comment.id}"] textarea`)?.focus();
   }
+  async function loadMentionPeople() {
+    if (mentionData && Date.now() - mentionAt < cacheLifetime) return mentionData;
+    if (!mentionRead) mentionRead = api('mentions').then(r => r.json()).then(data => {
+      if (cacheDenied) throw Error('Mention names unavailable.');
+      data.people.sort((a, b) => a.name.localeCompare(b.name)); mentionData = data; mentionAt = Date.now(); return data;
+    }).finally(() => { mentionRead = null; });
+    return mentionRead;
+  }
+  function closeMentionMenu() {
+    if (mentionActive) { mentionActive.field.removeAttribute('aria-activedescendant'); mentionActive.field.removeAttribute('aria-controls'); }
+    mentionActive = null;
+    if (mentionPicker) { if (mentionPicker.hidePopover && mentionPicker.matches(':popover-open')) mentionPicker.hidePopover(); mentionPicker.hidden = true; }
+  }
+  function positionMentionMenu() {
+    if (!mentionActive || !mentionPicker || mentionPicker.hidden) return;
+    const box = mentionActive.field.getBoundingClientRect(), viewport = visualViewport, top = viewport?.offsetTop || 0, bottom = top + (viewport?.height || innerHeight), width = Math.min(box.width, 320, innerWidth - 24);
+    const height = Math.min(220, Math.max(bottom - box.bottom - 12, box.top - top - 12));
+    Object.assign(mentionPicker.style, { width: width + 'px', maxHeight: height + 'px', left: Math.max(8, Math.min(box.left, innerWidth - width - 8)) + 'px', top: (bottom - box.bottom >= Math.min(180, height) ? box.bottom + 4 : Math.max(top + 8, box.top - mentionPicker.offsetHeight - 4)) + 'px' });
+  }
+  function chooseMention(person) {
+    const active = mentionActive; if (!active) return;
+    const { field, state, start, end } = active, label = '@' + person.name;
+    field.setRangeText(label + ' ', start, end, 'end'); field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    state.ranges.push({ id: person.id, start, end: start + label.length }); state.ranges.sort((a, b) => a.start - b.start);
+    mentionDrafts.set(state.key, { text: field.value, ranges: state.ranges }); closeMentionMenu(); field.focus();
+  }
+  function paintMentionMenu() {
+    const active = mentionActive; if (!active || !active.field.isConnected || !active.enabled()) return closeMentionMenu();
+    if (!mentionPicker) {
+      mentionList = el('div', { id: 'fp-mention-options', role: 'listbox', 'aria-label': 'Mention someone' });
+      mentionPicker = el('div', { class: 'mention-picker', popover: 'manual', hidden: true }, mentionList); root.append(mentionPicker);
+      mentionPicker.addEventListener('pointerdown', event => event.preventDefault());
+    }
+    active.options = (mentionData?.people || []).filter(p => p.id !== actorId && p.name.toLocaleLowerCase().includes(active.query.toLocaleLowerCase())).slice(0, 8);
+    if (active.index >= active.options.length) active.index = 0;
+    mentionList.replaceChildren(...active.options.map((person, index) => el('div', { id: 'fp-mention-' + person.id, role: 'option', 'aria-selected': String(index === active.index), class: index === active.index ? 'is-active' : '', onpointermove: () => { if (active.index !== index) { active.index = index; paintMentionMenu(); } }, onclick: () => chooseMention(person) }, person.name)));
+    const status = active.error ? 'Names unavailable. Try @ again.' : !mentionData ? 'Loading people…' : !active.options.length ? 'No matching people have commented yet.' : !mentionData.review_site ? 'Mentions stay in the thread; email needs a non-local staging site.' : mentionData.delivery === 'capture' ? 'Email preview only; live delivery is off.' : mentionData.delivery === 'disabled' ? 'Mention emails are off for this project.' : 'Email notifications respect each person’s preferences.';
+    mentionPicker.querySelector('.mention-help')?.remove(); mentionPicker.append(el('p', { class: 'mention-help', role: 'status' }, status));
+    active.field.setAttribute('aria-controls', mentionList.id);
+    if (active.options[active.index]) active.field.setAttribute('aria-activedescendant', 'fp-mention-' + active.options[active.index].id);
+    else active.field.removeAttribute('aria-activedescendant');
+    mentionPicker.hidden = false; if (mentionPicker.showPopover && !mentionPicker.matches(':popover-open')) mentionPicker.showPopover(); positionMentionMenu();
+  }
+  function mentionField(field, key, ranges = [], enabled = () => true) {
+    const saved = mentionDrafts.get(key), state = { key, text: field.value, ranges: saved?.text === field.value ? saved.ranges.map(m => ({ ...m })) : ranges.map(m => ({ ...m })) };
+    field.feedbackpressMentionState = state;
+    field.feedbackpressMentionEnabled = () => { for (const [name, value] of [['aria-autocomplete', 'list'], ['aria-haspopup', 'listbox'], ['aria-description', 'Type @ to mention someone who has commented on this project.']]) { if (enabled()) field.setAttribute(name, value); else field.removeAttribute(name); } };
+    field.feedbackpressMentionEnabled();
+    const update = event => {
+      const next = field.value, old = state.text; let prefix = 0, suffix = 0;
+      while (prefix < old.length && prefix < next.length && old[prefix] === next[prefix]) prefix++;
+      while (suffix < old.length - prefix && suffix < next.length - prefix && old[old.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix++;
+      const end = old.length - suffix, delta = next.length - old.length;
+      state.ranges = state.ranges.flatMap(m => m.end <= prefix ? [m] : m.start >= end ? [{ ...m, start: m.start + delta, end: m.end + delta }] : []).filter(m => !/[\p{L}\p{N}_]/u.test(next[m.end] || ''));
+      state.text = next; mentionDrafts.set(key, { text: next, ranges: state.ranges });
+      if (!enabled() || event?.isComposing || field.selectionStart !== field.selectionEnd) return closeMentionMenu();
+      const before = next.slice(0, field.selectionStart), match = before.match(/(?:^|[\s(])@([^@\n]{0,60})$/);
+      if (!match || state.ranges.length >= 20) return closeMentionMenu();
+      if (state.ranges.some(m => m.start === before.length - match[1].length - 1)) return closeMentionMenu();
+      if (mentionActive?.field !== field) closeMentionMenu();
+      mentionActive = { field, state, enabled, start: before.length - match[1].length - 1, end: before.length, query: match[1], index: 0, options: [] };
+      paintMentionMenu(); const active = mentionActive;
+      loadMentionPeople().then(() => { if (mentionActive === active) paintMentionMenu(); }).catch(() => { if (mentionActive === active) { active.error = true; paintMentionMenu(); } });
+    };
+    field.addEventListener('input', update); field.addEventListener('click', update); field.addEventListener('compositionend', update);
+    field.addEventListener('keyup', event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) update(event); });
+    field.addEventListener('select', () => { if (field.selectionStart !== field.selectionEnd) closeMentionMenu(); });
+    field.addEventListener('focus', () => { field.feedbackpressMentionEnabled(); if (enabled()) loadMentionPeople().catch(() => {}); });
+    field.addEventListener('blur', () => { setTimeout(() => { if (mentionActive?.field === field && root.activeElement !== field) closeMentionMenu(); }, 0); });
+    return field;
+  }
+  function readMentionField(field) {
+    const raw = field.value, start = raw.length - raw.trimStart().length, body = raw.trim();
+    return { body, mentions: (field.feedbackpressMentionState?.ranges || []).filter(m => m.start >= start && m.end <= start + body.length).map(m => ({ id: m.id, start: m.start - start, end: m.end - start })) };
+  }
+  function restoreMentionField(field, body, ranges) {
+    field.value = body; const state = field.feedbackpressMentionState;
+    if (state) { state.text = body; state.ranges = (ranges || []).map(m => ({ ...m })); mentionDrafts.set(state.key, { text: body, ranges: state.ranges }); }
+  }
+  function mentionKey(event) {
+    const active = mentionActive;
+    if (!active || !event.composedPath().includes(active.field) || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
+    if (event.key === 'Escape') closeMentionMenu();
+    else if (['ArrowDown', 'ArrowUp'].includes(event.key) && active.options.length) { active.index = (active.index + (event.key === 'ArrowDown' ? 1 : -1) + active.options.length) % active.options.length; paintMentionMenu(); mentionList.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' }); }
+    else if (['Enter', 'Tab'].includes(event.key) && active.options[active.index]) chooseMention(active.options[active.index]);
+    else return false;
+    event.preventDefault(); event.stopImmediatePropagation(); return true;
+  }
+  function mentionText(comment) {
+    const nodes = []; let at = 0;
+    for (const m of comment.mentions || []) { if (m.start < at || m.end > comment.body.length) continue; nodes.push(comment.body.slice(at, m.start), el('span', { class: 'comment-mention' }, comment.body.slice(m.start, m.end))); at = m.end; }
+    nodes.push(comment.body.slice(at)); return nodes;
+  }
+  document.addEventListener('pointerdown', event => { if (mentionActive && !event.composedPath().includes(mentionActive.field) && !event.composedPath().includes(mentionPicker)) closeMentionMenu(); }, true);
+  root.addEventListener('scroll', event => { if (!mentionPicker?.contains(event.target)) closeMentionMenu(); }, true);
+  addEventListener('resize', () => requestAnimationFrame(positionMentionMenu));
+  addEventListener('scroll', closeMentionMenu, { passive: true });
+  window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(positionMentionMenu));
   function commentEditor(comment, draft) {
     const form = el('form', { class: 'comment-editor', 'data-edit-comment': comment.id, onsubmit: event => {
       event.preventDefault();
       editDrafts.delete(comment.id);
-      enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}`, { author: name, author_email: email, body: draft.body, ...(comment.id === draft.issue ? { title: draft.title } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
+      const content = readMentionField(form.querySelector('textarea')); mentionDrafts.delete('edit:' + comment.id);
+      enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}`, { author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
       if (selected?.id === draft.issue) renderIssue();
     } });
     if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (selected?.id !== draft.issue) return; selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && latest.author_id === actorId) editComment({ ...latest, id: comment.id }); else { editDrafts.delete(comment.id); renderIssue(); } }), { class: 'fp-quiet' }));
     if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
-    form.append(el('textarea', { rows: 3, required: comment.id !== draft.issue, maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
+    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue, maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
     return form;
   }
   function commentView(comment, files) {
@@ -766,7 +870,7 @@
     const uploads = files.filter(file => !file.screenshot);
     const screenshots = files.filter(file => file.screenshot);
     const draft = editDrafts.get(comment.id);
-    const copy = el('div', { class: 'comment-copy' }, byline, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, comment.body)]));
+    const copy = el('div', { class: 'comment-copy' }, byline, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]));
     if (uploads.length) copy.append(el('div', { class: 'attachment-strip comment-uploads', role: 'group', 'aria-label': 'Comment attachments' }, ...uploads.map(attachmentThumbnail)));
     return el('div', { class: 'thread-comment' + (screenshots.length ? ' has-screenshot' : ''), 'data-comment': comment.id }, copy,
       screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null);
@@ -803,6 +907,7 @@
     return el('div', { class: 'thread-comment private-note' }, el('div', { class: 'comment-copy' }, byline, el('p', { class: 'comment' }, note.body)));
   }
   function renderIssue() {
+    closeMentionMenu();
     const issue = selected; const threadScroll = stylesReady && previewIssueId === issue.id ? issuePopup.querySelector('.issue-thread')?.scrollTop || 0 : threadScrolls.get(issue.id) || 0; issuePopup.dataset.status = issue.status;
     threadScrolls.set(issue.id, threadScroll);
     if (previewIssueId !== issue.id) { clearAttachments(); previewIssueId = issue.id; }
@@ -841,18 +946,18 @@
       input.value = ''; renderQueued();
     });
     renderQueued();
-    const privateToggle = c.privateNotes ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
+    const privateToggle = c.privateNotes ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
     input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
     issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
       if (!privateReply.has(issue.id)) return submitReply(event, issue.id);
       event.preventDefault(); if (files.length) { message('Remove queued attachments before leaving a private note.'); return; }
       const body = reply.value, key = crypto.randomUUID();
-      replyDrafts.delete(issue.id); reply.value = '';
+      replyDrafts.delete(issue.id); mentionDrafts.delete('reply:' + issue.id); reply.value = '';
       privateWork('private note', async () => {
         await api(`issues/${issue.id}/notes`, { method: 'POST', requestId: key, body: { body, kind: 'human' } });
         await loadNotes(issue.id);
       });
-    } }, reply, input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))));
+    } }, mentionField(reply, 'reply:' + issue.id, [], () => !privateReply.has(issue.id)), input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))));
     issuePopup.hidden = false; positionDraft(); restoreThreadScroll();
   }
   const pendingForms = new WeakSet();
@@ -873,10 +978,10 @@
     event.preventDefault(); const form = event.target;
     const current = issueCache.get(id)?.issue || selected;
     if (!current || current.pending) return;
-    const body = new FormData(form).get('body'), files = [...(replyFiles.get(id) || [])];
-    replyDrafts.delete(id); replyFiles.delete(id); form.elements.body.value = '';
+    const content = readMentionField(form.elements.body), files = [...(replyFiles.get(id) || [])];
+    replyDrafts.delete(id); mentionDrafts.delete('reply:' + id); replyFiles.delete(id); form.elements.body.value = '';
     const key = replyOperations.get(id)?.key || crypto.randomUUID(); replyOperations.delete(id);
-    enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, body, revision: current.revision }, files, null, key);
+    enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, ...content, revision: current.revision }, files, null, key);
     if (selected?.id === id) renderIssue();
   }
   async function upload(id, file, capture = false, comment = null, requestId = null) {
@@ -911,7 +1016,7 @@
       el('input', { name: 'title', type: 'text', class: 'composer-title', required: true, maxlength: 120, placeholder: 'Short issue title', 'aria-label': 'Issue title' }),
       el('label', { class: 'visually-hidden', for: 'fp-comment' }, 'What needs to change?'),
       el('div', { class: 'composer-field' },
-        el('textarea', { id: 'fp-comment', name: 'body', rows: 3, maxlength: 10000, placeholder: 'Description (optional)…', 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }),
+        mentionField(el('textarea', { id: 'fp-comment', name: 'body', rows: 3, maxlength: 10000, placeholder: 'Description (optional)…', 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }), 'draft:' + draftOperation),
         button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files', title: 'Attach images or PDFs (5 MB each)' })),
       input, attached,
       el('div', { class: 'composer-footer' }, el('button', { type: 'submit', class: 'fp-primary', title: 'Submit feedback', 'data-tooltip-shortcut': submitShortcut, 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }, 'Submit feedback')));
@@ -919,7 +1024,7 @@
     composer.replaceChildren(el('div', { class: 'composer-top' }, statusPicker, button(icon('close'), () => { if (!busy) startPick(); }, { class: 'fp-icon-button', 'aria-label': 'Close feedback', title: 'Discard this pin' })), form);
     composer.hidden = false; draftPin.hidden = !draft.selector; positionDraft(); form.elements.title.focus();
   }
-  function closeDraft() { draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
+  function closeDraft() { closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
   function newDraft(target) {
     if (busy) return;
     cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); open = false; panel.hidden = true; updateChrome(); viewButton.setAttribute('aria-expanded', 'false');
@@ -952,12 +1057,13 @@
       const edge = boxY > y ? boxY : boxY + height;
       Object.assign(tether.style, { left: x + 'px', top: Math.min(y, edge) + 'px', width: '2px', height: Math.abs(edge - y) + 'px' });
     }
+    positionMentionMenu();
   }
   function submitDraft(e) {
     e.preventDefault(); const form = e.target, data = new FormData(form), files = [...form.feedbackpressFiles];
     if (files.some(file => file.size > c.maxBytes)) return message('Each attachment must be 5 MB or smaller.');
     const target = draft, capturePromise = screenshot;
-    enqueueShared('create', 'issues', { author: name, author_email: email, title: data.get('title'), status: data.get('status'), body: data.get('body'), path: pagePath, target }, files, capturePromise, draftOperation);
+    enqueueShared('create', 'issues', { author: name, author_email: email, title: data.get('title'), status: data.get('status'), ...readMentionField(form.elements.body), path: pagePath, target }, files, capturePromise, draftOperation);
     closeDraft(); picking = true; drawPins();
     message('Click to drop another pin. Press C or Escape to exit.');
   }
@@ -1022,11 +1128,12 @@
   }
   window.addEventListener('keydown', event => {
     if (event.isComposing) return;
+    if (mentionKey(event)) return;
     const consume = () => { event.preventDefault(); event.stopPropagation(); };
     if (event.key === 'Escape' || event.key === 'Esc') {
       hideTooltip();
       const editForm = event.composedPath().find(node => node instanceof Element)?.closest('[data-edit-comment]');
-      if (editForm) { consume(); editDrafts.delete(editForm.dataset.editComment); notice.hidden = true; renderIssue(); return; }
+      if (editForm) { consume(); editDrafts.delete(editForm.dataset.editComment); mentionDrafts.delete('edit:' + editForm.dataset.editComment); notice.hidden = true; renderIssue(); return; }
       if (pinDrag && !pinDrag.ending) { consume(); cancelPinDrag(); return; }
       if (lightbox.open) { consume(); closeLightbox(); }
       else if (filterOpen) { consume(); closeStatusFilter(true); }
@@ -1319,10 +1426,10 @@
       if (job.issueId !== issue.id || job.phase !== 'text' || job.error) continue;
       if (job.kind === 'edit') {
         const comment = job.path.split('/')[3];
-        result = comment === issue.id ? { ...result, body: job.body.body, ...(job.body.title !== undefined ? { title: job.body.title } : {}), pending_edit: true } : { ...result, activity: result.activity.map(event => event.id === comment ? { ...event, payload: { ...event.payload, body: job.body.body, pending_edit: true } } : event) };
+        result = comment === issue.id ? { ...result, body: job.body.body, mentions: job.body.mentions || [], ...(job.body.title !== undefined ? { title: job.body.title } : {}), pending_edit: true } : { ...result, activity: result.activity.map(event => event.id === comment ? { ...event, payload: { ...event.payload, body: job.body.body, mentions: job.body.mentions || [], pending_edit: true } } : event) };
       }
       if (job.kind === 'status') result = { ...result, status: job.body.status };
-      if (job.kind === 'reply' && !result.activity.some(event => event.id === job.id)) result = { ...result, activity: [...result.activity, { id: job.id, kind: 'reply', created_at: job.createdAt, payload: { body: job.body.body, author: job.body.author || c.userName, author_id: actorId, pending: true } }] };
+      if (job.kind === 'reply' && !result.activity.some(event => event.id === job.id)) result = { ...result, activity: [...result.activity, { id: job.id, kind: 'reply', created_at: job.createdAt, payload: { body: job.body.body, mentions: job.body.mentions || [], author: job.body.author || c.userName, author_id: actorId, pending: true } }] };
     }
     return result;
   }
@@ -1427,14 +1534,14 @@
     }
     if (job.kind === 'create') {
       newDraft(job.body.target); draftOperation = job.id;
-      composer.querySelector('[name=title]').value = job.body.title; composer.querySelector('[name=body]').value = job.body.body;
+      composer.querySelector('[name=title]').value = job.body.title; restoreMentionField(composer.querySelector('[name=body]'), job.body.body, job.body.mentions);
       composer.querySelector('form').feedbackpressFiles.push(...job.files.map(item => item.file));
       issues = issues.filter(issue => issue.id !== job.id); pageIssues = pageIssues.filter(issue => issue.id !== job.id);
     } else if (job.kind === 'edit') {
       await showIssue(job.issueId); const id = job.path.split('/')[3];
-      editDrafts.set(id, { issue: job.issueId, body: job.body.body, title: job.body.title || '', revision: selected.revision, requestId: job.id }); renderIssue();
+      editDrafts.set(id, { issue: job.issueId, body: job.body.body, mentions: job.body.mentions || [], title: job.body.title || '', revision: selected.revision, requestId: job.id }); renderIssue();
     } else {
-      await showIssue(job.issueId); replyOperations.set(job.issueId, { key: job.id }); replyDrafts.set(job.issueId, job.body.body); replyFiles.set(job.issueId, job.files.map(item => item.file)); renderIssue();
+      await showIssue(job.issueId); replyOperations.set(job.issueId, { key: job.id }); replyDrafts.set(job.issueId, job.body.body); mentionDrafts.set('reply:' + job.issueId, { text: job.body.body, ranges: job.body.mentions || [] }); replyFiles.set(job.issueId, job.files.map(item => item.file)); renderIssue();
     }
     sharedJobs.delete(job.id); await storeJob(job, true); renderJobs(); drawPins();
   }

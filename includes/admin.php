@@ -21,6 +21,9 @@ final class Admin {
             Service::selectProject($id); return self::state();
         }, $admin);
         $route('/admin/site/remove', 'POST', function ($r) { Service::removeSite((string) $r->get_param('url')); return self::state(); }, $admin);
+        $route('/admin/notifications', 'POST', function ($r) {
+            $c = Service::connection(); Service::manager('POST', '/projects/' . $c['project'] . '/notifications', ['review_site' => $r->get_param('review_site')]); return self::state();
+        }, $admin);
         $route('/admin/disconnect', 'POST', fn() => Service::disconnect(), $admin);
         $route('/admin/settings', 'POST', function ($r) {
             $mode = $r->get_param('mode'); if (!in_array($mode, ['everyone', 'admins', 'disabled'], true)) throw new \InvalidArgumentException('Choose a review access setting.');

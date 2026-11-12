@@ -50,6 +50,14 @@
       row.append(copy, remove); list.append(row);
     }
     if (!list.children.length) { const p = document.createElement('p'); p.className = 'description'; p.textContent = 'No sites are connected to this project.'; section.append(p); } else section.append(list);
+    const form=document.createElement('form'),label=document.createElement('label'),select=document.createElement('select'),save=document.createElement('button'),help=document.createElement('p');
+    label.textContent='Staging site for mention emails';select.id='fp-review-site';label.htmlFor=select.id;
+    select.append(new Option('Choose a non-local site',''));
+    for(const site of state.project.sites||[])if(site.notification_eligible)select.append(new Option(site.url,site.url));
+    select.value=state.project.review_site||'';save.className='button';save.textContent='Save email links';save.type='submit';help.className='description';
+    help.textContent='Mentions link here first, with other non-local sites as alternatives. Local addresses are excluded. '+(state.project.notification_delivery==='capture'?'Email previews are being captured; live delivery is off.':state.project.notification_delivery==='resend'?'Delivery testing is limited to approved recipients.':'Mention emails are off.')+(!(state.project.sites||[]).some(site=>site.notification_eligible)?' Connect your staging WordPress copy to this project to enable email links.':'');
+    form.append(label,document.createElement('br'),select,document.createTextNode(' '),save,help);
+    form.addEventListener('submit',event=>{event.preventDefault();run(form,async()=>{await refresh(await api('notifications',{review_site:select.value||null}));show('Mention email links saved.');});});section.append(form);
   }
   function choose(id) {
     closePicker(); if (id === state?.project?.id && !state?.disconnected) return;
