@@ -42,6 +42,7 @@
   const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
   let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'none', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
+  let sidebarSide = 'right', pageLayout = 'overlay';
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
@@ -77,8 +78,10 @@
     hasListPosition = Number.isFinite(view.scrollTop) && view.scrollTop >= 0;
     listScroll = hasListPosition ? view.scrollTop : 0;
     resumeOpen = view.open === true;
+    if (view.sidebarSide === 'left') sidebarSide = 'left';
+    if (view.pageLayout === 'room') pageLayout = 'room';
   } catch (_) { /* Storage is optional. */ }
-  function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ statusVersion: 5, sort, scope, grouping, scopePath, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue) })); } catch (_) {} }
+  function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ statusVersion: 5, sort, scope, grouping, scopePath, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue), sidebarSide, pageLayout })); } catch (_) {} }
   const homePath = new URL(c.home).pathname.replace(/\/$/, '');
   const pagePath = (location.pathname.slice(homePath.length) || '/') + location.search;
   if (scope === 'current' && scopePath !== pagePath) { listPage = 1; listScroll = 0; hasListPosition = false; }
@@ -161,6 +164,25 @@
     return issueReads.get(id);
   }
   const panel = el('aside', { class: 'panel', 'aria-label': 'Issues', 'data-continuing': resumeOpen ? true : null, hidden: true });
+  const panelContents = el('div', { class: 'panel-contents' });
+  const sidebarSettings = el('details', { class: 'sidebar-settings' }, el('summary', {}, 'Sidebar settings', icon('chevron')));
+  for (const [legend, key, choices] of [['Sidebar side', 'side', [['left', 'Left'], ['right', 'Right']]], ['Page layout', 'layout', [['overlay', 'Overlay page'], ['room', 'Make room']]]]) {
+    const group = el('fieldset', {}, el('legend', {}, legend));
+    for (const [value, label] of choices) group.append(el('label', {}, el('input', { type: 'radio', name: 'fp-sidebar-' + key, value, checked: value === (key === 'side' ? sidebarSide : pageLayout), onchange: event => {
+      if (!event.target.checked) return;
+      captureListScroll();
+      if (key === 'side') sidebarSide = value; else pageLayout = value;
+      updateChrome(); drawPins(); positionDraft();
+    } }), label));
+    sidebarSettings.append(group);
+  }
+  sidebarSettings.append(el('p', { class: 'sidebar-narrow-note' }, 'On small screens, the list and page use separate views.'));
+  sidebarSettings.addEventListener('toggle', () => { captureListScroll(); requestAnimationFrame(() => { const list = panel.querySelector('.issue-list'); if (list) list.scrollTop = listScroll; }); });
+  panel.append(panelContents, sidebarSettings);
+  const pageLayoutStyle = document.createElement('style');
+  // shortcut: viewport units/fixed elements keep browser dimensions; an isolated viewport would be needed to simulate those too.
+  pageLayoutStyle.textContent = '@media (min-width:900px){html[data-feedbackpress-room]{box-sizing:border-box!important;width:calc(100% - 400px)!important;min-width:0!important;max-width:calc(100% - 400px)!important;margin-right:0!important;margin-left:0!important}html[data-feedbackpress-room="left"]{margin-left:400px!important}}';
+  document.head.append(pageLayoutStyle);
   const composer = el('section', { class: 'composer', 'aria-label': 'New feedback', hidden: true });
   const issuePopup = el('section', { class: 'composer issue-popup', 'aria-label': 'Issue details', hidden: true });
   const lightbox = el('dialog', { class: 'attachment-lightbox', 'aria-label': 'Attachment preview' });
@@ -176,7 +198,18 @@
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
     launchers.hidden = open;
-    toolbar.style.insetInlineEnd = open && innerWidth >= 900 ? panel.offsetWidth + 20 + 'px' : '';
+    sidebarSettings.querySelectorAll('fieldset').forEach(group => { group.disabled = innerWidth < 900; });
+    host.dataset.sidebarSide = sidebarSide;
+    const visible = !panel.hidden && innerWidth >= 900;
+    host.toggleAttribute('data-sidebar-visible', visible);
+    toolbar.style.insetInlineStart = visible && sidebarSide === 'left' ? panel.offsetWidth + 20 + 'px' : '';
+    toolbar.style.insetInlineEnd = visible && sidebarSide === 'right' ? panel.offsetWidth + 20 + 'px' : '';
+    const room = visible && pageLayout === 'room' && !cacheDenied ? sidebarSide : null;
+    if (room !== document.documentElement.getAttribute('data-feedbackpress-room')) {
+      if (room) document.documentElement.setAttribute('data-feedbackpress-room', room);
+      else document.documentElement.removeAttribute('data-feedbackpress-room');
+      targetEpoch++; requestAnimationFrame(() => { drawPins(); positionDraft(); });
+    }
     saveView();
   }
   function captureListScroll() {
@@ -548,7 +581,7 @@
     const groups = el('select', { 'aria-label': 'Group issues', onchange: event => { grouping = event.target.value; changeView(); } }, el('option', { value: 'none' }, 'Flat list'), el('option', { value: 'page' }, 'By page')); groups.value = grouping;
     const order = el('select', { 'aria-label': 'Order issues', onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
     const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
-    panel.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, groups), el('div', { class: 'filters sort-filters' }, order, statusFilterControl())), list);
+    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, groups), el('div', { class: 'filters sort-filters' }, order, statusFilterControl())), list);
     if (!issues.length) {
       if (listLoading) list.append(el('div', { class: 'list-placeholder', role: 'status', 'aria-label': 'Loading issues' }, ...Array.from({ length: 3 }, () => el('div', {}, el('span'), el('span'), el('span')))));
       else if (listError) list.append(el('div', { class: 'empty', role: 'status' }, el('p', { class: 'subtle' }, listError), button('Try again', () => load(), { class: 'fp-quiet' })));
@@ -563,7 +596,7 @@
       list.append(issueRow(issue));
     }
     if (selected && matchesScope(selected) && !listLoading && !issues.some(issue => issue.id === selected.id)) list.append(el('small', { class: 'outside-filter' }, 'Selected issue outside this list'), issueRow(selected));
-    if (total > 50) panel.append(el('nav', { class: 'actions pagination', 'aria-label': 'Issue pages' }, button(icon('previous'), () => { listPage--; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Previous list page', disabled: listPage <= 1 }), el('small', {}, `${listPage} / ${Math.ceil(total / 50)}`), button(icon('next'), () => { listPage++; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Next list page', disabled: listPage * 50 >= total })));
+    if (total > 50) panelContents.append(el('nav', { class: 'actions pagination', 'aria-label': 'Issue pages' }, button(icon('previous'), () => { listPage--; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Previous list page', disabled: listPage <= 1 }), el('small', {}, `${listPage} / ${Math.ceil(total / 50)}`), button(icon('next'), () => { listPage++; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Next list page', disabled: listPage * 50 >= total })));
     // Hidden/mobile and loading lists have no usable scroll range; retain the saved position until visible.
     if (stylesReady && !panel.hidden && issues.length) {
       list.scrollTop = listScroll;
@@ -1084,7 +1117,7 @@
   function newDraft(target) {
     if (busy) return;
     imageDropJob = null; clearImageDrop();
-    cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); open = false; panel.hidden = true; updateChrome(); viewButton.setAttribute('aria-expanded', 'false');
+    cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); panel.hidden = !open || innerWidth < 900; updateChrome(); viewButton.setAttribute('aria-expanded', String(open));
     notice.hidden = true; drawPins(); screenshot = capture(target); renderDraft();
   }
   function positionDraft() {
@@ -1092,9 +1125,11 @@
     const anchor = draft || selected?.target;
     if (!surface || !anchor || surface.hidden) return;
     const viewport = window.visualViewport;
-    const left = (viewport?.offsetLeft || 0) + 12, top = (viewport?.offsetTop || 0) + 12;
-    const viewportRight = left + (viewport?.width || innerWidth) - 24;
-    const right = !panel.hidden && innerWidth >= 900 ? Math.min(viewportRight, panel.getBoundingClientRect().left - 12) : viewportRight;
+    const viewportLeft = (viewport?.offsetLeft || 0) + 12, top = (viewport?.offsetTop || 0) + 12;
+    const alongside = !panel.hidden && innerWidth >= 900, panelRect = panel.getBoundingClientRect();
+    const left = alongside && sidebarSide === 'left' ? Math.max(viewportLeft, panelRect.right + 12) : viewportLeft;
+    const viewportRight = viewportLeft + (viewport?.width || innerWidth) - 24;
+    const right = alongside && sidebarSide === 'right' ? Math.min(viewportRight, panelRect.left - 12) : viewportRight;
     const bottom = Math.min(top + (viewport?.height || innerHeight) - 24, (!notice.hidden || !launchers.hidden) ? toolbar.getBoundingClientRect().top - 12 : Infinity);
     surface.style.maxHeight = Math.max(120, Math.min(surface === issuePopup ? 620 : Infinity, bottom - top)) + 'px';
     const point = targetPoint({ target: anchor });
@@ -1166,7 +1201,11 @@
     }
     return parts.join(' > ') || 'body';
   }
-  function startPick() { if (busy) return; closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; open = false; viewButton.setAttribute('aria-expanded', 'false'); picking = true; panel.hidden = true; updateChrome(); drawPins(); message('Click an element, or press P for page feedback. C or Escape exits.'); }
+  function startPick() { if (busy) return; captureListScroll(); closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message('Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
+  function stopPlacement() {
+    uiSession++; issueRequest++; openingIssue = 0; cancelPick(); closeDraft(); identity.hidden = true; notice.hidden = true;
+    prepareListReveal(); panel.hidden = !open; updateChrome(); if (open) render(); drawPins();
+  }
   function cancelPick() { picking = false; highlight.hidden = true; }
   document.addEventListener('pointermove', event => {
     if (!picking || event.composedPath().includes(host)) return;
@@ -1207,7 +1246,7 @@
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     if (document.designMode === 'on' || event.composedPath().some(node => node instanceof Element && (node.isContentEditable || node.matches('input, textarea, select, [role="textbox"], [role="searchbox"], [role="combobox"], [role="spinbutton"], [role="slider"], [role="listbox"], [role="grid"], [role="tree"]')))) return;
     const key = event.key.toLowerCase();
-    if (key === 'c') { consume(); if (picking || draft || !identity.hidden) dismissInterface(); else launcher.click(); return; }
+    if (key === 'c') { consume(); if (picking || draft || !identity.hidden) stopPlacement(); else withIdentity(startPick); return; }
     if (key === 'v') { consume(); viewButton.click(); return; }
     if (picking && event.key.toLowerCase() === 'p') { consume(); newDraft({ selector: '', text: 'Page feedback', x: .5, y: .5 }); return; }
     if (draft || picking || pinDrag || !identity.hidden) return;
@@ -1242,7 +1281,8 @@
     return [...node.classList].filter(value => /^[a-zA-Z_][\w-]{0,79}$/.test(value) && !/^(is-|has-|active$)|\d{3,}|(?:^|[-_])[a-f0-9]{6,}$/i.test(value)).slice(0, 6);
   }
   function pageDimensions() {
-    return { width: Math.max(document.documentElement.scrollWidth, innerWidth), height: Math.max(document.documentElement.scrollHeight, innerHeight) };
+    const room = document.documentElement.hasAttribute('data-feedbackpress-room'), rect = document.documentElement.getBoundingClientRect();
+    return { width: room ? rect.width : Math.max(document.documentElement.scrollWidth, innerWidth), left: room ? rect.left + scrollX : 0, height: Math.max(document.documentElement.scrollHeight, innerHeight) };
   }
   function makeTarget(node, clientX, clientY) {
     if (!node || node === host || host.contains(node) || node.closest('#wpadminbar,[data-feedbackpress-private]')) return null;
@@ -1256,7 +1296,7 @@
     return { selector: selector(node), text: targetText(node),
       x: rect.width ? Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) : .5,
       y: rect.height ? Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)) : .5,
-      fingerprint, page: { x: Math.max(0, Math.min(dimensions.width, scrollX + clientX)), y: Math.max(0, Math.min(dimensions.height, scrollY + clientY)), ...dimensions } };
+      fingerprint, page: { x: Math.max(0, Math.min(dimensions.width, scrollX + clientX - dimensions.left)), y: Math.max(0, Math.min(dimensions.height, scrollY + clientY)), width: dimensions.width, height: dimensions.height } };
   }
   const targetResolutions = new WeakMap();
   let targetEpoch = 0;
@@ -1322,7 +1362,7 @@
     const saved = issue.target.page;
     if (!saved) return null;
     const dimensions = pageDimensions();
-    return { x: Math.max(15, Math.min(dimensions.width - 15, saved.x / saved.width * dimensions.width)) - scrollX,
+    return { x: dimensions.left + Math.max(15, Math.min(dimensions.width - 15, saved.x / saved.width * dimensions.width)) - scrollX,
       y: Math.max(15, Math.min(dimensions.height - 15, saved.y / saved.height * dimensions.height)) - scrollY };
   }
   function locate(issue) {
@@ -1432,7 +1472,7 @@
     for (const [id, pin] of existing) if (!retained.has(id)) pin.remove();
   }
   let frame = null;
-  const redraw = () => { if (frame) return; frame = requestAnimationFrame(() => { frame = null; if (open && selected && !issuePopup.hidden) panel.hidden = innerWidth < 900; updateChrome(); drawPins(); positionDraft(); }); };
+  const redraw = () => { if (frame) return; frame = requestAnimationFrame(() => { frame = null; if (open) panel.hidden = innerWidth < 900 && (picking || Boolean(draft) || selected && !issuePopup.hidden); updateChrome(); drawPins(); positionDraft(); }); };
   new ResizeObserver(() => positionDraft()).observe(issuePopup);
   new ResizeObserver(() => positionDraft()).observe(composer);
   new ResizeObserver(() => positionDraft()).observe(toolbar);
