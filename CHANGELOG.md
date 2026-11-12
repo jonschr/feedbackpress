@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-beta.5 — November 12, 2026
+
+- Turn the misleading error cross into a real, keyboard-accessible Dismiss notification button. Dismissed shared errors stay hidden across navigation without losing unsaved text/files or retrying a write.
+- Sidebar settings can show dismissed notifications again for Retry or Restore draft. Private work stays memory-only and is removed on identity change/page exit. Restore focus to a visible review control after dismissal.
+- Verify stacked errors, click/Enter dismissal, navigation/reload, text/file/query/idempotency recovery, one upload and private persistence exclusion. Stable automatic updates remain 0.2.2.
+
 ## 0.3.0-beta.4 — November 12, 2026
 
 - Make room now proportionally scales the whole page, including typography, the WordPress admin bar and fixed headers. The sidebar, pins and FeedbackPress controls stay full size.

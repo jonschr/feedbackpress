@@ -1755,6 +1755,11 @@
   const journalKey = cacheKey + ':work', journal = new Map();
   try { for (const job of JSON.parse(sessionStorage.getItem(journalKey) || '[]')) journal.set(job.id, job); } catch (_) {}
   const workPanel = el('aside', { class: 'work-panel', 'aria-label': 'Background activity', hidden: true }); root.append(workPanel);
+  const showDismissedWork = button('', () => {
+    for (const job of sharedJobs.values()) if (job.dismissed) { delete job.dismissed; storeJob(job).catch(error => message(error.message)); }
+    renderJobs(); workPanel.querySelector('button')?.focus();
+  }, { class: 'fp-quiet', hidden: true });
+  sidebarSettings.append(showDismissedWork);
   const workDatabase = new Promise(resolve => {
     if (!window.indexedDB) return resolve(null);
     const request = indexedDB.open('feedbackpress-work', 1);
@@ -1793,10 +1798,18 @@
     return result;
   }
   function renderJobs() {
-    workPanel.hidden = !sharedJobs.size;
-    workPanel.replaceChildren(...[...sharedJobs.values()].map(job => {
+    const visible = [...sharedJobs.values()].filter(job => !job.dismissed);
+    const dismissed = sharedJobs.size - visible.length;
+    showDismissedWork.hidden = !dismissed;
+    showDismissedWork.textContent = `Show ${dismissed} dismissed notification${dismissed === 1 ? '' : 's'}`;
+    workPanel.hidden = !visible.length;
+    workPanel.replaceChildren(...visible.map(job => {
       const label = job.error ? job.error : job.phase === 'done' ? 'Saved' : job.phase === 'files' ? 'Uploading ' + (job.files[0]?.file.name || 'screenshot') + (job.files.length > 1 ? ' (' + job.files.length + ' remaining)' : '') + '…' : 'Saving ' + (job.kind === 'create' ? 'feedback' : job.kind) + '…';
-      return el('div', { class: 'work-item', 'data-state': job.error ? 'error' : job.phase, role: 'status' }, el('span', { class: 'work-indicator', 'aria-hidden': 'true' }, job.phase === 'done' ? icon('check') : job.error ? icon('close') : null), el('span', {}, label),
+      const indicator = job.error ? button(icon('close'), () => {
+        job.dismissed = true; storeJob(job).catch(error => message(error.message)); hideTooltip(); renderJobs();
+        (!panel.hidden ? sidebarSettings.querySelector('summary') : !issuePopup.hidden ? issuePopup.querySelector('[aria-label="Dismiss issue"]') : viewButton)?.focus();
+      }, { class: 'fp-icon-button work-dismiss', 'aria-label': 'Dismiss notification' }) : el('span', { class: 'work-indicator', 'aria-hidden': 'true' }, job.phase === 'done' ? icon('check') : null);
+      return el('div', { class: 'work-item', 'data-state': job.error ? 'error' : job.phase, role: 'status' }, indicator, el('span', {}, label),
         job.error ? button('Retry', () => { delete job.error; if (job.retry) job.retry(); else executeJob(job); }) : null,
         job.error && job.missingFiles ? el('input', { type: 'file', multiple: true, 'aria-label': 'Reattach interrupted files', onchange: event => { job.files = [...event.target.files].map(file => ({ file, key: crypto.randomUUID(), screenshot: false })); job.missingFiles = 0; delete job.error; executeJob(job); } }) : null,
         job.error && !job.private && job.phase === 'text' && job.kind !== 'status' ? button('Restore draft', () => restoreJob(job).catch(error => message(error.message))) : null,
@@ -1824,7 +1837,7 @@
   }
   async function executeJob(job, capturePromise = null) {
     // running is kept outside the persisted descriptor so navigation can resume interrupted work.
-    const running = executingJobs.has(job.id); if (running) return; executingJobs.add(job.id); renderJobs();
+    const running = executingJobs.has(job.id); if (running) return; executingJobs.add(job.id); delete job.dismissed; renderJobs();
     try {
       await storeJob(job);
       if (job.phase === 'text') {
@@ -1886,7 +1899,7 @@
   function privateWork(label, work) {
     const job = { id: crypto.randomUUID(), kind: label, phase: 'text', private: true, files: [] };
     job.retry = async () => {
-      renderJobs();
+      delete job.dismissed; renderJobs();
       try { await work(); job.phase = 'done'; renderJobs(); setTimeout(() => { sharedJobs.delete(job.id); renderJobs(); }, 6000); }
       catch (error) { job.error = error.message; renderJobs(); }
     };

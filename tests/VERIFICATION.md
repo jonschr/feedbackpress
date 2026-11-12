@@ -304,3 +304,6 @@ Issue reveal: `NODE_PATH="<private test-tools>/node_modules" node tests/scroll-f
 
 
 Whole-page fit: `tests/page-scale.cjs` uses real Chrome with intercepted HTTP to check proportional page/admin-bar/type/vw/vh geometry, unchanged line wrapping and responsive breakpoints, full-size FeedbackPress, left/right fit, fixed/absolute/containing-block/dynamic boxes, reveal/pin alignment, resize/mobile and exact original inline-style/attribute restoration. Companion sidebar-layout, screenshot-pin (real bundled renderer), pin-drag (now including Make room), scroll-focus, navigation-continuity and target-recovery checks pass. No feedback/settings/provider writes.
+
+
+Dismissal regression: job-restore-navigation exercises click/Enter on independently stacked errors, persistent shared dismissal, no automatic replay, Sidebar settings recovery, exact text/file/query restoration with the original operation ID and one final upload. Private failure/retry/dismiss stays out of both IndexedDB/sessionStorage and vanishes on reload; 320px bounds and visible focus return are asserted. Central-client, upload-navigation and note-actions checks pass alongside it.

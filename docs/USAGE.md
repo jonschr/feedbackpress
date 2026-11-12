@@ -21,3 +21,6 @@ Open the three-dot button next to **your** issue, reply, or private note for **E
 Shared replies and your private human/agent notes appear together in posting order, oldest first. Editing or making a note public preserves its original position. Today’s posts show relative times (seconds/minutes/hours ago); earlier local calendar days show a short date and time without the year. Hover the time for the exact timestamp. Visible times refresh locally without replacing the thread or disturbing drafts.
 
 Rapid review: shared/private writes use a per-project one-minute allowance of 600 changes per logged-in WordPress user, or 120 per guest IP. Background snapshots and ordinary reads do not use it. A limit response shows remaining seconds and Retry-After; failed edits remain available for deliberate Retry. Background errors are not proof that an issue was deleted. Missing feedback and missing attachments have separate messages.
+
+
+The × on a failed background notification dismisses that message. Shared unsaved text/files remain recoverable: open **Sidebar settings → Show dismissed notifications**, then use **Retry** or **Restore draft**. Dismissal does not retry or override a stale revision. Private failed notes are recoverable only while that page remains open; they are never stored in the browser's persistent work queue.

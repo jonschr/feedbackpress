@@ -311,6 +311,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .work-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--fp-line); border-radius: 6px; background: var(--fp-surface); color: var(--fp-ink); font-size: 12px; line-height: 18px; }
 .work-item > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .work-item button { padding: 3px 6px; font-size: 12px; }
+.work-item .work-dismiss { width: 28px; height: 28px; padding: 5px; }
 .work-indicator { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid var(--fp-line); border-top-color: var(--fp-muted); border-radius: 50%; animation: fp-working 1s linear infinite; }
 .work-item[data-state=done] .work-indicator, .work-item[data-state=error] .work-indicator { animation: none; border: 0; border-radius: 0; }
 @keyframes fp-working { to { transform: rotate(360deg); } }
