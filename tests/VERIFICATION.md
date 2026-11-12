@@ -301,3 +301,6 @@ Private-note refresh/access-loss and tooltip/lightbox regressions also pass for 
 
 
 Issue reveal: `NODE_PATH="<private test-tools>/node_modules" node tests/scroll-focus.cjs` intercepts all HTTP and uses actual Chrome. Covers overridden window scrolling, mandatory snap/smooth/anchoring, delayed reset/layout shift, scaled nested XY/RTL and fixed panes, fixed-header clearance, latest selection, manual/thread handoff, bounded correction, saved fallback and exact style cleanup preserving theme edits. Companion navigation-continuity, target-recovery, issue-keyboard and sidebar-layout fixtures pass. No real feedback/provider requests.
+
+
+Whole-page fit: `tests/page-scale.cjs` uses real Chrome with intercepted HTTP to check proportional page/admin-bar/type/vw/vh geometry, unchanged line wrapping and responsive breakpoints, full-size FeedbackPress, left/right fit, fixed/absolute/containing-block/dynamic boxes, reveal/pin alignment, resize/mobile and exact original inline-style/attribute restoration. Companion sidebar-layout, screenshot-pin (real bundled renderer), pin-drag (now including Make room), scroll-focus, navigation-continuity and target-recovery checks pass. No feedback/settings/provider writes.

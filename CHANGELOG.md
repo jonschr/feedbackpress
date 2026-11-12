@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-beta.4 — November 12, 2026
+
+- Make room now proportionally scales the whole page, including typography, the WordPress admin bar and fixed headers. The sidebar, pins and FeedbackPress controls stay full size.
+- Preserve normal line wrapping, viewport-unit proportions and responsive breakpoints; fit either sidebar side without wrapping or reloading the site. Reconcile viewport-positioned boxes and dynamic layout changes, preserve the document scroll anchor, and restore original page styles when review closes or switches to mobile.
+- Verify scaled pin placement/reveal/dragging, exact sidebar navigation state and screenshots using the bundled renderer. Stable automatic updates remain 0.2.2.
+
 ## 0.3.0-beta.3 — November 12, 2026
 
 - Reveal issue pins with native element scrolling, bypassing theme window-scroll wrappers and temporarily controlling smooth scrolling, scroll snap and scroll anchoring.

@@ -208,9 +208,50 @@
   sidebarSettings.addEventListener('toggle', () => { captureListScroll(); requestAnimationFrame(() => { const list = panel.querySelector('.issue-list'); if (list) list.scrollTop = listScroll; }); });
   panel.append(panelContents, sidebarSettings);
   const pageLayoutStyle = document.createElement('style');
-  // shortcut: viewport units/fixed elements keep browser dimensions; an isolated viewport would be needed to simulate those too.
-  pageLayoutStyle.textContent = '@media (min-width:900px){html[data-feedbackpress-room]{box-sizing:border-box!important;width:calc(100% - 400px)!important;min-width:0!important;max-width:calc(100% - 400px)!important;margin-right:0!important;margin-left:0!important}html[data-feedbackpress-room="left"]{margin-left:400px!important}}';
   document.head.append(pageLayoutStyle);
+  let pageFit = null, pageFitDirty = false, fixedSequence = 0;
+  function viewportPositioned(node) {
+    const position = getComputedStyle(node).position;
+    if (node === host || !['fixed', 'absolute'].includes(position)) return false;
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      const style = getComputedStyle(parent);
+      if (position === 'absolute' && style.position !== 'static' || style.transform !== 'none' || style.perspective !== 'none' || style.filter !== 'none' || /layout|paint|strict|content/.test(style.contain) || /transform|filter|perspective/.test(style.willChange) || style.contentVisibility === 'auto') return false;
+    }
+    return true;
+  }
+  function fitPage(side) {
+    const sidebarWidth = panel.offsetWidth || 400;
+    const key = side ? `${side}:${innerWidth}:${innerHeight}:${sidebarWidth}` : null;
+    if (key === pageFit?.key && !pageFitDirty || !key && !pageFit) return;
+    const previousScale = pageFit?.scale || 1, x = scrollX, y = scrollY;
+    pageLayoutStyle.disabled = true;
+    for (const [node, state] of pageFit?.fixed || []) {
+      if (state.original === null) node.removeAttribute('data-feedbackpress-fixed'); else node.setAttribute('data-feedbackpress-fixed', state.original);
+    }
+    pageFit = null; pageFitDirty = false;
+    if (side) {
+      const width = document.documentElement.clientWidth, scale = (width - sidebarWidth) / width;
+      const zoom = (parseFloat(getComputedStyle(document.documentElement).zoom) || 1) * scale;
+      const offset = side === 'left' ? sidebarWidth / zoom : 0, fixed = new Map(), rules = [];
+      // Zoom keeps line wrapping and viewport units; viewport-positioned boxes need their original geometry.
+      for (const node of [document.body, ...document.body.querySelectorAll('*')]) if (viewportPositioned(node)) {
+        const style = getComputedStyle(node), id = String(++fixedSequence);
+        fixed.set(node, { original: node.getAttribute('data-feedbackpress-fixed') });
+        rules.push(`[data-feedbackpress-fixed="${id}"]{left:calc(${style.left} + ${offset}px)!important;right:auto!important;width:${style.width}!important;height:${style.height}!important;margin-left:${style.marginLeft}!important;margin-right:${style.marginRight}!important;${style.position === 'absolute' ? `top:${style.top}!important;bottom:auto!important` : ''}}`);
+        node.setAttribute('data-feedbackpress-fixed', id);
+      }
+      pageLayoutStyle.textContent = `html[data-feedbackpress-room]{zoom:${zoom}!important;box-sizing:border-box!important;width:${width * scale / zoom}px!important;min-width:0!important;max-width:none!important;margin-left:${offset}px!important;margin-right:0!important}html[data-feedbackpress-room] #feedbackpress-root{zoom:${1 / zoom}!important}` + rules.join('');
+      pageFit = { key, scale, zoom, fixed };
+      document.documentElement.setAttribute('data-feedbackpress-room', side);
+    } else {
+      pageLayoutStyle.textContent = '';
+      document.documentElement.removeAttribute('data-feedbackpress-room');
+    }
+    pageLayoutStyle.disabled = false;
+    const scale = pageFit?.scale || 1;
+    nativeScrollTo.call(document.scrollingElement, { left: x * scale / previousScale, top: y * scale / previousScale, behavior: 'instant' });
+    targetEpoch++; requestAnimationFrame(() => { drawPins(); positionDraft(); });
+  }
   const composer = el('section', { class: 'composer', 'aria-label': 'New feedback', hidden: true });
   const issuePopup = el('section', { class: 'composer issue-popup', 'aria-label': 'Issue details', hidden: true });
   const lightbox = el('dialog', { class: 'attachment-lightbox', 'aria-label': 'Attachment preview' });
@@ -233,11 +274,7 @@
     toolbar.style.insetInlineStart = visible && sidebarSide === 'left' ? panel.offsetWidth + 20 + 'px' : '';
     toolbar.style.insetInlineEnd = visible && sidebarSide === 'right' ? panel.offsetWidth + 20 + 'px' : '';
     const room = visible && pageLayout === 'room' && !cacheDenied ? sidebarSide : null;
-    if (room !== document.documentElement.getAttribute('data-feedbackpress-room')) {
-      if (room) document.documentElement.setAttribute('data-feedbackpress-room', room);
-      else document.documentElement.removeAttribute('data-feedbackpress-room');
-      targetEpoch++; requestAnimationFrame(() => { drawPins(); positionDraft(); });
-    }
+    fitPage(room);
     saveView();
   }
   function captureListScroll() {
@@ -1438,7 +1475,8 @@
   }
   function pageDimensions() {
     const room = document.documentElement.hasAttribute('data-feedbackpress-room'), rect = document.documentElement.getBoundingClientRect();
-    return { width: room ? rect.width : Math.max(document.documentElement.scrollWidth, innerWidth), left: room ? rect.left + scrollX : 0, height: Math.max(document.documentElement.scrollHeight, innerHeight) };
+    return { width: room ? rect.width : Math.max(document.documentElement.scrollWidth, innerWidth), left: room ? rect.left + scrollX : 0,
+      height: pageFit ? Math.max(rect.height, document.body.scrollHeight * pageFit.zoom, innerHeight * pageFit.scale) : Math.max(document.documentElement.scrollHeight, innerHeight) };
   }
   function makeTarget(node, clientX, clientY) {
     if (!node || node === host || host.contains(node) || node.closest('#wpadminbar,[data-feedbackpress-private]')) return null;
@@ -1689,22 +1727,24 @@
   }
   let frame = null;
   const redraw = () => { if (frame) return; frame = requestAnimationFrame(() => { frame = null; if (open) panel.hidden = innerWidth < 900 && (picking || Boolean(draft) || selected && !issuePopup.hidden); updateChrome(); drawPins(); positionDraft(); }); };
+  const refreshPageFit = () => { if (pageFit) pageFitDirty = true; redraw(); };
   new ResizeObserver(() => positionDraft()).observe(issuePopup);
   new ResizeObserver(() => positionDraft()).observe(composer);
   new ResizeObserver(() => positionDraft()).observe(toolbar);
   addEventListener('scroll', redraw, { passive: true }); addEventListener('resize', redraw);
-  addEventListener('load', redraw);
+  addEventListener('load', refreshPageFit);
   // Page builders can reveal the saved element after the initial page/API load.
-  new MutationObserver(records => { const changed = records.filter(record => record.target !== host && !host.contains(record.target)); if (changed.length) { if (changed.some(record => record.attributeName !== 'style')) targetEpoch++; redraw(); } }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'id', 'href', 'src', 'alt', 'role'], characterData: true });
+  new MutationObserver(records => { const changed = records.filter(record => record.target !== host && !host.contains(record.target)); if (changed.length) { if (changed.some(record => record.attributeName !== 'style')) targetEpoch++; if (pageFit && changed.some(record => record.type === 'childList' || record.target instanceof Element && (['fixed', 'absolute'].includes(getComputedStyle(record.target).position) || [...pageFit.fixed.keys()].some(node => record.target.contains(node))))) pageFitDirty = true; redraw(); } }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'id', 'href', 'src', 'alt', 'role'], characterData: true });
   new ResizeObserver(redraw).observe(document.body);
-  document.addEventListener('load', event => { if (!host.contains(event.target)) redraw(); }, true);
+  document.addEventListener('load', event => { if (!host.contains(event.target)) refreshPageFit(); }, true);
+  document.addEventListener('toggle', event => { if (!host.contains(event.target)) refreshPageFit(); }, true);
   if (window.FontFace && document.fonts) {
     try {
       const font = new FontFace('FeedbackPress Inter', `url("${new URL('fonts/InterVariable.woff2', new URL(c.css, document.baseURI)).href}")`, { weight: '100 900', display: 'swap' });
       document.fonts.add(font); font.load().then(redraw).catch(() => {});
     } catch (_) { /* System sans remains available when a browser cannot load the bundled font. */ }
   }
-  document.fonts?.ready.then(redraw);
+  document.fonts?.ready.then(refreshPageFit);
   window.visualViewport?.addEventListener('resize', redraw);
   window.visualViewport?.addEventListener('scroll', redraw);
   const sharedJobs = new Map(), ownRevisions = new Map();

@@ -18,7 +18,7 @@ async function scenario({width,height,dpr=1,point,pageFeedback=false,delay=false
  assert.deepEqual(errors,[]);await ctx.close();console.log('PASS '+name);
 }
 await scenario({width:1440,height:900,point:{x:310,y:400},delay:true,name:'desktop-original-location'});
-await scenario({width:1440,height:900,point:{x:710,y:400},room:true,name:'left-sidebar-room-real-renderer'});
+await scenario({width:1440,height:900,point:{x:710,y:110},room:true,name:'left-sidebar-room-real-renderer'});
 await scenario({width:390,height:844,dpr:2,point:{x:3,y:400},name:'mobile-edge-scaled'});
 await scenario({width:800,height:700,pageFeedback:true,name:'whole-page-no-pin'});
 await scenario({width:800,height:700,point:{x:310,y:400},fail:true,name:'capture-failure-comment-kept'});
