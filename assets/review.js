@@ -89,7 +89,7 @@
   if (scope === 'current' && scopePath !== pagePath) { listPage = 1; listScroll = 0; hasListPosition = false; }
   scopePath = pagePath;
   if (scope === 'current') grouping = 'none';
-  const issueCache = new Map(), issueReads = new Map();
+  const issueCache = new Map(), issueReads = new Map(), privateIssueIds = new Set();
   const cacheKey = 'feedbackpress-shared-cache:' + c.home + ':' + (c.network || '') + ':' + (c.authorId || c.userName || 'guest');
   const cacheLifetime = 30000;
   let cacheSaveTimer = null, restoringList = false, restoredSelection = null, restoredDetails = false, cacheDenied = false, knownIssues = null, loadedListSignature = null;
@@ -104,9 +104,9 @@
     cacheSaveTimer = null;
     if (cacheDenied) return;
     const visible = issues.filter(issue => !issue.pending);
-    const view = listLoaded && selected?.visibility !== 'private' && !visible.some(issue => issue.visibility === 'private' || issue.activity.some(event => event.payload?.visibility === 'private')) && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].filter(([id]) => issueCache.get(id)?.issue.visibility !== 'private').slice(-200) } : null;
+    const view = listLoaded && selected?.visibility !== 'private' && !visible.some(issue => issue.visibility === 'private' || issue.activity.some(event => event.payload?.visibility === 'private')) && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].filter(([id]) => !privateIssueIds.has(id)).slice(-200) } : null;
     const priority = new Set([selected?.id, ...visible.map(issue => issue.id)]);
-    const known = knownIssues ? [...knownIssues].filter(id => issueCache.get(id)?.issue.visibility !== 'private') : null, at = Date.now();
+    const known = knownIssues ? [...knownIssues].filter(id => !privateIssueIds.has(id)) : null, at = Date.now();
     const entries = [], saved = new Set(); let size = JSON.stringify({ entries: [], view, known, at }).length;
     const ordered = [...issueCache.values()].reverse();
     ordered.sort((a, b) => Number(priority.has(b.issue.id)) - Number(priority.has(a.issue.id)));
@@ -147,6 +147,7 @@
     if (cacheDenied || !issue?.id || !issue.target || !Array.isArray(issue.activity) || !Array.isArray(issue.files)) return;
     const previous = issueCache.get(issue.id)?.issue;
     if (previous && Number(previous.revision) > Number(issue.revision)) return;
+    if (issue.visibility === 'private') { const first = !privateIssueIds.has(issue.id); privateIssueIds.add(issue.id); if (first) persistRevisions(); } else privateIssueIds.delete(issue.id);
     issueCache.delete(issue.id); issueCache.set(issue.id, { issue, at: Date.now() });
     while (issueCache.size > 200) issueCache.delete(issueCache.keys().next().value);
     scheduleCacheSave();
@@ -356,7 +357,7 @@
     const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
     const currentActor = response.headers.get('X-FeedbackPress-Actor-Id');
     if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
-      c.privateNotes = false; for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
+      c.privateNotes = false; ownRevisions.clear(); privateIssueIds.clear(); pendingRequests.clear(); try { sessionStorage.removeItem(revisionsKey); } catch (_) {} for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
       issueCache.clear(); issues = []; pageIssues = []; selected = null; cacheDenied = true; notesRequest++;
       clearAttachments(true); dismissInterface(); issuePopup.replaceChildren();
       try { sessionStorage.removeItem(cacheKey); } catch (_) {}
@@ -1594,6 +1595,7 @@
   window.visualViewport?.addEventListener('scroll', redraw);
   const sharedJobs = new Map(), ownRevisions = new Map();
   const revisionsKey = cacheKey + ':revisions';
+  function persistRevisions() { try { sessionStorage.setItem(revisionsKey, JSON.stringify([...ownRevisions].filter(([id]) => !privateIssueIds.has(id)).map(([id, values]) => [id, [...values]]))); } catch (_) {} }
   try { for (const [id, revisions] of JSON.parse(sessionStorage.getItem(revisionsKey) || '[]')) ownRevisions.set(id, new Map(revisions)); } catch (_) {}
   let textTail = Promise.resolve();
   const journalKey = cacheKey + ':work', journal = new Map();
@@ -1689,7 +1691,7 @@
             const revisions = ownRevisions.get(job.issueId); revisions.set(String(job.sentBody.revision), saved.revision);
             while (revisions.size > 20) revisions.delete(revisions.keys().next().value);
             while (ownRevisions.size > 200) ownRevisions.delete(ownRevisions.keys().next().value);
-            if (!job.private) try { sessionStorage.setItem(revisionsKey, JSON.stringify([...ownRevisions].map(([id, values]) => [id, [...values]]))); } catch (_) {}
+            if (!job.private) persistRevisions();
           }
           const temporary = job.id; job.issueId = saved.id; job.commentId = saved.reply_id || saved.id; job.phase = 'files';
           if (job.kind === 'create') {
