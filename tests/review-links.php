@@ -25,6 +25,7 @@ try {
     $denied(fn() => Access::create($request(['days' => 0])), 0);
     foreach (['//outside.example/', '/../outside', '/%2e%2e/outside', '/\\outside'] as $path) $denied(fn() => Access::create($request(['path' => $path])), 0);
     wp_set_current_user(0); $ok(!API::can_view(), 'Ordinary guest was admitted');
+    $_COOKIE[Access::COOKIE] = ['forged' => 'cookie']; $ok(!Access::grant(), 'Malformed cookie was accepted');
     $_COOKIE[Access::COOKIE] = $token; $ok(API::can_view(), 'Review link did not admit the guest');
     $ok(is_wp_error(API::privateRead()), 'Link admitted a guest to private notes');
     $denied(fn() => Access::create($request()), 403);

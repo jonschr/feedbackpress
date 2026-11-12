@@ -16,8 +16,8 @@ final class ReviewAccess {
         return bound();
     }
     public static function grant(?string $token = null, ?array $connection = null): ?array {
-        $token = $token ?? (string) ($_COOKIE[self::COOKIE] ?? '');
-        if (!self::available() || !preg_match('/^([a-f0-9-]{36})\.([A-Za-z0-9_-]{43})$/D', $token, $match)) return null;
+        $token = $token ?? ($_COOKIE[self::COOKIE] ?? '');
+        if (!is_string($token) || !preg_match('/^([a-f0-9-]{36})\.([A-Za-z0-9_-]{43})$/D', $token, $match) || !self::available()) return null;
         $grant = ((array) get_option(self::OPTION, []))[$match[1]] ?? null;
         return $grant && $grant['expires_at'] > time() && hash_equals($grant['scope'], self::scope($connection)) && hash_equals($grant['hash'], hash('sha256', $match[2])) ? $grant : null;
     }
@@ -39,6 +39,7 @@ final class ReviewAccess {
     }
     public static function create($r): array {
         if (!self::available()) throw new \RuntimeException('Enable review access and connect this site over HTTPS before creating a link.', 403);
+        $scope = self::scope(); $home = Service::home();
         if (!self::can_share()) throw new \RuntimeException('Administrator access is required to create review links.', 403);
         $days = (int) ($r->get_param('days') ?? 7);
         if (!in_array($days, [1, 7, 30], true)) throw new \InvalidArgumentException('Choose a link duration.');
@@ -47,7 +48,6 @@ final class ReviewAccess {
         $path = (string) ($r->get_param('path') ?? '/');
         $pathname = rawurldecode(explode('?', explode('#', $path, 2)[0], 2)[0]);
         if (strlen($path) > 4096 || !str_starts_with($path, '/') || str_starts_with($path, '//') || preg_match('/[\\\\\x00-\x20]/', $path) || preg_match('~(^|/)\.{1,2}(/|$)~', $pathname)) throw new \InvalidArgumentException('Choose a page on this site.');
-        $scope = self::scope(); $home = Service::home();
         return self::locked(function () use ($days, $label, $path, $scope, $home) {
             if (!hash_equals($scope, self::scope())) throw new \RuntimeException('The project connection changed. Reload before creating a link.', 409);
             $links = array_filter((array) get_option(self::OPTION, []), fn($g) => $g['expires_at'] > time() && hash_equals($g['scope'], $scope));
