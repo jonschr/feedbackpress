@@ -20,12 +20,13 @@
     }
     node.append(...children.filter(x => x != null)); return node;
   };
-  const button = (text, fn, attrs = {}) => el('button', { type: 'button', onclick: fn, ...(attrs.class?.includes('fp-icon-button') && attrs['aria-label'] ? { title: attrs['aria-label'] } : {}), ...attrs }, text);
+  const button = (text, fn, attrs = {}) => el('button', { type: 'button', onclick: fn, ...(attrs.class?.includes('fp-icon-button') && attrs['aria-label'] ? { title: attrs['aria-label'] } : {}), ...attrs }, ...(Array.isArray(text) ? text : [text]));
   function icon(kind) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    if (kind === 'download') path.setAttribute('d', 'M12 3v12M7 10l5 5 5-5M5 17v4h14v-4');
     if (kind === 'more') path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01');
     if (kind === 'sort') path.setAttribute('d', 'M8 4v16M5 7l3-3 3 3M16 20V4M13 17l3 3 3-3');
     svg.append(path); return svg;
@@ -163,6 +164,7 @@
     for (const [key,draft] of editDrafts) if (draft.issue === id) editDrafts.delete(key);
     for (const [key,pending] of noteConfirmations) if (pending.issueId === id) noteConfirmations.delete(key);
     if (listed) total = Math.max(0, total - 1);
+    if (lightbox.dataset.issue === id) clearAttachments(true);
     if (selected?.id === id) { selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
     if (open) render(); drawPins(); scheduleCacheSave();
   }
@@ -172,6 +174,7 @@
     if (known && Number(known.revision) > Number(updated.revision)) return;
     if (updated.visibility === 'private') privateReply.delete(updated.id);
     if (updated.visibility === 'private') for (const job of sharedJobs.values()) if (job.issueId === updated.id) makeJobPrivate(job);
+    if (lightbox.dataset.issue === updated.id && !updated.files.some(file => file.id === previewFileId && file.available)) clearAttachments(true);
     cacheIssue(updated); updated = optimisticIssue(updated); updateStatusCount(updated); keepListOrder = true;
     issues = issues.map(existing => existing.id === updated.id ? updated : existing);
     pageIssues = pageIssues.map(existing => existing.id === updated.id ? updated : existing);
@@ -646,19 +649,19 @@
   function issueRow(issue) {
     const active = selected?.id === issue.id;
     return el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
-      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null, issueSummary(issue)), statusControl(issue, 'row-status'));
+      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null), issueSummary(issue), statusControl(issue, 'row-status'));
   }
   function issueSummary(issue) {
     const replies = issue.activity.filter(event => event.kind === 'reply').length;
     const files = issue.files.filter(file => !file.screenshot);
     if (!replies && !files.length) return null;
     const summary = el('span', { class: 'row-summary' });
-    if (replies) summary.append(el('span', { class: 'row-replies' }, icon('reply'), `${replies} ${replies === 1 ? 'reply' : 'replies'}`));
-    if (files.length) summary.append(el('span', { class: 'row-attachments', role: 'img', 'aria-label': `${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}` }, ...files.slice(0, 3).map(rowAttachment), files.length > 3 ? el('span', { class: 'row-attachment-more', 'aria-hidden': 'true' }, '+' + (files.length - 3)) : null));
+    if (replies) summary.append(button([icon('reply'), `${replies} ${replies === 1 ? 'reply' : 'replies'}`], () => showIssue(issue.id), { class: 'row-replies' }));
+    if (files.length) summary.append(el('span', { class: 'row-attachments', role: 'group', 'aria-label': `${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}` }, ...files.slice(0, 3).map(file => rowAttachment(file, issue)), files.length > 3 ? button('+' + (files.length - 3), () => showIssue(issue.id), { class: 'row-attachment-more', 'aria-label': `Show all ${files.length} attachments` }) : null));
     return summary;
   }
-  function rowAttachment(file) {
-    const tile = el('span', { class: 'row-attachment', 'aria-hidden': 'true', 'data-tooltip': (file.expired ? 'Expired: ' : !file.available ? 'Not yet available: ' : '') + file.name }, icon(file.mime.startsWith('image/') ? 'image' : 'document'));
+  function rowAttachment(file, issue) {
+    const tile = button(icon(file.mime.startsWith('image/') ? 'image' : 'document'), () => openAttachment(file, tile, issue), { class: 'row-attachment', 'data-file': file.id, 'aria-label': 'Preview ' + file.name, disabled: !file.available, title: (file.expired ? 'Expired: ' : !file.available ? 'Not yet available: ' : '') + file.name });
     if (file.available && file.mime.startsWith('image/')) {
       tile.feedbackpressFile = file;
       rowPreviewObserver ||= new IntersectionObserver(entries => {
@@ -667,7 +670,7 @@
       });
       rowPreviewObserver.observe(tile);
     }
-    return tile;
+    return el('span', { class: 'row-file' }, tile, attachmentDownload(file, true));
   }
   function loadRowPreviews() {
     // Original images can be 5 MB: only visible tiles, two transfers at a time.
@@ -750,10 +753,12 @@
     finally { if (openingIssue === ticket) { openingIssue = 0; panel.querySelector('.issue-list')?.setAttribute('aria-busy', String(listLoading || !stylesReady)); } }
   }
   function closeLightbox() {
-    viewerRequest++; previewFileId = null;
+    const fileId = previewFileId;
+    viewerRequest++; previewFileId = null; delete lightbox.dataset.issue;
     if (lightbox.open) lightbox.close();
     lightbox.replaceChildren();
-    if (returnFocus?.isConnected) returnFocus.focus();
+    const trigger = returnFocus?.isConnected ? returnFocus : fileId && root.querySelector(`[data-file="${fileId}"]`);
+    trigger?.focus({ preventScroll: true });
     returnFocus = null;
   }
   function releaseAttachment(entry, immediate = false) {
@@ -797,13 +802,23 @@
   function downloadAttachment(file, url) {
     const link = el('a', { href: url, download: file.name }); root.append(link); link.click(); link.remove();
   }
-  async function openAttachment(file, trigger) {
+  function attachmentDownload(file, compact = false) {
+    const caption = file.screenshot ? 'Screenshot' : file.name;
+    const control = button(compact ? icon('download') : [icon('download'), 'Download'], async () => {
+      control.disabled = true; control.setAttribute('aria-busy', 'true');
+      try { const data = await attachmentData(file); downloadAttachment(file, data.url); }
+      catch (error) { message(error.message); }
+      finally { control.disabled = !file.available; control.removeAttribute('aria-busy'); }
+    }, { class: compact ? 'fp-icon-button row-file-download' : 'attachment-download', 'aria-label': 'Download ' + caption, title: 'Download ' + caption, disabled: !file.available });
+    return control;
+  }
+  async function openAttachment(file, trigger, issue = selected) {
     closeMentionMenu();
-    const ticket = ++viewerRequest; returnFocus = trigger; previewFileId = file.id;
+    const ticket = ++viewerRequest; returnFocus = trigger; previewFileId = file.id; lightbox.dataset.issue = issue?.id || '';
     const body = el('div', { class: 'lightbox-body', role: 'status' }, 'Loading preview…');
     const toolbar = el('div', { class: 'lightbox-tools' }, button(icon('close'), closeLightbox, { class: 'fp-icon-button', 'aria-label': 'Dismiss attachment', title: 'Dismiss', 'data-tooltip-shortcut': 'Esc' }));
-    const comment = selected?.activity.find(event => event.kind === 'reply' && event.id === file.comment_id);
-    const author = !file.comment_id || file.comment_id === selected?.id ? selected?.author : comment?.payload.author;
+    const comment = issue?.activity.find(event => event.kind === 'reply' && event.id === file.comment_id);
+    const author = !file.comment_id || file.comment_id === issue?.id ? issue?.author : comment?.payload.author;
     const heading = el('div', { class: 'lightbox-heading' }, el('strong', {}, file.screenshot ? 'Screenshot' : file.name), el('small', { class: 'lightbox-author' }, author ? 'By ' + author : 'Author unavailable'));
     lightbox.replaceChildren(el('header', { class: 'lightbox-header' }, heading, toolbar), body);
     if (!lightbox.open) lightbox.showModal();
@@ -818,20 +833,20 @@
         body.replaceChildren(el('iframe', { src: data.url, title: 'PDF preview: ' + file.name, class: 'lightbox-pdf' }), el('small', { class: 'pdf-fallback' }, 'If the preview is unavailable, use Open PDF or Download.'));
       } else body.replaceChildren(el('p', {}, 'Preview unavailable. Use Download to open this file.'));
     } catch (error) {
-      if (lightbox.open && ticket === viewerRequest) body.replaceChildren(el('p', { role: 'alert' }, error.message), button('Retry', () => openAttachment(file, trigger)));
+      if (lightbox.open && ticket === viewerRequest) body.replaceChildren(el('p', { role: 'alert' }, error.message), button('Retry', () => openAttachment(file, trigger, issue)));
     }
   }
   function attachmentThumbnail(file) {
     const caption = file.screenshot ? 'Screenshot' : file.name;
     const thumbnail = button('', () => openAttachment(file, thumbnail), { class: 'attachment-thumbnail', 'aria-label': 'Preview ' + caption, title: caption, disabled: !file.available });
-    if (!file.available) { thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document')), el('small', {}, caption), el('small', { class: 'file-state' }, file.expired ? 'Expired' : 'Waiting for sync')); return thumbnail; }
+    if (!file.available) { thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document')), el('small', {}, caption), el('small', { class: 'file-state' }, file.expired ? 'Expired' : 'Waiting for sync')); return el('div', { class: 'attachment-item' }, thumbnail, attachmentDownload(file)); }
     if (file.mime.startsWith('image/')) {
       const image = el('img', { alt: caption, class: 'attachment-image', loading: 'lazy' });
       const placeholder = el('span', { class: 'file-placeholder' }, icon('image'));
       thumbnail.append(placeholder, el('small', {}, caption));
       attachmentData(file).then(data => { if (thumbnail.isConnected) { image.src = data.url; placeholder.replaceWith(image); } }).catch(() => { if (thumbnail.isConnected) thumbnail.dataset.tooltip = caption + ' — click to retry preview'; });
     } else thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document'), el('span', {}, file.mime === 'application/pdf' ? 'PDF' : 'File')), el('small', {}, caption));
-    return thumbnail;
+    return el('div', { class: 'attachment-item' }, thumbnail, attachmentDownload(file));
   }
   lightbox.addEventListener('cancel', event => { event.preventDefault(); closeLightbox(); });
   lightbox.addEventListener('click', event => { if (event.target === lightbox) { const rect = lightbox.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLightbox(); } });
@@ -1797,6 +1812,7 @@
       if (c.network && data.network !== c.network) { message('The feedback network changed. Reload this page to continue.'); return; }
       if (!cacheDenied && Array.isArray(data.issues) && writeVersion === localWriteVersion) {
         const byId = new Map(data.issues.map(issue => [issue.id, issue]));
+        if (lightbox.dataset.issue && !byId.get(lightbox.dataset.issue)?.files.some(file => file.id === previewFileId && file.available)) clearAttachments(true);
         for (const id of issueCache.keys()) if (!byId.has(id)) issueCache.delete(id);
         if (selected && !byId.has(selected.id) && !selected.pending) { privateNotes.delete(selected.id); privateEditDrafts.clear(); noteConfirmations.clear(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
         const matches = matchesView;

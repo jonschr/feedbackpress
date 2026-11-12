@@ -9,7 +9,7 @@ The Issues list has one page-view menu: **All issues by page** divides the compl
 
 These choices persist in the browser tab across navigation. Current page follows the page you navigate to. Explicit view changes reset the list to the top; status changes and replies retain the active list order and position until the next explicit view change or reload.
 
-Issue rows show reply counts when there are shared replies. A compact attachment strip previews up to three thread uploads, excluding automatic screenshots, with +N for additional files. Click the row to open the full thread and its attachments. PDF/unavailable uploads use file markers; image previews load as rows become visible.
+Issue rows show reply counts when there are shared replies. A compact attachment strip previews up to three thread uploads, excluding automatic screenshots, with +N for additional files. Click a thumbnail to open that image/PDF directly in the lightbox without opening or navigating to its issue. Use the download icon beside a sidebar thumbnail, Download under a thread attachment/screenshot, or Download in the lightbox for a one-click file save. Click the issue title/reply count or +N to open the full thread. PDF/unavailable uploads use file markers; image previews load as rows become visible.
 
 
 Open **Sidebar settings** at the bottom of the list to choose **Left** or **Right**, and **Overlay page** or **Make room**. Make room narrows the page beside the desktop sidebar; overlay keeps normal page width. These choices follow navigation within the tab. Fixed elements, viewport-sized sections and responsive breakpoints still use the real browser viewport. On narrow screens the controls retain your desktop choices, and the list/page use separate views.

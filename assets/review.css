@@ -115,12 +115,14 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .page-reference, .page-heading { overflow-wrap: anywhere; }
 .row-summary { display: flex; align-items: center; gap: 12px; min-height: 16px; margin-top: 8px; color: var(--fp-muted); font-size: 11px; line-height: 16px; }
 .row-replies, .row-attachments { display: inline-flex; align-items: center; gap: 4px; }
-.row-replies { flex: none; }
+.row-replies { flex: none; min-height: 24px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; }
+.row-file { display: inline-flex; align-items: center; gap: 1px; }
+.row-file-download { width: 24px; height: 24px; padding: 4px; }
 .row-replies svg { width: 14px; height: 14px; }
-.row-attachment { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; overflow: hidden; border: 1px solid var(--fp-line); border-radius: 3px; background: var(--fp-surface); }
+.row-attachment { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; overflow: hidden; border: 1px solid var(--fp-line); border-radius: 3px; background: var(--fp-surface); }
 .row-attachment svg { width: 15px; height: 15px; }
 .row-attachment img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.row-attachment-more { margin-left: 2px; font-size: 10px; font-weight: 600; }
+.row-attachment-more { margin-left: 2px; padding: 2px; border: 0; background: transparent; color: var(--fp-muted); font-size: 10px; font-weight: 600; }
 .issue-row[data-status=done] .row-attachment img { filter: grayscale(1); }
 .page-heading { margin: 0; padding: 14px 20px; background: var(--fp-ink); }
 .page-title { color: #ffffff; font-size: 15px; font-weight: 650; line-height: 21px; }
@@ -215,6 +217,9 @@ header { justify-content: space-between; margin-bottom: 12px; }
 
 /* Media stays compact and separate from the comment's screenshot. */
 .attachment-strip { display: flex; gap: 8px; overflow-x: auto; margin-top: 8px; padding: 2px 0 5px; scrollbar-width: thin; scrollbar-color: #a8aeb8 transparent; }
+.attachment-item { flex: 0 0 64px; width: 64px; min-width: 0; }
+.attachment-download { display: flex; align-items: center; justify-content: center; gap: 3px; width: 100%; margin-top: 3px; padding: 3px 0; border: 0; color: var(--fp-muted); background: transparent; font-size: 10px; line-height: 16px; }
+.attachment-download svg { flex: none; width: 13px; height: 13px; }
 .attachment-thumbnail { display: block; flex: 0 0 64px; width: 64px; min-width: 0; padding: 3px; border: 1px solid #c9ced6; border-radius: 5px; background: var(--fp-surface); text-align: left; overflow: hidden; }
 .attachment-thumbnail:hover { background: var(--fp-soft); border-color: var(--fp-muted); }
 .attachment-thumbnail small, .attachment-thumbnail .file-state { display: block; margin: 3px 0 1px; font-size: 10px; line-height: 15px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -224,7 +229,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .comment-uploads { justify-content: flex-start; margin-top: 8px; }
 .comment-screenshots { width: 64px; max-width: 64px; justify-content: flex-start; margin: 0; padding-top: 1px; }
 .reply-queued small { font-size: 12px; }
-.attachment-lightbox { width: min(1000px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 0; border-radius: 12px; background: var(--fp-surface); color: var(--fp-ink); font: inherit; box-shadow: 0 12px 50px #0000004d; overflow: hidden; }
+.attachment-lightbox { width: min(1600px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; border: 0; border-radius: 12px; background: var(--fp-surface); color: var(--fp-ink); font: inherit; box-shadow: 0 12px 50px #0000004d; overflow: hidden; }
 .attachment-lightbox::backdrop { background: #15191fc9; }
 .lightbox-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--fp-line); }
 .lightbox-heading { min-width: 0; }
@@ -234,7 +239,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .lightbox-tools a { font-size: 12px; }
 .lightbox-body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 160px; max-height: calc(100dvh - 90px); overflow: auto; background: var(--fp-soft); padding: 12px; }
 .lightbox-image { display: block; max-width: 100%; max-height: calc(100dvh - 120px); object-fit: contain; }
-.lightbox-pdf { display: block; width: 100%; height: min(72dvh, 740px); min-height: 200px; border: 0; background: #fff; }
+.lightbox-pdf { display: block; width: 100%; height: calc(100dvh - 140px); min-height: 200px; border: 0; background: #fff; }
 .pdf-fallback { margin-top: 8px; font-size: 12px; }
 
 /* Launchers return on dismissal; visible notices remain outside the docked panel. */
