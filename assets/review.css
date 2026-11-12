@@ -125,7 +125,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .row-attachment-more { margin-left: 2px; padding: 2px; border: 0; background: transparent; color: var(--fp-muted); font-size: 10px; font-weight: 600; }
 .issue-row[data-status=done] .row-attachment img { filter: grayscale(1); }
 .page-heading { margin: 0; padding: 14px 20px; background: var(--fp-ink); }
-.page-title { color: #ffffff; font-size: 15px; font-weight: 650; line-height: 21px; }
+.page-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #ffffff; font-size: 15px; font-weight: 650; line-height: 21px; }
 .page-url { display: block; margin-top: 4px; color: #9ba4b2; font-size: 11px; font-weight: 400; line-height: 17px; }
 .page-url:hover { color: #bbc2cc; }
 .page-url:focus-visible { outline-color: #ffffff; outline-offset: 2px; }
