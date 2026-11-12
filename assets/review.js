@@ -26,6 +26,7 @@
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    if (kind === 'sort') path.setAttribute('d', 'M8 4v16M5 7l3-3 3 3M16 20V4M13 17l3 3 3-3');
     svg.append(path); return svg;
   }
   const labels = { todo: 'To do', needs_info: 'Information needed', doing: 'Doing', review: 'Review', done: 'Done' };
@@ -86,6 +87,7 @@
   const pagePath = (location.pathname.slice(homePath.length) || '/') + location.search;
   if (scope === 'current' && scopePath !== pagePath) { listPage = 1; listScroll = 0; hasListPosition = false; }
   scopePath = pagePath;
+  if (scope === 'current') grouping = 'none';
   const issueCache = new Map(), issueReads = new Map();
   const cacheKey = 'feedbackpress-shared-cache:' + c.home + ':' + (c.network || '') + ':' + (c.authorId || c.userName || 'guest');
   const cacheLifetime = 30000;
@@ -570,18 +572,19 @@
     const searchSelection = root.activeElement === searchInput && searchInput ? [searchInput.selectionStart, searchInput.selectionEnd, searchInput.selectionDirection] : null;
     const focusedStatus = root.activeElement?.dataset.filterStatus;
     const focusedTrigger = root.activeElement?.classList.contains('status-filter-trigger');
+    const focusedView = root.activeElement?.getAttribute('aria-label');
+    const changeView = () => { listPage = 1; resetListScroll(); saveView(); load(); };
+    const order = el('select', { 'aria-label': 'Order issues', 'data-tooltip': 'Order issues: ' + sortLabels[sort], onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
+    const orderControl = el('span', { class: 'order-control' }, icon('sort'), order);
     const heading = el('header', { class: 'panel-header' }, el('div', { class: 'panel-heading' }, el('h2', {}, 'Issues'), el('span', { class: 'issue-count', 'aria-live': 'polite' }, listLoading && !total ? 'Loading…' : `${total} ${total === 1 ? 'issue' : 'issues'}`)),
-      el('div', { class: 'panel-actions' }, button(icon('plus'), () => withIdentity(startPick), { class: 'fp-icon-button', 'aria-label': 'Leave feedback', title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' }), button(icon('close'), () => toggle(false), { class: 'fp-icon-button', 'aria-label': 'Dismiss issues', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' })));
+      el('div', { class: 'panel-actions' }, orderControl, button(icon('plus'), () => withIdentity(startPick), { class: 'fp-icon-button', 'aria-label': 'Leave feedback', title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' }), button(icon('close'), () => toggle(false), { class: 'fp-icon-button', 'aria-label': 'Dismiss issues', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' })));
     const searchField = el('input', { type: 'search', class: 'issue-search', 'aria-label': 'Search issues and replies', placeholder: 'Search issues and replies…', value: search, oninput: event => {
       search = event.target.value; listPage = 1; resetListScroll(); saveView(); requestNumber++;
       clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 200);
     } });
-    const changeView = () => { listPage = 1; resetListScroll(); saveView(); load(); };
-    const pages = el('select', { 'aria-label': 'Issue page scope', onchange: event => { scope = event.target.value; changeView(); } }, el('option', { value: 'all' }, 'All pages'), el('option', { value: 'current' }, 'Current page')); pages.value = scope;
-    const groups = el('select', { 'aria-label': 'Group issues', onchange: event => { grouping = event.target.value; changeView(); } }, el('option', { value: 'none' }, 'Flat list'), el('option', { value: 'page' }, 'By page')); groups.value = grouping;
-    const order = el('select', { 'aria-label': 'Order issues', onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
+    const pages = el('select', { 'aria-label': 'Issue page view', onchange: event => { scope = event.target.value === 'current' ? 'current' : 'all'; grouping = event.target.value === 'paged' ? 'page' : 'none'; changeView(); } }, el('option', { value: 'paged' }, 'All pages paged'), el('option', { value: 'list' }, 'All pages list'), el('option', { value: 'current' }, 'Current page')); pages.value = scope === 'current' ? 'current' : grouping === 'page' ? 'paged' : 'list';
     const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
-    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, groups), el('div', { class: 'filters sort-filters' }, order, statusFilterControl())), list);
+    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, statusFilterControl())), list);
     if (!issues.length) {
       if (listLoading) list.append(el('div', { class: 'list-placeholder', role: 'status', 'aria-label': 'Loading issues' }, ...Array.from({ length: 3 }, () => el('div', {}, el('span'), el('span'), el('span')))));
       else if (listError) list.append(el('div', { class: 'empty', role: 'status' }, el('p', { class: 'subtle' }, listError), button('Try again', () => load(), { class: 'fp-quiet' })));
@@ -605,6 +608,7 @@
     }
     if (filterOpen && focusedStatus) panel.querySelector(`[data-filter-status="${focusedStatus}"]`)?.focus();
     else if (focusedTrigger) panel.querySelector('.status-filter-trigger')?.focus();
+    else if (['Issue page view', 'Order issues'].includes(focusedView)) panel.querySelector(`[aria-label="${focusedView}"]`)?.focus({ preventScroll: true });
     else if (searchSelection) { searchField.focus({ preventScroll: true }); searchField.setSelectionRange(...searchSelection); }
   }
   function pageLabel(path) { return path === '/' ? c.home.replace(/\/$/, '') + '/' : path; }
