@@ -29,6 +29,12 @@
     if (kind === 'download') path.setAttribute('d', 'M12 3v12M7 10l5 5 5-5M5 17v4h14v-4');
     if (kind === 'more') path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01');
     if (kind === 'sort') path.setAttribute('d', 'M8 4v16M5 7l3-3 3 3M16 20V4M13 17l3 3 3-3');
+    if (kind === 'sidebar-left') path.setAttribute('d', 'M3 4h18v16H3zM9 4v16M16 9l-3 3 3 3');
+    if (kind === 'sidebar-right') path.setAttribute('d', 'M3 4h18v16H3zM15 4v16M8 9l3 3-3 3');
+    if (kind === 'overlay') path.setAttribute('d', 'M3 4h14v16H3zM12 8h9v12h-9z');
+    if (kind === 'room') path.setAttribute('d', 'M3 4h10v16H3zM17 4h4v16h-4z');
+    if (kind === 'history') path.setAttribute('d', 'M3 11a9 9 0 119 10M3 4v7h7M12 7v5l3 2');
+    if (kind === 'logout') path.setAttribute('d', 'M10 4H4v16h6M14 8l4 4-4 4M8 12h12');
     svg.append(path); return svg;
   }
   const labels = { todo: 'To do', needs_info: 'Information needed', doing: 'Doing', review: 'Review', done: 'Done' };
@@ -192,20 +198,19 @@
   }
   const panel = el('aside', { class: 'panel', 'aria-label': 'Issues', 'data-continuing': resumeOpen ? true : null, hidden: true });
   const panelContents = el('div', { class: 'panel-contents' });
-  const sidebarSettings = el('details', { class: 'sidebar-settings' }, el('summary', {}, 'Sidebar settings', icon('chevron')));
+  const sidebarSettings = el('div', { class: 'sidebar-settings', role: 'group', 'aria-label': 'Sidebar settings' });
   for (const [legend, key, choices] of [['Sidebar side', 'side', [['left', 'Left'], ['right', 'Right']]], ['Page layout', 'layout', [['overlay', 'Overlay page'], ['room', 'Make room']]]]) {
-    const group = el('fieldset', {}, el('legend', {}, legend));
-    for (const [value, label] of choices) group.append(el('label', {}, el('input', { type: 'radio', name: 'fp-sidebar-' + key, value, checked: value === (key === 'side' ? sidebarSide : pageLayout), onchange: event => {
+    const group = el('fieldset', {}, el('legend', { class: 'visually-hidden' }, legend));
+    for (const [value, label] of choices) group.append(el('label', { class: 'sidebar-option' }, el('input', { type: 'radio', name: 'fp-sidebar-' + key, value, 'aria-label': label, checked: value === (key === 'side' ? sidebarSide : pageLayout), onchange: event => {
       if (!event.target.checked) return;
       captureListScroll();
       if (key === 'side') sidebarSide = value; else pageLayout = value;
       updateChrome(); drawPins(); positionDraft();
-    } }), label));
+    } }), icon(key === 'side' ? 'sidebar-' + value : value)));
     sidebarSettings.append(group);
   }
-  sidebarSettings.append(el('p', { class: 'sidebar-narrow-note' }, 'On small screens, the list and page use separate views.'));
-  if (c.reviewSession) sidebarSettings.append(button('End review session', event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-quiet' }));
-  sidebarSettings.addEventListener('toggle', () => { captureListScroll(); requestAnimationFrame(() => { const list = panel.querySelector('.issue-list'); if (list) list.scrollTop = listScroll; }); });
+  const sidebarUtilities = el('div', { class: 'sidebar-utilities' }); sidebarSettings.append(sidebarUtilities);
+  if (c.reviewSession) sidebarUtilities.append(button(icon('logout'), event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-icon-button', 'aria-label': 'End review session' }));
   panel.append(panelContents, sidebarSettings);
   const pageLayoutStyle = document.createElement('style');
   document.head.append(pageLayoutStyle);
@@ -268,6 +273,12 @@
   function updateChrome() {
     launchers.hidden = open;
     sidebarSettings.querySelectorAll('fieldset').forEach(group => { group.disabled = innerWidth < 900; });
+    sidebarSettings.querySelectorAll('input').forEach(input => {
+      const chosen = input.checked, label = input.getAttribute('aria-label');
+      const text = input.name.endsWith('side') ? `Sidebar on the ${input.value}` : input.value === 'room' ? 'Scale page to fit' : 'Overlay the page';
+      for (const target of [input, input.parentElement]) { target.dataset.tooltip = text + (chosen ? ' — current' : ''); target.dataset.tooltipNote = innerWidth < 900 ? 'On small screens, the list and page use separate views.' : ''; }
+      input.setAttribute('aria-description', innerWidth < 900 ? 'Available on desktop. The list and page use separate views on small screens.' : label === 'Make room' ? 'Scale the entire page beside the sidebar.' : text);
+    });
     host.dataset.sidebarSide = sidebarSide;
     const visible = !panel.hidden && innerWidth >= 900;
     host.toggleAttribute('data-sidebar-visible', visible);
@@ -1755,11 +1766,12 @@
   const journalKey = cacheKey + ':work', journal = new Map();
   try { for (const job of JSON.parse(sessionStorage.getItem(journalKey) || '[]')) journal.set(job.id, job); } catch (_) {}
   const workPanel = el('aside', { class: 'work-panel', 'aria-label': 'Background activity', hidden: true }); root.append(workPanel);
-  const showDismissedWork = button('', () => {
+  const dismissedWorkCount = el('span', { class: 'sidebar-badge', 'aria-hidden': 'true' });
+  const showDismissedWork = button([icon('history'), dismissedWorkCount], () => {
     for (const job of sharedJobs.values()) if (job.dismissed) { delete job.dismissed; storeJob(job).catch(error => message(error.message)); }
     renderJobs(); workPanel.querySelector('button')?.focus();
-  }, { class: 'fp-quiet', hidden: true });
-  sidebarSettings.append(showDismissedWork);
+  }, { class: 'fp-icon-button', 'aria-label': 'Show dismissed notifications', hidden: true });
+  sidebarUtilities.prepend(showDismissedWork);
   const workDatabase = new Promise(resolve => {
     if (!window.indexedDB) return resolve(null);
     const request = indexedDB.open('feedbackpress-work', 1);
@@ -1801,13 +1813,15 @@
     const visible = [...sharedJobs.values()].filter(job => !job.dismissed);
     const dismissed = sharedJobs.size - visible.length;
     showDismissedWork.hidden = !dismissed;
-    showDismissedWork.textContent = `Show ${dismissed} dismissed notification${dismissed === 1 ? '' : 's'}`;
+    const dismissedLabel = `Show ${dismissed} dismissed notification${dismissed === 1 ? '' : 's'}`;
+    showDismissedWork.setAttribute('aria-label', dismissedLabel); showDismissedWork.dataset.tooltip = dismissedLabel;
+    dismissedWorkCount.textContent = String(dismissed);
     workPanel.hidden = !visible.length;
     workPanel.replaceChildren(...visible.map(job => {
       const label = job.error ? job.error : job.phase === 'done' ? 'Saved' : job.phase === 'files' ? 'Uploading ' + (job.files[0]?.file.name || 'screenshot') + (job.files.length > 1 ? ' (' + job.files.length + ' remaining)' : '') + '…' : 'Saving ' + (job.kind === 'create' ? 'feedback' : job.kind) + '…';
       const indicator = job.error ? button(icon('close'), () => {
         job.dismissed = true; storeJob(job).catch(error => message(error.message)); hideTooltip(); renderJobs();
-        (!panel.hidden ? sidebarSettings.querySelector('summary') : !issuePopup.hidden ? issuePopup.querySelector('[aria-label="Dismiss issue"]') : viewButton)?.focus();
+        (!panel.hidden ? sidebarSettings.querySelector('input:checked:not(:disabled),button:not([hidden]):not(:disabled)') : !issuePopup.hidden ? issuePopup.querySelector('[aria-label="Dismiss issue"]') : viewButton)?.focus();
       }, { class: 'fp-icon-button work-dismiss', 'aria-label': 'Dismiss notification' }) : el('span', { class: 'work-indicator', 'aria-hidden': 'true' }, job.phase === 'done' ? icon('check') : null);
       return el('div', { class: 'work-item', 'data-state': job.error ? 'error' : job.phase, role: 'status' }, indicator, el('span', {}, label),
         job.error ? button('Retry', () => { delete job.error; if (job.retry) job.retry(); else executeJob(job); }) : null,

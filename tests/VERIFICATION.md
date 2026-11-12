@@ -307,3 +307,6 @@ Whole-page fit: `tests/page-scale.cjs` uses real Chrome with intercepted HTTP to
 
 
 Dismissal regression: job-restore-navigation exercises click/Enter on independently stacked errors, persistent shared dismissal, no automatic replay, Sidebar settings recovery, exact text/file/query restoration with the original operation ID and one final upload. Private failure/retry/dismiss stays out of both IndexedDB/sessionStorage and vanishes on reload; 320px bounds and visible focus return are asserted. Central-client, upload-navigation and note-actions checks pass alongside it.
+
+
+Sidebar icons: sidebar-layout checks an always-visible sub60px footer, four native icon radios, hover/focus tooltips including scaled-page placement, keyboard side selection, mobile disabled descriptions, exact list scroll/persistence and source-style cleanup. Job-restore-navigation checks the history SVG/count/tooltip, one-click recovery and a320px footer with history plus End review session visible. Review-access directly exercises the session-end icon. Page-scale/tooltips/screenshot-pin/pin-drag retain existing behavior. All HTTP intercepted.

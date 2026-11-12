@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-beta.6 — November 12, 2026
+
+- Replace the expandable sidebar settings drawer with an always-visible compact icon bar. Two groups select left/right placement and overlay/scale-to-fit, with selected highlights, hover/focus tooltips, accessible names and native radio keyboard controls.
+- Add a notification-history icon with a dismissed count and an icon for ending a client review session. Each action is directly available without opening a settings drawer. Mobile keeps saved desktop preferences disabled with contextual descriptions.
+- Preserve exact list scroll, page scaling, pin dragging, screenshots, notification recovery and review-session access behavior. Stable automatic updates remain 0.2.2.
+
 ## 0.3.0-beta.5 — November 12, 2026
 
 - Turn the misleading error cross into a real, keyboard-accessible Dismiss notification button. Dismissed shared errors stay hidden across navigation without losing unsaved text/files or retrying a write.
