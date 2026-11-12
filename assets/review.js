@@ -584,7 +584,7 @@
       search = event.target.value; listPage = 1; resetListScroll(); saveView(); requestNumber++;
       clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 200);
     } });
-    const pages = el('select', { 'aria-label': 'Issue page view', onchange: event => { scope = event.target.value === 'current' ? 'current' : 'all'; grouping = event.target.value === 'paged' ? 'page' : 'none'; changeView(); } }, el('option', { value: 'paged' }, 'All pages paged'), el('option', { value: 'list' }, 'All pages list'), el('option', { value: 'current' }, 'Current page')); pages.value = scope === 'current' ? 'current' : grouping === 'page' ? 'paged' : 'list';
+    const pages = el('select', { 'aria-label': 'Issue page view', onchange: event => { scope = event.target.value === 'current' ? 'current' : 'all'; grouping = event.target.value === 'paged' ? 'page' : 'none'; changeView(); } }, el('option', { value: 'list' }, 'All issues listed'), el('option', { value: 'paged' }, 'All issues by page'), el('option', { value: 'current' }, 'Current page')); pages.value = scope === 'current' ? 'current' : grouping === 'page' ? 'paged' : 'list';
     const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
     panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, statusFilterControl())), list);
     if (!issues.length) {
@@ -596,7 +596,7 @@
     for (const issue of issues) {
       if (grouping === 'page' && path !== issue.path) {
         path = issue.path;
-        list.append(el('div', { class: 'page-heading' }, el('h3', { class: 'page-title' }, issue.page_title || 'Page'), el('small', { class: 'page-url' }, new URL(path, c.home).href)));
+        list.append(el('div', { class: 'page-heading' }, el('h3', { class: 'page-title' }, issue.page_title || 'Page'), el('a', { class: 'page-url', href: c.home + path }, c.home + path)));
       }
       list.append(issueRow(issue));
     }
