@@ -20,7 +20,7 @@ require_once __DIR__ . '/includes/log.php';
 require_once __DIR__ . '/includes/admin.php';
 require_once __DIR__ . '/includes/cli.php';
 require_once __DIR__ . '/includes/update-checker.php';
-function defaults(): array { return ['mode' => 'everyone', 'link_sharing' => 'admins']; }
+function defaults(): array { return ['mode' => 'everyone']; }
 function settings(): array { return (array) get_option('feedbackpress_settings', []) + defaults(); }
 function bound(): bool { $c = Service::connection(); return !empty($c['project']) && !empty($c['token']) && empty($c['disconnected']); }
 register_deactivation_hook(__FILE__, function () { wp_clear_scheduled_hook('feedbackpress_tick'); });
@@ -32,7 +32,7 @@ add_action('admin_enqueue_scripts', [Admin::class, 'assets']);
 add_action('template_redirect', function () { if (is_user_logged_in() || ReviewAccess::grant()) { if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true); nocache_headers(); } });
 function asset_version(): string { return VERSION . '.' . max(filemtime(__DIR__ . '/assets/review.js'), filemtime(__DIR__ . '/assets/review.css')); }
 function frontend_config(): array {
-    return ['api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => wp_create_nonce('wp_rest'), 'home' => untrailingslashit(home_url()), 'environment' => 'central', 'maxBytes' => API::MAX_FILE, 'css' => plugins_url('assets/review.css', __FILE__) . '?ver=' . asset_version(), 'activitySync' => true, 'network' => Service::connection()['project'], 'cursor' => '0', 'privateNotes' => is_user_logged_in(), 'authorId' => is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : '', 'userName' => is_user_logged_in() ? wp_get_current_user()->display_name : '', 'canShareReview' => ReviewAccess::can_share(), 'reviewSession' => (bool) ReviewAccess::grant()];
+    return ['api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => wp_create_nonce('wp_rest'), 'home' => untrailingslashit(home_url()), 'environment' => 'central', 'maxBytes' => API::MAX_FILE, 'css' => plugins_url('assets/review.css', __FILE__) . '?ver=' . asset_version(), 'activitySync' => true, 'network' => Service::connection()['project'], 'cursor' => '0', 'privateNotes' => is_user_logged_in(), 'authorId' => is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : '', 'userName' => is_user_logged_in() ? wp_get_current_user()->display_name : '', 'reviewSession' => (bool) ReviewAccess::grant()];
 }
 add_action('wp_enqueue_scripts', function () {
     if (is_feed()) return;

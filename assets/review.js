@@ -179,14 +179,6 @@
     sidebarSettings.append(group);
   }
   sidebarSettings.append(el('p', { class: 'sidebar-narrow-note' }, 'On small screens, the list and page use separate views.'));
-  if (c.canShareReview) {
-    const result = el('div', { class: 'review-link-result', hidden: true });
-    sidebarSettings.append(button('Create review link', event => perform(event.currentTarget, async () => {
-      const link = await (await api('review-links', { method: 'POST', body: { label: 'Shared review', days: 7, path: pagePath + location.hash } })).json();
-      const field = el('input', { readonly: true, value: link.url, 'aria-label': 'New review link', autocomplete: 'off', 'data-1p-ignore': true });
-      result.replaceChildren(el('p', { class: 'subtle' }, 'Anyone with this link can review this site for 7 days. Private notes stay protected.'), field, button('Copy link', async () => { try { await navigator.clipboard.writeText(field.value); message('Review link copied.'); } catch (_) { field.focus(); field.select(); message('Select and copy the review link.'); } }, { class: 'fp-quiet' })); result.hidden = false; requestAnimationFrame(() => { sidebarSettings.scrollTop = sidebarSettings.scrollHeight; field.focus({ preventScroll: true }); field.select(); });
-    }), { class: 'fp-quiet' }), result);
-  }
   if (c.reviewSession) sidebarSettings.append(button('End review session', event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-quiet' }));
   sidebarSettings.addEventListener('toggle', () => { captureListScroll(); requestAnimationFrame(() => { const list = panel.querySelector('.issue-list'); if (list) list.scrollTop = listScroll; }); });
   panel.append(panelContents, sidebarSettings);
