@@ -25,7 +25,7 @@
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
     svg.append(path); return svg;
   }
   const labels = { todo: 'To do', needs_info: 'Information needed', doing: 'Doing', review: 'Review', done: 'Done' };
@@ -56,6 +56,8 @@
   let notesRequest = 0;
   const privateReply = new Set();
   const attachmentCache = new Map();
+  const rowPreviewQueue = new Set();
+  let rowPreviewObserver = null, rowPreviewActive = 0;
   let previewIssueId = null, previewFileId = null, viewerRequest = 0, returnFocus = null;
   try {
     const view = JSON.parse(sessionStorage.getItem(viewKey) || '{}');
@@ -302,6 +304,7 @@
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
         issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); threadScrolls.clear();
+        listLoading = false; listError = data.message || 'Feedback access changed. Refresh this page.';
         restoringList = false; listLoaded = false; total = 0; issuePopup.hidden = true; tether.hidden = true;
         if (open) render(); drawPins();
       }
@@ -474,6 +477,7 @@
   }, true);
   function render() {
     captureListScroll();
+    rowPreviewObserver?.disconnect(); rowPreviewQueue.clear();
     updateChrome();
     const searchInput = panel.querySelector('.issue-search');
     const searchSelection = root.activeElement === searchInput && searchInput ? [searchInput.selectionStart, searchInput.selectionEnd, searchInput.selectionDirection] : null;
@@ -520,7 +524,40 @@
   function issueRow(issue) {
     const active = selected?.id === issue.id;
     return el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
-      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author)), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null), statusControl(issue, 'row-status'));
+      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author)), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null, issueSummary(issue)), statusControl(issue, 'row-status'));
+  }
+  function issueSummary(issue) {
+    const replies = issue.activity.filter(event => event.kind === 'reply').length;
+    const files = issue.files.filter(file => !file.screenshot);
+    if (!replies && !files.length) return null;
+    const summary = el('span', { class: 'row-summary' });
+    if (replies) summary.append(el('span', { class: 'row-replies' }, icon('reply'), `${replies} ${replies === 1 ? 'reply' : 'replies'}`));
+    if (files.length) summary.append(el('span', { class: 'row-attachments', role: 'img', 'aria-label': `${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}` }, ...files.slice(0, 3).map(rowAttachment), files.length > 3 ? el('span', { class: 'row-attachment-more', 'aria-hidden': 'true' }, '+' + (files.length - 3)) : null));
+    return summary;
+  }
+  function rowAttachment(file) {
+    const tile = el('span', { class: 'row-attachment', 'aria-hidden': 'true', 'data-tooltip': (file.expired ? 'Expired: ' : !file.available ? 'Not yet available: ' : '') + file.name }, icon(file.mime.startsWith('image/') ? 'image' : 'document'));
+    if (file.available && file.mime.startsWith('image/')) {
+      tile.feedbackpressFile = file;
+      rowPreviewObserver ||= new IntersectionObserver(entries => {
+        for (const entry of entries) { if (entry.isIntersecting) rowPreviewQueue.add(entry.target); else rowPreviewQueue.delete(entry.target); }
+        loadRowPreviews();
+      });
+      rowPreviewObserver.observe(tile);
+    }
+    return tile;
+  }
+  function loadRowPreviews() {
+    // Original images can be 5 MB: only visible tiles, two transfers at a time.
+    while (rowPreviewActive < 2 && rowPreviewQueue.size) {
+      const tile = rowPreviewQueue.values().next().value; rowPreviewQueue.delete(tile); rowPreviewObserver.unobserve(tile);
+      if (!tile.isConnected || cacheDenied) continue;
+      rowPreviewActive++;
+      const file = tile.feedbackpressFile;
+      attachmentData(file).then(data => { if (tile.isConnected) tile.replaceChildren(el('img', { src: data.url, alt: '', decoding: 'async' })); })
+        .catch(() => { if (tile.isConnected) tile.dataset.tooltip = 'Preview unavailable: ' + file.name; })
+        .finally(() => { rowPreviewActive--; loadRowPreviews(); });
+    }
   }
   function compareIssues(a, b) {
     if (grouping === 'page' && a.path !== b.path) return a.path.localeCompare(b.path, 'en', { numeric: true });
@@ -620,7 +657,7 @@
   }
   function attachmentData(file) {
     const cached = attachmentCache.get(file.id);
-    if (cached && Date.now() - cached.at < cacheLifetime) return cached.promise;
+    if (cached && (Date.now() - cached.at < cacheLifetime || file.id === previewFileId)) return cached.promise;
     if (cached?.url) URL.revokeObjectURL(cached.url);
     attachmentCache.delete(file.id);
     const entry = { url: null, promise: null, at: Date.now(), size: file.size || 0 };

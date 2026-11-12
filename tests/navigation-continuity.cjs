@@ -80,8 +80,13 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     // Let the resize handler switch the drawer/popup before choosing the mobile action.
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     if (!await panel.isVisible()) await page.keyboard.press('v');
-    await list.locator(`[data-issue="${items[10].id}"] .issue-open`).click();
-    await page.waitForURL(base + '/#feedbackpress=' + items[10].id); await popup.waitFor();
+    const mobileId = await list.evaluate((node, home) => [...node.querySelectorAll('.issue-row')].find(row => {
+      const rect = row.getBoundingClientRect(), bounds = node.getBoundingClientRect();
+      return row.querySelector('.page-reference').textContent === home && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+    })?.dataset.issue, base + '/');
+    assert.ok(mobileId, 'A current-view homepage row is visible without scrolling.');
+    await list.locator(`[data-issue="${mobileId}"] .issue-open`).click();
+    await page.waitForURL(base + '/#feedbackpress=' + mobileId); await popup.waitFor();
     assert.equal((await page.evaluate(() => fixtureBoot)).rows, 50);
     await page.keyboard.press('v'); await panel.waitFor(); await page.evaluate(() => new Promise(requestAnimationFrame));
     assert.equal(await list.evaluate(node => node.scrollTop), 700); assert.equal(await popup.isVisible(), false);

@@ -89,6 +89,15 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .issue-body { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 3px 0 5px; font-size: 14px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
 .issue-open .page-reference { font-size: 11px; line-height: 17px; }
 .page-reference, .page-heading { overflow-wrap: anywhere; }
+.row-summary { display: flex; align-items: center; gap: 12px; min-height: 16px; margin-top: 8px; color: var(--fp-muted); font-size: 11px; line-height: 16px; }
+.row-replies, .row-attachments { display: inline-flex; align-items: center; gap: 4px; }
+.row-replies { flex: none; }
+.row-replies svg { width: 14px; height: 14px; }
+.row-attachment { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; overflow: hidden; border: 1px solid var(--fp-line); border-radius: 3px; background: var(--fp-surface); }
+.row-attachment svg { width: 15px; height: 15px; }
+.row-attachment img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.row-attachment-more { margin-left: 2px; font-size: 10px; font-weight: 600; }
+.issue-row[data-status=done] .row-attachment img { filter: grayscale(1); }
 .page-heading { margin: 16px 0 0; padding: 20px 20px 12px; border-bottom: 1px solid var(--fp-line); background: var(--fp-soft); }
 .page-heading:first-child { margin-top: 0; padding-top: 16px; }
 .page-title { color: var(--fp-ink); font-size: 15px; font-weight: 650; line-height: 21px; }
