@@ -12,7 +12,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
     if(attempts===1)return route.abort('connectionreset');
     return route.fulfill({json:issue});
    }
-   if(path==='/feedbackpress/v1/issues'){assert.ok(!path.includes('?'));assert.equal(url.searchParams.get('status'),'todo,review');return route.fulfill({json:{issues:issue?[issue]:[],total:issue?1:0,page:1}})}
+   if(path==='/feedbackpress/v1/issues'){assert.ok(!path.includes('?'));assert.equal(url.searchParams.get('status'),'todo,needs_info,review');return route.fulfill({json:{issues:issue?[issue]:[],total:issue?1:0,page:1}})}
    if(path.includes('/files'))return route.fulfill({json:{id:'media'}});
    return route.fulfill({json:issue||{}});
   }

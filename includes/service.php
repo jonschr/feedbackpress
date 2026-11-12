@@ -38,9 +38,14 @@ final class Service {
     public static function connectAccount(string $origin, string $key): array {
         $origin = self::origin($origin); $key = trim($key);
         if (!$key || str_starts_with($key, 'fp2:')) throw new \InvalidArgumentException('Enter your FeedbackPress license or account access key.');
-        if (!str_starts_with($key, 'fp_')) $key = self::http('POST', $origin . '/v1/licenses/session', '', ['license_key' => $key])['token'];
-        $profile = self::http('GET', $origin . '/v1/account', $key);
-        $grant = self::http('POST', $origin . '/v1/account/connections', $key, new \stdClass());
+        try {
+            if (!str_starts_with($key, 'fp_')) $key = self::http('POST', $origin . '/v1/licenses/session', '', ['license_key' => $key])['token'];
+            $profile = self::http('GET', $origin . '/v1/account', $key);
+            $grant = self::http('POST', $origin . '/v1/account/connections', $key, new \stdClass());
+        } catch (RemoteError $e) {
+            if ($e->remoteCode === 'unauthorized') throw new RemoteError('That FeedbackPress account access key was not recognized. Check the key and try again. Your existing connection is unchanged.', 401, 'unauthorized');
+            throw $e;
+        }
         return self::locked(function () use ($origin, $profile, $grant) {
             $old = self::connection(); $same = ($old['account'] ?? '') === $profile['id'] && ($old['service'] ?? '') === $origin;
             if (!$same && !empty($old['manager']) && !empty($old['project']) && ($old['site_url'] ?? '') === self::home()) {
