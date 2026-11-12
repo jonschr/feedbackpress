@@ -4,14 +4,16 @@ Visual feedback for WordPress, backed by one central FeedbackPress service.
 
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.
-- Track To do, Doing, Review, and Done statuses.
+- Track To do, Information needed, Doing, Review, and Done statuses.
 - Search feedback, connect site copies, and work through REST or WP-CLI.
 
 ## Get started
 
-Requires WordPress 6.6+ and PHP 8.1+. Install the `feedbackpress` folder in `wp-content/plugins`, activate it, and open **Settings → FeedbackPress**.
+Requires WordPress 6.6+ and PHP 8.1+. Upload the FeedbackPress ZIP under **Plugins → Add Plugin → Upload Plugin**, install and activate it, then open **Settings → FeedbackPress**.
 
 Connect your account with a license or access key, then choose a project from the searchable selector. Other installations use the same account and project. Feedback and media stay in the service; database copies register their URL automatically.
+
+The customer key is a FeedbackPress account access key or the license supplied with a FeedbackPress purchase. Lemon Squeezy merchant API keys belong only on the central service. Project creation, selection and connected-site management all happen in WordPress, without another FeedbackPress login. See the [setup guide](docs/GETTING-STARTED.md), including the current pilot boundary.
 
 Review access initially allows everyone. Choose administrator-only access for private review. Images and PDFs stay outside WordPress and expire after 60 days.
 
