@@ -318,3 +318,17 @@ header { justify-content: space-between; margin-bottom: 12px; }
 
 .status-count { margin-inline-start: auto; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fp-muted); }
 @media (max-width: 359px) { .popup-header { flex-wrap: wrap; } .popup-navigation { margin-inline-start: auto; } }
+
+/* Owner note controls stay quiet until opened; native popovers escape thread clipping. */
+.note-action-container { margin-inline-start: auto; display: inline-flex; }
+.note-actions-trigger { width: 28px; height: 28px; padding: 4px; color: var(--fp-muted); border: 0; background: transparent; }
+.note-actions { position: fixed; inset: auto; margin: 0; min-width: 150px; max-width: calc(100vw - 16px); padding: 4px; border: 1px solid var(--fp-field); border-radius: 6px; background: var(--fp-surface); color: var(--fp-ink); box-shadow: 0 6px 18px #151c2a26; font: 13px/20px var(--fp-font); }
+.note-actions:popover-open { display: grid; }
+.note-action { border: 0; padding: 8px 10px; background: transparent; text-align: start; }
+.note-action.is-destructive { color: #a12c2c; }
+.note-confirm { padding: 10px 12px; margin: 8px 0; border: 1px solid var(--fp-field); border-radius: 6px; background: var(--fp-soft); font-size: 12px; line-height: 18px; }
+.note-confirm p { margin: 0 0 10px; }
+.fp-danger { color: #ffffff; background: #a12c2c; border-color: #a12c2c; }
+.fp-danger:hover { color: #ffffff; background: #822222; }
+
+.note-action-hint { max-width: 190px; padding: 8px 10px; font-size: 11px; line-height: 16px; }

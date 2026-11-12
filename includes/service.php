@@ -94,13 +94,14 @@ final class Service {
         if (class_exists(ReviewAccess::class, false) && !current_user_can('manage_options') && (settings()['mode'] === 'disabled' || (settings()['mode'] === 'admins' && !ReviewAccess::grant(null, $c)))) throw new \RuntimeException('Feedback is unavailable.', 403);
         if (empty($c['token']) || empty($c['project']) || !empty($c['disconnected'])) throw new \RuntimeException('Choose a project in Settings → FeedbackPress.', 503);
         $url = self::origin($c['service']) . '/v1/projects/' . $c['project'] . $path;
-        try { return self::http($method, $url, $c['token'], $body, $key, $actor, $raw, self::home()); }
+        try { return self::http($method, $url, $c['token'], $body, $key, $actor || is_user_logged_in(), $raw, self::home(), is_user_logged_in()); }
         catch (RemoteError $e) { if ($e->getCode() === 401 || in_array($e->remoteCode, ['site_disconnected','site_mismatch'], true)) { $c['disconnected'] = true; self::save($c); } throw $e; }
     }
-    public static function http(string $method, string $url, string $token, $body = null, string $key = '', bool $actor = false, bool $raw = false, ?string $site = null) {
+    public static function http(string $method, string $url, string $token, $body = null, string $key = '', bool $actor = false, bool $raw = false, ?string $site = null, bool $ownerView = false) {
         $headers = ['Accept' => 'application/json'];
         if ($token) $headers['Authorization'] = 'Bearer ' . $token;
         if ($site) $headers['X-FeedbackPress-Site'] = $site;
+        if ($ownerView && $actor) $headers['X-FeedbackPress-View'] = 'owner';
         if ($key) $headers['Idempotency-Key'] = $key;
         if ($actor) {
             if (!is_user_logged_in()) throw new \RuntimeException('Log in to WordPress to access private notes.', 403);
@@ -115,7 +116,7 @@ final class Service {
         $bytes = wp_remote_retrieve_body($r);
         if ($status < 200 || $status >= 300) {
             $data = json_decode($bytes, true); $code = $data['error'] ?? 'service_error';
-            $messages = ['site_disconnected' => 'This site was removed from the project. An administrator can reconnect it in Settings → FeedbackPress.', 'site_mismatch' => 'The site connection changed. Reload this page.', 'license_invalid' => 'This license is invalid or inactive. Check the key from your FeedbackPress receipt.', 'license_product_mismatch' => 'This key is not for the configured FeedbackPress test product.', 'billing_unavailable' => 'License validation is temporarily unavailable. Try again shortly.', 'idempotency_conflict' => 'This request was already saved with different content. Check the issue list before submitting another change.', 'stale_revision' => 'This issue changed elsewhere. Reopen it before saving.', 'account_inactive' => 'This FeedbackPress account is inactive.', 'quota_exceeded' => 'The account storage allowance is full. Your text is saved.', 'unauthorized' => 'The project connection is no longer authorized. Reconnect in Settings → FeedbackPress.', 'not_found' => 'The requested issue or file was not found.', 'media_missing' => 'The screenshot or attachment is temporarily unavailable. Try again.', 'wordpress_login_required' => 'Log in to WordPress to access private notes.', 'non_local_site_required' => 'Choose a connected HTTPS site with a public address for notification links.', 'connected_site_required' => 'Choose a site connected to this project.'];
+            $messages = ['author_mismatch' => 'You can change only your own notes.', 'private_issue' => 'Make this issue public before sharing a note.', 'feedback_unavailable' => 'This feedback is no longer available.', 'note_already_converted' => 'This note has already been converted. Reopen its current comment.', 'site_disconnected' => 'This site was removed from the project. An administrator can reconnect it in Settings → FeedbackPress.', 'site_mismatch' => 'The site connection changed. Reload this page.', 'license_invalid' => 'This license is invalid or inactive. Check the key from your FeedbackPress receipt.', 'license_product_mismatch' => 'This key is not for the configured FeedbackPress test product.', 'billing_unavailable' => 'License validation is temporarily unavailable. Try again shortly.', 'idempotency_conflict' => 'This request was already saved with different content. Check the issue list before submitting another change.', 'stale_revision' => 'This issue changed elsewhere. Reopen it before saving.', 'account_inactive' => 'This FeedbackPress account is inactive.', 'quota_exceeded' => 'The account storage allowance is full. Your text is saved.', 'unauthorized' => 'The project connection is no longer authorized. Reconnect in Settings → FeedbackPress.', 'not_found' => 'The requested issue or file was not found.', 'media_missing' => 'The screenshot or attachment is temporarily unavailable. Try again.', 'wordpress_login_required' => 'Log in to WordPress to access private notes.', 'non_local_site_required' => 'Choose a connected HTTPS site with a public address for notification links.', 'connected_site_required' => 'Choose a site connected to this project.'];
             throw new RemoteError($messages[$code] ?? ('FeedbackPress request failed (' . $status . ', ' . sanitize_key($code) . ').'), $status, $code);
         }
         if ($raw) return ['body' => $bytes, 'mime' => wp_remote_retrieve_header($r, 'content-type'), 'disposition' => wp_remote_retrieve_header($r, 'content-disposition')];
@@ -158,13 +159,13 @@ final class Service {
         $pageTitle = $pageTitles[$pageKey] ??= self::pageTitle($i['path']);
         $comments = $i['comments']; $root = null; $activity = [];
         foreach ($comments as $comment) {
-            $p = self::person($comment['author']) + ['body' => $comment['body'], 'mentions' => $comment['mentions'] ?? [], 'edit_revision' => (string) $i['revision'], 'edited_at' => $comment['edited_at']];
+            $p = self::person($comment['author']) + ['body' => $comment['body'], 'mentions' => $comment['mentions'] ?? [], 'edit_revision' => (string) $i['revision'], 'edited_at' => $comment['edited_at'], 'visibility' => $comment['visibility'] ?? 'shared', 'owner_id' => $comment['owner_id'] ?? $comment['author']['id']];
             if ($comment['id'] === $i['id']) $root = $p;
             else $activity[] = ['id' => $comment['id'], 'kind' => 'reply', 'created_at' => $comment['created_at'], 'payload' => $p];
         }
         if (!$root) throw new \RuntimeException('The issue response is incomplete.', 503);
-        $files = array_map(fn($m) => ['id' => $m['id'], 'comment_id' => $m['comment_id'], 'name' => $m['name'], 'mime' => $m['mime'], 'size' => $m['size'], 'screenshot' => $m['screenshot'], 'available' => $m['state'] === 'ready', 'expired' => $m['state'] === 'expired'], $i['media']);
-        return $root + array_intersect_key($i, array_flip(['id', 'number', 'title', 'path', 'target', 'status', 'created_at', 'updated_at', 'completed_at'])) + ['page_title' => $pageTitle, 'revision' => (string) $i['revision'], 'target_revision' => (string) $i['revision'], 'author_revision' => (string) $i['revision'], 'activity' => $activity, 'files' => $files, 'conflict' => false, 'author_conflict' => false, 'edit_conflict' => false];
+        $files = array_map(fn($m) => ['id' => $m['id'], 'comment_id' => $m['comment_id'], 'name' => $m['name'], 'mime' => $m['mime'], 'size' => $m['size'], 'screenshot' => $m['screenshot'], 'visibility' => $m['visibility'] ?? 'shared', 'available' => $m['state'] === 'ready', 'expired' => $m['state'] === 'expired'], $i['media']);
+        return array_replace($root, array_intersect_key($i, array_flip(['id', 'number', 'title', 'path', 'target', 'status', 'created_at', 'updated_at', 'completed_at', 'visibility', 'owner_id']))) + ['page_title' => $pageTitle, 'revision' => (string) $i['revision'], 'target_revision' => (string) $i['revision'], 'author_revision' => (string) $i['revision'], 'activity' => $activity, 'files' => $files, 'conflict' => false, 'author_conflict' => false, 'edit_conflict' => false];
     }
 }
 

@@ -47,6 +47,13 @@ final class API {
             if ($r->has_param('mentions')) $body['mentions'] = $r->get_param('mentions');
             return Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/comments/' . $r['comment_id'], $body, self::key($r)));
         });
+        foreach ([$id . '/manage', $id . '/comments/(?P<comment_id>[a-f0-9-]{36})/manage'] as $path) $route($path, 'POST', function ($r) {
+            $body = ['revision' => (int) $r->get_param('revision'), 'action' => $r->get_param('action')];
+            foreach (['body','title','mentions'] as $key) if ($r->has_param($key)) $body[$key] = $r->get_param($key);
+            $path = '/issues/' . $r['id'] . ($r->get_param('comment_id') ? '/comments/' . $r['comment_id'] : '') . '/manage';
+            $result = Service::request('POST', $path, $body, self::key($r), true);
+            return !empty($result['deleted']) ? $result : Service::view($result);
+        }, fn($r) => self::privateWrite($r));
         $route('/identity', 'POST', fn($r) => Service::person(Service::request('POST', '/people', Identity::request($r))));
         $route('/authors', 'GET', fn() => Identity::people(), $read);
         $route('/mentions', 'GET', function () {
@@ -71,7 +78,7 @@ final class API {
         }, $read);
         $route('/sync/activity', 'POST', function () {
             $since = get_transient('feedbackpress_activity_v2');
-            if ($since !== false) return ['network' => Service::connection()['project'], 'cursor' => (string) $since, 'state' => 'throttled'];
+            if ($since !== false && !is_user_logged_in()) return ['network' => Service::connection()['project'], 'cursor' => (string) $since, 'state' => 'throttled'];
             // Lock before network I/O to coalesce callers on this installation.
             if ((int) get_option('feedbackpress_activity_lock_v2', 0) < time()) delete_option('feedbackpress_activity_lock_v2');
             if (!add_option('feedbackpress_activity_lock_v2', time() + 60, '', false)) return ['state' => 'busy', 'network' => Service::connection()['project']];
@@ -86,7 +93,7 @@ final class API {
         $route($notes, 'POST', fn($r) => Service::request('POST', '/issues/' . $r['id'] . '/notes', ['body' => $r->get_param('body'), 'kind' => $r->get_param('kind') ?? 'agent', 'agent' => $r->get_param('agent') ?? 'Agent'], self::key($r), true), fn($r) => self::privateWrite($r));
         $route($notes . '/(?P<note>[a-f0-9-]{36})(?P<convert>/convert)?', ['POST', 'DELETE'], function ($r) {
             $convert = (bool) $r->get_param('convert');
-            if ($convert && $r->get_param('publish') !== true) throw new \InvalidArgumentException('Use Convert to shared note to explicitly publish this private note.');
+            if ($convert && $r->get_param('publish') !== true) throw new \InvalidArgumentException('Choose Make public to explicitly publish this private note.');
             $method = $convert ? 'POST' : ($r->get_method() === 'DELETE' ? 'DELETE' : 'PATCH');
             $body = ['revision' => (int) $r->get_param('revision')]; if ($convert) $body['publish'] = true; if ($r->has_param('body')) $body['body'] = $r->get_param('body');
             $result = Service::request($method, '/issues/' . $r['id'] . '/notes/' . $r['note'] . ($convert ? '/convert' : ''), $body, self::key($r), true);
@@ -95,7 +102,7 @@ final class API {
         }, fn($r) => self::privateWrite($r));
         Admin::routes($route);
         ReviewAccess::routes($route);
-        add_filter('rest_post_dispatch', function ($response, $server, $r) { if (str_starts_with($r->get_route(), '/feedbackpress/')) { $response->header('Cache-Control', 'private, no-store, max-age=0'); $response->header('Vary', 'Cookie, Authorization'); } return $response; }, 10, 3);
+        add_filter('rest_post_dispatch', function ($response, $server, $r) { if (str_starts_with($r->get_route(), '/feedbackpress/')) { $response->header('Cache-Control', 'private, no-store, max-age=0'); $response->header('Vary', 'Cookie, Authorization'); $response->header('X-FeedbackPress-Actor-Id', is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : ''); } return $response; }, 10, 3);
         add_filter('rest_pre_serve_request', function ($served, $response, $request) {
             if (($response->get_headers()['X-FeedbackPress-Binary'] ?? '') === '1') { echo $response->get_data(); return true; } return $served;
         }, 10, 3);

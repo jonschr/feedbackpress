@@ -26,6 +26,7 @@
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    if (kind === 'more') path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01');
     if (kind === 'sort') path.setAttribute('d', 'M8 4v16M5 7l3-3 3 3M16 20V4M13 17l3 3 3-3');
     svg.append(path); return svg;
   }
@@ -57,7 +58,7 @@
   const countedStatuses = new Map();
   let draftOperation = null;
   let shortcutIssueId = null, lastPointer = null, steppingPage = false;
-  const privateNotes = new Map();
+  const privateNotes = new Map(), privateEditDrafts = new Map(), noteConfirmations = new Map();
   let notesRequest = 0;
   const privateReply = new Set();
   const attachmentCache = new Map();
@@ -95,17 +96,23 @@
   const listSignature = () => JSON.stringify([sort, grouping, scope, scope === 'current' ? pagePath : '', search, filter, listPage]);
   const freshCache = at => Number.isFinite(at) && Date.now() - at >= 0 && Date.now() - at < cacheLifetime;
   function scheduleCacheSave() { if (!cacheDenied && cacheSaveTimer === null) cacheSaveTimer = setTimeout(persistIssueCache, 0); }
+  function publicIssue(issue) {
+    if (issue.visibility === 'private') return null;
+    return { ...issue, activity: issue.activity.filter(event => event.payload?.visibility !== 'private'), files: issue.files.filter(file => file.visibility !== 'private') };
+  }
   function persistIssueCache(carryView = false) {
     cacheSaveTimer = null;
     if (cacheDenied) return;
     const visible = issues.filter(issue => !issue.pending);
-    const view = listLoaded && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].slice(-200) } : null;
+    const view = listLoaded && selected?.visibility !== 'private' && !visible.some(issue => issue.visibility === 'private' || issue.activity.some(event => event.payload?.visibility === 'private')) && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].filter(([id]) => issueCache.get(id)?.issue.visibility !== 'private').slice(-200) } : null;
     const priority = new Set([selected?.id, ...visible.map(issue => issue.id)]);
-    const known = knownIssues ? [...knownIssues] : null, at = Date.now();
+    const known = knownIssues ? [...knownIssues].filter(id => issueCache.get(id)?.issue.visibility !== 'private') : null, at = Date.now();
     const entries = [], saved = new Set(); let size = JSON.stringify({ entries: [], view, known, at }).length;
     const ordered = [...issueCache.values()].reverse();
     ordered.sort((a, b) => Number(priority.has(b.issue.id)) - Number(priority.has(a.issue.id)));
-    for (const entry of ordered) {
+    for (const cached of ordered) {
+      const sanitized = publicIssue(cached.issue); if (!sanitized) continue;
+      const entry = { ...cached, issue: sanitized };
       // Carry visible completed rows across navigation without bulk-caching completed history.
       if ((entry.issue.status === 'done' && !priority.has(entry.issue.id)) || entry.issue.pending || (!freshCache(entry.at) && !(carryView && priority.has(entry.issue.id)))) continue;
       const json = JSON.stringify(entry); if (json.length > 256 * 1024 || size + json.length + 1 > 1024 * 1024) continue;
@@ -148,10 +155,22 @@
     if (Array.isArray(data?.issues)) data.issues.forEach(cacheIssue);
     else cacheIssue(data);
   }
+  function forgetIssue(id) {
+    const listed = issues.some(issue => issue.id === id);
+    issueCache.delete(id); issues = issues.filter(issue => issue.id !== id); pageIssues = pageIssues.filter(issue => issue.id !== id); privateNotes.delete(id);
+    for (const [key,draft] of privateEditDrafts) if (draft.issue === id) privateEditDrafts.delete(key);
+    for (const [key,draft] of editDrafts) if (draft.issue === id) editDrafts.delete(key);
+    for (const [key,pending] of noteConfirmations) if (pending.issueId === id) noteConfirmations.delete(key);
+    if (listed) total = Math.max(0, total - 1);
+    if (selected?.id === id) { selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
+    if (open) render(); drawPins(); scheduleCacheSave();
+  }
   function applyIssue(updated) {
     if (cacheDenied) return;
     const known = issueCache.get(updated.id)?.issue;
     if (known && Number(known.revision) > Number(updated.revision)) return;
+    if (updated.visibility === 'private') privateReply.delete(updated.id);
+    if (updated.visibility === 'private') for (const job of sharedJobs.values()) if (job.issueId === updated.id) makeJobPrivate(job);
     cacheIssue(updated); updated = optimisticIssue(updated); updateStatusCount(updated); keepListOrder = true;
     issues = issues.map(existing => existing.id === updated.id ? updated : existing);
     pageIssues = pageIssues.map(existing => existing.id === updated.id ? updated : existing);
@@ -311,7 +330,7 @@
   root.addEventListener('click', hideTooltip, true);
   root.addEventListener('scroll', hideTooltip, true);
   addEventListener('scroll', hideTooltip, { passive: true });
-  addEventListener('resize', hideTooltip);
+  addEventListener('resize', () => { hideTooltip(); root.querySelectorAll('.note-actions:popover-open').forEach(menu => menu.hidePopover()); });
   window.visualViewport?.addEventListener('resize', hideTooltip);
   window.visualViewport?.addEventListener('scroll', hideTooltip);
   new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
@@ -335,14 +354,23 @@
     const requestUrl = new URL(c.api + route);
     for (const [key, value] of new URLSearchParams(query || '')) requestUrl.searchParams.set(key, value);
     const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
+    const currentActor = response.headers.get('X-FeedbackPress-Actor-Id');
+    if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
+      c.privateNotes = false; privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
+      issueCache.clear(); issues = []; pageIssues = []; selected = null; cacheDenied = true; notesRequest++;
+      clearAttachments(true); dismissInterface(); issuePopup.replaceChildren();
+      try { sessionStorage.removeItem(cacheKey); } catch (_) {}
+      const error = new Error('Your WordPress identity changed. Reload this page to continue.'); error.status = 403; message(error.message); throw error;
+    }
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
+      if (response.status === 404 && !writes) { const gone = route.match(/^issues\/([a-f0-9-]{36})(?:\/notes)?$/)?.[1]; if (gone) forgetIssue(gone); }
       if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
       if ([401, 403].includes(response.status) && !route.includes('/notes')) {
         issueCache.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
-        issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); threadScrolls.clear();
+        issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); threadScrolls.clear(); issuePopup.replaceChildren();
         listLoading = false; listError = data.message || 'Feedback access changed. Refresh this page.';
         mentionData = null; closeMentionMenu();
         sidebarSettings.querySelector('.review-link-result')?.replaceChildren();
@@ -479,7 +507,7 @@
       if (data) {
         if (restoring && restoreOrder && data.page === listPage) {
           const current = new Map(data.issues.map(issue => [issue.id, issue]));
-          issues = issues.map(issue => optimisticIssue(current.get(issue.id) || issue));
+          issues = issues.filter(issue => current.has(issue.id) || issue.pending).map(issue => optimisticIssue(current.get(issue.id) || issue));
         } else { issues = data.issues.map(optimisticIssue); total = data.total; listPage = data.page; keepListOrder = false; }
         if (data.status_counts) {
           statusCounts = { ...data.status_counts }; countedStatuses.clear();
@@ -617,7 +645,7 @@
   function issueRow(issue) {
     const active = selected?.id === issue.id;
     return el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
-      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author)), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null, issueSummary(issue)), statusControl(issue, 'row-status'));
+      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null, issueSummary(issue)), statusControl(issue, 'row-status'));
   }
   function issueSummary(issue) {
     const replies = issue.activity.filter(event => event.kind === 'reply').length;
@@ -835,7 +863,7 @@
     } catch (error) { message(error.message); }
   }
   function editComment(comment) {
-    if (!selected || actorId !== comment.author_id) return;
+    if (!selected || actorId !== (comment.owner_id || comment.author_id)) return;
     mentionDrafts.delete('edit:' + comment.id);
     editDrafts.set(comment.id, { issue: selected.id, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
     renderIssue(); issuePopup.querySelector(`[data-edit-comment="${comment.id}"] textarea`)?.focus();
@@ -943,12 +971,12 @@
       event.preventDefault();
       editDrafts.delete(comment.id);
       const content = readMentionField(form.querySelector('textarea')); mentionDrafts.delete('edit:' + comment.id);
-      enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}`, { author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
+      enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}` + (c.privateNotes ? '/manage' : ''), { ...(c.privateNotes ? { action: 'edit' } : {}), author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
       if (selected?.id === draft.issue) renderIssue();
     } });
-    if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (selected?.id !== draft.issue) return; selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && latest.author_id === actorId) editComment({ ...latest, id: comment.id }); else { editDrafts.delete(comment.id); renderIssue(); } }), { class: 'fp-quiet' }));
+    if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (selected?.id !== draft.issue) return; selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && (latest.owner_id || latest.author_id) === actorId) editComment({ ...latest, id: comment.id }); else { editDrafts.delete(comment.id); renderIssue(); } }), { class: 'fp-quiet' }));
     if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
-    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
+    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && selected?.visibility !== 'private'), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
     return form;
   }
   function commentView(comment, files) {
@@ -958,11 +986,14 @@
     if (!Number.isNaN(date.valueOf())) byline.append(el('time', { class: 'comment-date', datetime: comment.created_at, title: date.toLocaleString() }, date.toLocaleDateString()));
     if (comment.pending || comment.pending_edit) byline.append(el('span', { class: 'comment-date' }, 'Saving…'));
     if (comment.edited_at) byline.append(el('time', { class: 'comment-edited', datetime: comment.edited_at, title: 'Edited ' + new Date(comment.edited_at).toLocaleString() }, 'Edited'));
-    if (!comment.pending && actorId && actorId === comment.author_id) byline.append(button('Edit', () => editComment(comment), { class: 'comment-edit', 'aria-label': comment.id === selected?.id ? 'Edit issue' : 'Edit reply' }));
+    const own = !comment.pending && !comment.pending_edit && actorId && actorId === (comment.owner_id || comment.author_id);
+    if (comment.visibility === 'private') byline.append(el('span', { class: 'private-label' }, 'Private · Only you'));
+    if (own && c.privateNotes && !editDrafts.has(comment.id)) byline.append(noteActions(comment.id === selected?.id ? 'issue' : 'reply', comment, selected.id));
+    else if (own && !editDrafts.has(comment.id)) byline.append(button('Edit', () => editComment(comment), { class: 'comment-edit', 'aria-label': comment.id === selected?.id ? 'Edit issue' : 'Edit reply' }));
     const uploads = files.filter(file => !file.screenshot);
     const screenshots = files.filter(file => file.screenshot);
     const draft = editDrafts.get(comment.id);
-    const copy = el('div', { class: 'comment-copy' }, byline, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]));
+    const copy = el('div', { class: 'comment-copy' }, byline, confirmationView(comment.id, selected.id), comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]));
     if (uploads.length) copy.append(el('div', { class: 'attachment-strip comment-uploads', role: 'group', 'aria-label': 'Comment attachments' }, ...uploads.map(attachmentThumbnail)));
     return el('div', { class: 'thread-comment' + (screenshots.length ? ' has-screenshot' : ''), 'data-comment': comment.id }, copy,
       screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null);
@@ -974,29 +1005,92 @@
       const data = await (await api(`issues/${id}/notes`)).json();
       if (request !== notesRequest || !c.privateNotes) return;
       privateNotes.set(id, data.notes);
+      const allowed = new Map(data.notes.map(note => [note.id, note]));
+      for (const [key, draft] of privateEditDrafts) if (draft.issue === id) { if (!allowed.has(key)) privateEditDrafts.delete(key); else if (draft.revision !== allowed.get(key).revision) draft.stale = true; }
+      for (const [key, pending] of noteConfirmations) if (pending.issueId === id && pending.kind === 'private note' && !allowed.has(key)) noteConfirmations.delete(key);
       // Refresh private content even while typing, without replacing the reply form.
       if (selected?.id === id && !issuePopup.hidden) {
+        const focused = root.activeElement?.closest('[data-private-edit]');
+        const position = focused ? [focused.dataset.privateEdit, root.activeElement.selectionStart, root.activeElement.selectionEnd] : null;
         issuePopup.querySelectorAll('.private-note').forEach(node => node.remove());
         issuePopup.querySelector('.issue-thread')?.append(...data.notes.map(privateNoteView));
+        if (position) { const field = issuePopup.querySelector(`[data-private-edit="${position[0]}"] textarea`); field?.focus({ preventScroll: true }); field?.setSelectionRange(position[1], position[2]); }
       }
     } catch (error) {
       if (request !== notesRequest) return;
-      privateNotes.delete(id);
+      privateNotes.delete(id); for (const [key,draft] of privateEditDrafts) if (draft.issue === id) privateEditDrafts.delete(key);
       if (error.status === 403) { c.privateNotes = false; privateNotes.clear(); }
       // Keep private drafts private after access loss; never turn them into shared replies.
       if (selected?.id === id) issuePopup.querySelectorAll('.private-note').forEach(node => node.remove());
     }
   }
+  function noteActions(kind, item, issueId) {
+    const privateNote = kind === 'private note', isPrivate = privateNote || item.visibility === 'private';
+    const popupId = 'fp-note-actions-' + item.id;
+    const trigger = button(icon('more'), () => {}, { class: 'fp-icon-button note-actions-trigger', 'aria-label': 'Actions for ' + kind, popovertarget: popupId });
+    const menu = el('div', { class: 'note-actions', id: popupId, popover: 'auto', role: 'group', 'aria-label': 'Actions for ' + kind });
+    const action = (label, run, destructive = false) => button(label, () => { menu.hidePopover(); run(); }, { class: 'note-action' + (destructive ? ' is-destructive' : '') });
+    menu.append(action('Edit', () => {
+      noteConfirmations.delete(item.id);
+      if (privateNote) { privateEditDrafts.set(item.id, { issue: issueId, body: item.body, revision: item.revision }); renderIssue(); issuePopup.querySelector(`[data-private-edit="${item.id}"] textarea`)?.focus(); }
+      else editComment(item);
+    }));
+    if (selected?.visibility === 'private' && kind !== 'issue') menu.append(el('small', { class: 'note-action-hint' }, 'Make the issue public first to share a note.'));
+    else menu.append(action(isPrivate ? 'Make public' : 'Make private', () => {
+      noteConfirmations.set(item.id, { kind, item, issueId, action: isPrivate ? 'public' : 'private' }); renderIssue(); issuePopup.querySelector(`[data-confirm-note="${item.id}"] button`)?.focus();
+    }));
+    menu.append(action('Delete', () => { noteConfirmations.set(item.id, { kind, item, issueId, action: 'delete' }); renderIssue(); issuePopup.querySelector(`[data-confirm-note="${item.id}"] button`)?.focus(); }, true));
+    menu.addEventListener('beforetoggle', event => { if (event.newState === 'open') menu.style.visibility = 'hidden'; });
+    menu.addEventListener('toggle', event => {
+      if (event.newState !== 'open') return;
+      const r = trigger.getBoundingClientRect(), box = menu.getBoundingClientRect();
+      menu.style.left = Math.max(8, Math.min(innerWidth - box.width - 8, r.right - box.width)) + 'px';
+      menu.style.top = (r.bottom + box.height + 8 < innerHeight ? r.bottom + 4 : Math.max(8, r.top - box.height - 4)) + 'px';
+      menu.style.visibility = 'visible';
+    });
+    return el('span', { class: 'note-action-container' }, trigger, menu);
+  }
+  function confirmationView(id, issueId) {
+    const pending = noteConfirmations.get(id); if (!pending || pending.issueId !== issueId) return null;
+    const { kind, item, action } = pending, label = action === 'delete' ? 'Delete ' + (kind === 'private note' ? 'note' : kind) : action === 'public' ? 'Make public' : 'Make private';
+    const explanation = action === 'delete' ? kind === 'issue' ? 'Remove this entire issue, its replies and attachments from review?' : 'Remove this note from the conversation?' : action === 'public' ? 'All project reviewers will be able to read ' + (kind === 'issue' ? 'this issue and its shared replies and attachments.' : 'this note.') : 'Only your logged-in WordPress email will be able to read ' + (kind === 'issue' ? 'this issue, its replies and attachments.' : 'this reply and its attachments.');
+    return el('form', { class: 'note-confirm', 'data-confirm-note': id, 'aria-label': label, onsubmit: event => {
+      event.preventDefault(); perform(event.currentTarget, async () => {
+        let result;
+        if (kind === 'private note') {
+          result = await (await api(`issues/${issueId}/notes/${id}` + (action === 'public' ? '/convert' : ''), { method: action === 'delete' ? 'DELETE' : 'POST', body: { revision: item.revision, ...(action === 'public' ? { publish: true } : {}) } })).json();
+          if (result.issue) applyIssue(result.issue); privateEditDrafts.delete(id); await loadNotes(issueId);
+        } else {
+          const path = `issues/${issueId}` + (kind === 'issue' ? '' : `/comments/${id}`) + '/manage';
+          result = await (await api(path, { method: 'POST', body: { action, revision: selected?.id === issueId ? selected.revision : item.edit_revision } })).json();
+          clearAttachments(true);
+          if (result.deleted) {
+            for (const job of sharedJobs.values()) if (job.issueId === issueId) makeJobPrivate(job);
+            issueCache.delete(issueId); issues = issues.filter(issue => issue.id !== issueId); pageIssues = pageIssues.filter(issue => issue.id !== issueId); privateNotes.delete(issueId); total = Math.max(0, total - 1);
+            if (selected?.id === issueId) { selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; }
+            render(); drawPins(); scheduleCacheSave();
+          } else applyIssue(result);
+        }
+        noteConfirmations.delete(id); editDrafts.delete(id);
+        if (selected?.id === issueId && !issuePopup.hidden) renderIssue();
+        message(action === 'public' ? 'Now public to project reviewers.' : action === 'private' ? 'Now private to your WordPress email.' : 'Deleted from review.');
+      });
+    } }, el('p', {}, explanation), el('div', { class: 'actions' }, el('button', { type: 'submit', class: action === 'delete' ? 'fp-danger' : 'fp-primary' }, label), button('Cancel', () => { noteConfirmations.delete(id); renderIssue(); }, { class: 'fp-quiet' })));
+  }
   function privateNoteView(note) {
-    const byline = el('div', { class: 'comment-byline' }, el('strong', { class: 'comment-author' }, note.author_kind === 'agent' ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, note.author_kind === 'agent' ? 'Private agent note' : 'Private note'));
-    if (note.author_kind === 'agent') byline.append(button('Convert to shared note', event => perform(event.currentTarget.closest('.private-note'), async () => {
-      const id = selected.id;
-      const converted = await (await api(`issues/${id}/notes/${note.id}/convert`, { method: 'POST', body: { revision: note.revision, publish: true } })).json();
-      if (converted.visibility !== 'shared' || !converted.issue) throw new Error('The service needs the shared-conversion update. This note remains private.');
-      applyIssue(converted.issue);
-      await loadNotes(id); message('Converted to your shared note. All project reviewers can now read it.'); setTimeout(() => { if (selected && !issuePopup.hidden) renderIssue(); }, 0);
-    }), { class: 'comment-edit', title: 'Publish this note to all project reviewers under your name' }));
-    return el('div', { class: 'thread-comment private-note' }, el('div', { class: 'comment-copy' }, byline, el('p', { class: 'comment' }, note.body)));
+    const issueId = note.issue_id || selected.id;
+    const byline = el('div', { class: 'comment-byline' }, el('strong', { class: 'comment-author' }, note.author_kind === 'agent' ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, 'Private · Only you'));
+    if (note.created_at) byline.append(el('time', { class: 'comment-date', datetime: note.created_at, title: new Date(note.created_at).toLocaleString() }, new Date(note.created_at).toLocaleDateString()));
+    if (note.edited_at) byline.append(el('span', { class: 'comment-edited' }, 'Edited'));
+    if (!privateEditDrafts.has(note.id)) byline.append(noteActions('private note', note, issueId));
+    const draft = privateEditDrafts.get(note.id);
+    const editor = draft ? el('form', { class: 'comment-editor', 'data-private-edit': note.id, onsubmit: event => {
+      event.preventDefault(); perform(event.currentTarget, async () => {
+        await api(`issues/${issueId}/notes/${note.id}`, { method: 'POST', body: { body: draft.body, revision: draft.revision } });
+        privateEditDrafts.delete(note.id); await loadNotes(issueId);
+      });
+    } }, draft.stale ? el('p', { class: 'warning' }, 'This note changed elsewhere. Your draft is kept. Cancel and reopen Edit to use the latest version.') : null, el('textarea', { rows: 3, maxlength: 20000, required: true, 'aria-label': 'Edit private note', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => draft.body = event.target.value }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale }, 'Save'), button('Cancel', () => { privateEditDrafts.delete(note.id); renderIssue(); }, { class: 'fp-quiet' }))) : el('p', { class: 'comment' }, note.body);
+    return el('div', { class: 'thread-comment private-note', 'data-note': note.id }, el('div', { class: 'comment-copy' }, byline, confirmationView(note.id, issueId), editor));
   }
   function renderIssue() {
     closeMentionMenu();
@@ -1039,7 +1133,7 @@
       input.value = ''; renderQueued();
     });
     renderQueued();
-    const privateToggle = c.privateNotes ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
+    const privateToggle = c.privateNotes && issue.visibility !== 'private' ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
     input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
     issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
       if (!privateReply.has(issue.id)) return submitReply(event, issue.id);
@@ -1050,7 +1144,7 @@
         await api(`issues/${issue.id}/notes`, { method: 'POST', requestId: key, body: { body, kind: 'human' } });
         await loadNotes(issue.id);
       });
-    } }, mentionField(reply, 'reply:' + issue.id, [], () => !privateReply.has(issue.id)), input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))));
+    } }, issue.visibility === 'private' ? el('small', { class: 'subtle' }, 'Replies in this private issue are visible only to you.') : null, mentionField(reply, 'reply:' + issue.id, [], () => issue.visibility !== 'private' && !privateReply.has(issue.id)), input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))));
     issuePopup.hidden = false; positionDraft(); restoreThreadScroll();
   }
   const pendingForms = new WeakSet();
@@ -1230,6 +1324,7 @@
   }
   window.addEventListener('keydown', event => {
     if (event.isComposing) return;
+    if ((event.key === 'Escape' || event.key === 'Esc') && root.querySelector('.note-actions:popover-open')) { event.preventDefault(); event.stopPropagation(); const menu = root.querySelector('.note-actions:popover-open'); menu.hidePopover(); root.querySelector(`[popovertarget="${menu.id}"]`)?.focus(); return; }
     if (mentionKey(event)) return;
     const consume = () => { event.preventDefault(); event.stopPropagation(); };
     if (event.key === 'Escape' || event.key === 'Esc') {
@@ -1523,6 +1618,11 @@
       transaction.oncomplete = resolve; transaction.onerror = () => reject(new Error('Browser storage is full. Keep this page open to retry.'));
     });
   }
+  function makeJobPrivate(job) {
+    job.private = true; journal.delete(job.id);
+    try { sessionStorage.setItem(journalKey, JSON.stringify([...journal.values()])); } catch (_) {}
+    workDatabase.then(db => { if (db) { const transaction = db.transaction('jobs', 'readwrite'); transaction.objectStore('jobs').delete(job.id); } });
+  }
   function optimisticIssue(issue) {
     let result = issue;
     for (const job of sharedJobs.values()) {
@@ -1560,6 +1660,8 @@
   }
   function enqueueShared(kind, path, body, files = [], capturePromise = null, key = crypto.randomUUID()) {
     const job = { id: key, scope: cacheKey, kind, path, body, files: files.map(file => ({ file, key: crypto.randomUUID(), screenshot: false })), phase: 'text', issueId: kind === 'create' ? null : path.split('/')[1], issuePath: kind === 'create' ? body.path : (issueCache.get(path.split('/')[1])?.issue.path || selected?.path || pagePath), createdAt: new Date().toISOString(), capturePending: Boolean(capturePromise) };
+    const current = issueCache.get(job.issueId)?.issue || (selected?.id === job.issueId ? selected : null);
+    job.private = current?.visibility === 'private' || (kind === 'edit' && current?.activity.some(event => event.id === path.split('/')[3] && event.payload.visibility === 'private'));
     sharedJobs.set(job.id, job); showPendingCreate(job); renderJobs();
     if (job.issueId) { const current = issueCache.get(job.issueId)?.issue || selected; if (current) applyIssue(current); }
     executeJob(job, capturePromise); return job;
@@ -1587,7 +1689,7 @@
             const revisions = ownRevisions.get(job.issueId); revisions.set(String(job.sentBody.revision), saved.revision);
             while (revisions.size > 20) revisions.delete(revisions.keys().next().value);
             while (ownRevisions.size > 200) ownRevisions.delete(ownRevisions.keys().next().value);
-            try { sessionStorage.setItem(revisionsKey, JSON.stringify([...ownRevisions].map(([id, values]) => [id, [...values]]))); } catch (_) {}
+            if (!job.private) try { sessionStorage.setItem(revisionsKey, JSON.stringify([...ownRevisions].map(([id, values]) => [id, [...values]]))); } catch (_) {}
           }
           const temporary = job.id; job.issueId = saved.id; job.commentId = saved.reply_id || saved.id; job.phase = 'files';
           if (job.kind === 'create') {
@@ -1692,6 +1794,8 @@
       if (c.network && data.network !== c.network) { message('The feedback network changed. Reload this page to continue.'); return; }
       if (!cacheDenied && Array.isArray(data.issues) && writeVersion === localWriteVersion) {
         const byId = new Map(data.issues.map(issue => [issue.id, issue]));
+        for (const id of issueCache.keys()) if (!byId.has(id)) issueCache.delete(id);
+        if (selected && !byId.has(selected.id) && !selected.pending) { privateNotes.delete(selected.id); privateEditDrafts.clear(); noteConfirmations.clear(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
         const matches = matchesView;
         const visible = new Set(issues.map(issue => issue.id));
         // Keep each visible row in place, including status changes received from another site.
