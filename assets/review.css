@@ -303,7 +303,6 @@ header { justify-content: space-between; margin-bottom: 12px; }
   @keyframes fp-dock-in { from { transform: translateX(16px); opacity: .65; } to { transform: translateX(0); opacity: 1; } }
 }
 
-.private-note { background:#f4f1f8; padding:10px; border-radius:4px; }
 .private-label { font-size:11px; color:#615570; }
 .private-reply-toggle { display:flex; align-items:center; gap:6px; font-size:12px; color:#615570; padding:0; margin-inline-end:auto; }
 .private-reply-toggle input { appearance:auto; width:14px; height:14px; margin:0; }
