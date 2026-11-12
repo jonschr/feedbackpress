@@ -1,9 +1,9 @@
 # FeedbackPress update review — November 11, 2026
 
-Latest update: plugin 0.3.0-beta.3 hardens issue reveal scrolling against delayed resets/layout shifts, nested panes and fixed headers. Manual page input takes control. Stable updater stays 0.2.2; hosted API unchanged.
+Latest update: plugin 0.3.0-beta.4 scales the entire page/admin bar proportionally in Make room mode, keeping FeedbackPress full size. Issue-scroll repair remains included. Stable updater stays 0.2.2; hosted API unchanged.
 
 
-Latest release: plugin 0.3.0-beta.3 published; issue reveal scrolling hardened and locally verified. Rapid-review limiter repair remains included; historical delete investigation still awaits issue number. Stable updater stays 0.2.2; hosted API d9799c69187c unchanged.
+Latest release: plugin 0.3.0-beta.4 published; proportional page fit and issue reveal scrolling locally verified. Rapid-review limiter repair remains included; historical delete investigation still awaits issue number. Stable updater stays 0.2.2; hosted API d9799c69187c unchanged.
 
 Current pilot: service d9799c69187c; six QA/onboarding/access plugin copies 6fcea9d829c7. Owner lifecycle controls are installed; 37 service checks and actual two-copy HTTPS owner/other/guest/media/identity acceptance pass. Current ZIP/receipts are in the final section; email and paid/customer production remain deferred.
 
@@ -416,3 +416,8 @@ Viewport-positioned fixed/absolute boxes retain baseline horizontal geometry; ab
 Prepare plugin 0.3.0-beta.4 with focused page-scale/sidebar-layout/screenshot-pin/pin-drag/scroll-focus/navigation-continuity/target-recovery checks. Screenshot fixture uses a point actually inside the scaled section; the bundled renderer checks underlying page pixels as well as the original marker. First acceptance exposed viewport-absolute elements staying behind the left offset; their containing-block handling was repaired. A restored-page initial unstyled panel width of 0 was fixed by using the known 400px fallback. A pin assertion now waits for the scroll-driven redraw rather than inspecting stale previous-frame geometry. Receipts/backups: /Users/jonschroeder/Library/Application Support/FeedbackPress/private/page-scale-20261112T171000Z. No feedback/options/connections/theme source/backend/schema/provider writes. Hosted service d9799c69187c and stable updater 0.2.2 unchanged; prior 37/37 backend result remains historical. Laurel incoming commits/pending changes remain untouched.
 
 Final focused acceptance passes all seven fixtures above, including a real scaled drag with normalized coordinates and an unchanged link URL, plus JS/PHP syntax and whitespace. Rendered1440px desktop and existing390px mobile views inspected. No new backend verification run for this frontend-only change. Publication/install receipt follows.
+
+
+### Proportional page fit published and installed
+
+Plugin 0.3.0-beta.4: https://github.com/jonschr/feedbackpress/releases/tag/0.3.0-beta.4, tagged reviewed source 3d3d3d00cf56384089e0aba5afd066e9a25873c8. Three GitHub release assets downloaded and byte/hash checked; ZIP SHA256 8ef3bb858c7bef24d27d0465344b3f84229d160b36491af5fd3e95e8a9181883. Six physical QA/onboarding/access copies match all 211 tracked files after complete private backups; fourteen real HTTPS JS/CSS responses across those copies and Secure AI Now match. Secure AI Now serves the canonical checkout through its pre-existing plugin path; no symlinks created/changed. Stable GitHub Latest/update.json remain 0.2.2. START-HERE points to the verified ZIP; owner key unchanged. No feedback/options/connection/theme source/backend/schema/provider change. Private backups/manifests/verification/screenshots: /Users/jonschroeder/Library/Application Support/FeedbackPress/private/page-scale-20261112T171000Z. Roll back source only and keep current feedback/options. Seven focused Chrome fixtures pass, including scaled drag, native screenshot rendering, restore/mobile/navigation and scrolling recovery. Hosted API d9799c69187c and existing production/email/latency gates remain unchanged. Canonical plan/Harrison mirrors updated; Laurel legacy runtime/pending changes untouched.
