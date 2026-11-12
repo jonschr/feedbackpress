@@ -27,7 +27,9 @@ final class Admin {
         $route('/admin/disconnect', 'POST', fn() => Service::disconnect(), $admin);
         $route('/admin/settings', 'POST', function ($r) {
             $mode = $r->get_param('mode'); if (!in_array($mode, ['everyone', 'admins', 'disabled'], true)) throw new \InvalidArgumentException('Choose a review access setting.');
-            update_option('feedbackpress_settings', ['mode' => $mode], false); return ['saved' => true];
+            $sharing = $r->get_param('link_sharing') ?? settings()['link_sharing'];
+            if (!in_array($sharing, ['admins', 'everyone'], true)) throw new \InvalidArgumentException('Choose who can create review links.');
+            update_option('feedbackpress_settings', ['mode' => $mode, 'link_sharing' => $sharing], false); return ['saved' => true];
         }, $admin);
         $route('/admin/log', 'GET', fn() => Log::entries(), $admin);
     }
@@ -78,8 +80,15 @@ final class Admin {
             </section>
             <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Account connection</summary><p class="description">Connected to <?php echo esc_html($c['service']); ?>. WordPress administrators on this installation can manage projects in this account.</p><p class="description">Use a license or account key to reconnect or choose another account. Neither key is saved in WordPress.</p><?php self::accountForm(); ?></details><?php endif; ?>
             <details class="fp-section"><summary>Review access</summary>
-                <form id="fp-access" method="post"><label for="fp-mode">Who can view pins and leave feedback on this installation?</label><select id="fp-mode"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></form>
+                <form id="fp-access" method="post"><label for="fp-mode">Who can view pins and leave feedback without a review link?</label><select id="fp-mode"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><label for="fp-link-sharing">Who can create review links?</label><select id="fp-link-sharing"><?php foreach (['admins' => 'Administrators only', 'everyone' => 'Everyone with review access'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['link_sharing'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></form>
                 <p class="description">Private agent notes are available only to logged-in WordPress users with the matching email address.</p>
+                <p class="description">Everyone with review access lets existing reviewers invite others with their own links. Administrators can revoke any link.</p>
+            </details>
+            <details class="fp-section" id="fp-review-links"><summary>Client review links</summary>
+                <p class="description">Give a client access to shared feedback without a WordPress login. Links work with administrator-only review access; Nobody (disabled) also disables links. Anyone holding a link can use it until it expires or you revoke it. Private notes and WordPress administration stay protected.</p>
+                <form id="fp-review-link-create"><label for="fp-review-link-label">Link label</label><input id="fp-review-link-label" required maxlength="120" placeholder="Client review"><label for="fp-review-link-days">Expires after</label><select id="fp-review-link-days"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option></select><button type="submit" class="button">Create review link</button></form>
+                <div id="fp-review-link-result" hidden><label for="fp-review-link-url">New review link — copy before closing this page</label><input id="fp-review-link-url" readonly autocomplete="off" data-1p-ignore><button class="button" type="button" id="fp-review-link-copy">Copy link</button></div>
+                <ul id="fp-review-link-list" class="fp-site-list"><li>Open this section to load existing links.</li></ul>
             </details>
             <details class="fp-section" id="fp-diagnostics"><summary>Connection diagnostics</summary><p class="description">The latest 100 requests, retained for up to 3 days. No credentials or comment text are logged.</p><pre id="fp-log">Open this section to load diagnostics.</pre></details>
             <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Disconnect this installation</summary><p>This removes this copy from its project and disconnects its account. Other copies and all feedback remain in the service.</p><button class="button" id="fp-disconnect" type="button">Disconnect account</button></details><?php endif; ?>

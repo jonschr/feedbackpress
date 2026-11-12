@@ -1,5 +1,7 @@
 # FeedbackPress usage
 
+For clients reviewing a gated live site without a WordPress login, see [Client review links](REVIEW-LINKS.md). Review links grant shared feedback access only; private notes still require WordPress login.
+
 The current central-service beta is documented in [Central service testing](CENTRAL-TESTING.md). It replaces the peer-sync backend; old shared-key and peer endpoints are no longer active.
 
 

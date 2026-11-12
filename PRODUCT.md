@@ -44,3 +44,6 @@ Sidebar settings at the bottom of the issue list choose Left/Right and Overlay p
 
 
 Page-group headers are dark gray with white titles and light-gray URLs, flush against the preceding issue row. Search and the combined page/status row are the only two control rows below the header, including on touch screens. The icon order menu retains all six chronological choices and normal native keyboard interaction.
+
+
+Site-specific client review links allow shared feedback on an administrator-gated live site without a WordPress login. Administrators can create/revoke labeled links with 1/7/30-day expiry; link creation defaults to administrators and may explicitly be extended to existing reviewers. Anyone holding a valid link can use it until expiry/revocation, with a secure HttpOnly site cookie. It grants no WordPress administration/private-note identity; guest-entered matching email still does not grant private notes. Nobody disables all review access, including links. Links are copied for delivery; email delivery remains deferred.

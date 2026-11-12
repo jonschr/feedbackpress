@@ -70,6 +70,10 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .sidebar-settings fieldset:disabled label { opacity: .5; cursor: not-allowed; }
 .sidebar-settings input { appearance: auto; flex: none; width: 14px; height: 14px; min-height: 0; margin: 0; padding: 0; accent-color: var(--fp-action); }
 .sidebar-narrow-note { display: none; margin: 0 0 12px; font-size: 11px; color: var(--fp-muted); }
+.sidebar-settings > .fp-quiet { margin: 0 0 8px; }
+.sidebar-settings .review-link-result { margin-bottom: 12px; }
+.sidebar-settings .review-link-result input { font-size: 12px; }
+.sidebar-settings[open] { max-height: 45dvh; overflow-y: auto; }
 @media (min-width: 900px) { :host([data-sidebar-visible][data-sidebar-side=left]) .work-panel { left: 420px; width: min(380px, calc(100vw - 440px)); } }
 .panel-tools { flex-shrink: 0; padding: max(20px, env(safe-area-inset-top)) 20px 16px; border-bottom: 1px solid var(--fp-line); }
 .panel-header { margin-bottom: 18px; }

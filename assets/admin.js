@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const c = FeedbackPressAdmin, $ = id => document.getElementById(id);
-  let state = null, projects = [], filtered = [], active = -1, projectDraftId = null, busy = false;
+  let state = null, projects = [], filtered = [], active = -1, projectDraftId = null, busy = false, linksRequest = 0;
   const show = (text, error = false) => { const node = $('fp-admin-message'); node.hidden = false; node.className = 'notice inline ' + (error ? 'notice-error' : 'notice-success'); node.querySelector('p').textContent = text; };
   async function api(path, body) {
     const url = new URL(c.api); if (url.searchParams.has('rest_route')) url.searchParams.set('rest_route', url.searchParams.get('rest_route').replace(/\/$/, '') + '/admin/' + path); else url.pathname = url.pathname.replace(/\/$/, '') + '/admin/' + path;
@@ -36,6 +36,7 @@
   }
   async function refresh(next) {
     const nextState = next || await api('connection'); const nextProjects = await api('projects');
+    if (state?.project?.id !== nextState.project?.id) { if ($('fp-review-link-result')) $('fp-review-link-result').hidden = true; if ($('fp-review-link-url')) $('fp-review-link-url').value = ''; if ($('fp-review-links')?.open) loadReviewLinks().catch(error => show(error.message, true)); }
     state = nextState; projects = nextProjects;
     search.disabled = false; $('fp-project-picker').setAttribute('aria-busy', 'false'); closePicker();
     $('fp-project-state').textContent = state.disconnected ? 'This site is disconnected. Choose a project to reconnect.' : state.project ? 'Switching projects moves this site’s connection, not its feedback.' : 'Choose a project to connect this site.';
@@ -77,7 +78,24 @@
   $('fp-new-project')?.addEventListener('click', () => { closePicker(); projectDraftId = crypto.randomUUID(); $('fp-create-project').hidden = false; $('fp-project-name').focus(); });
   $('fp-cancel-project')?.addEventListener('click', () => { $('fp-create-project').hidden = true; $('fp-project-name').value = ''; });
   $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); $('fp-create-project').hidden = true; $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
-  $('fp-access')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('settings', { mode: $('fp-mode').value }); show('Review access saved.'); }); });
+  $('fp-access')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('settings', { mode: $('fp-mode').value, link_sharing: $('fp-link-sharing')?.value || 'admins' }); show('Review access saved.'); }); });
+  async function loadReviewLinks() {
+    const ticket = ++linksRequest, links = await api('review-links'); if (ticket !== linksRequest) return;
+    const list = $('fp-review-link-list'); list.replaceChildren();
+    for (const link of links) {
+      const row = document.createElement('li'), text = document.createElement('div'), label = document.createElement('strong'), date = document.createElement('small');
+      label.textContent = link.label; date.textContent = 'Expires ' + new Date(link.expires_at * 1000).toLocaleString(); text.append(label, date);
+      const revoke = document.createElement('button'); revoke.type = 'button'; revoke.className = 'button-link button-link-delete'; revoke.textContent = 'Revoke'; revoke.setAttribute('aria-label', 'Revoke ' + link.label);
+      revoke.onclick = () => run(list, async () => { await api('review-links/revoke', { id: link.id }); $('fp-review-link-result').hidden = true; $('fp-review-link-url').value = ''; await loadReviewLinks(); show('Review link revoked.'); }); row.append(text, revoke); list.append(row);
+    }
+    if (!links.length) { const empty = document.createElement('li'); empty.textContent = 'No active review links for this site and project.'; list.append(empty); }
+  }
+  $('fp-review-links')?.addEventListener('toggle', event => { if (event.currentTarget.open) loadReviewLinks().catch(error => show(error.message, true)); });
+  $('fp-review-link-create')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => {
+    const link = await api('review-links', { label: $('fp-review-link-label').value, days: Number($('fp-review-link-days').value) });
+    $('fp-review-link-url').value = link.url; $('fp-review-link-result').hidden = false; await loadReviewLinks(); $('fp-review-link-url').focus(); $('fp-review-link-url').select(); show('Review link created. Copy it and share it with your client.');
+  }); });
+  $('fp-review-link-copy')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText($('fp-review-link-url').value); show('Review link copied.'); } catch (_) { $('fp-review-link-url').focus(); $('fp-review-link-url').select(); show('Select and copy the new review link.'); } });
   $('fp-disconnect')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { const result = await api('disconnect', {}); const url = new URL(location.href); url.searchParams.set('disconnected', result.remote_removed ? '1' : 'unconfirmed'); location.assign(url); }));
   $('fp-diagnostics')?.addEventListener('toggle', async event => { if (!event.currentTarget.open) return; try { const log = await api('log'); $('fp-log').textContent = log.length ? log.map(row => `${row.utc}  ${row.operation}  ${row.status || 'connection failed'}  ${row.ms} ms`).join('\n') : 'No requests yet.'; } catch (error) { $('fp-log').textContent = error.message; } });
   if (search) refresh().catch(error => { $('fp-project-state').textContent = 'Could not load projects.'; show(error.message, true); });

@@ -6,8 +6,8 @@ final class API {
     const STATUSES = ['todo', 'needs_info', 'doing', 'review', 'done'];
     const ORDERS = ['created_asc', 'created_desc', 'updated_asc', 'updated_desc', 'completed_asc', 'completed_desc'];
     public static function error(string $message, int $status = 400): \WP_Error { return new \WP_Error('feedbackpress', $message, ['status' => $status]); }
-    public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && current_user_can('manage_options')))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
-    public static function read($r = null) { if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
+    public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && (current_user_can('manage_options') || ReviewAccess::grant())))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
+    public static function read($r = null) { if ($r && $r->get_header('origin')) { $home = wp_parse_url(home_url()); $origin = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : ''); if ($r->get_header('origin') !== $origin) return self::error('Open feedback on this site.', 403); } if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
     public static function write(\WP_REST_Request $r) {
         if (!self::can_view()) return self::error('Feedback is unavailable.', 403);
         if ($r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload before saving.', 409);
@@ -19,8 +19,8 @@ final class API {
         set_transient($key, $count + 1, 600); return true;
     }
     public static function hosting_auth(bool $is_api): bool {
-        $path = $_SERVER['REQUEST_URI'] ?? '';
-        return str_contains($path, 'feedbackpress/v1/') && isset($_SERVER['HTTP_X_WP_NONCE']) ? false : $is_api;
+        $path = rawurldecode($_SERVER['REQUEST_URI'] ?? '');
+        return str_contains($path, 'feedbackpress/v1/') && (isset($_SERVER['HTTP_X_WP_NONCE']) || str_contains($path, 'feedbackpress/v1/review-session')) ? false : $is_api;
     }
     public static function routes(): void {
         $route = function ($path, $methods, $callback, $permission = null) {
@@ -94,6 +94,7 @@ final class API {
             return $result;
         }, fn($r) => self::privateWrite($r));
         Admin::routes($route);
+        ReviewAccess::routes($route);
         add_filter('rest_post_dispatch', function ($response, $server, $r) { if (str_starts_with($r->get_route(), '/feedbackpress/')) { $response->header('Cache-Control', 'private, no-store, max-age=0'); $response->header('Vary', 'Cookie, Authorization'); } return $response; }, 10, 3);
         add_filter('rest_pre_serve_request', function ($served, $response, $request) {
             if (($response->get_headers()['X-FeedbackPress-Binary'] ?? '') === '1') { echo $response->get_data(); return true; } return $served;
