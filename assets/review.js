@@ -336,7 +336,7 @@
   new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
   const pendingRequests = new Map(), fileIds = new WeakMap();
   async function api(path, options = {}) {
-    const headers = { 'X-WP-Nonce': c.nonce, ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
+    const headers = { 'X-WP-Nonce': c.nonce, ...(c.authorId ? { 'X-FeedbackPress-Expected-Actor': c.authorId } : {}), ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
     const writes = options.method && options.method !== 'GET';
     let signature;
     if (writes) {
@@ -356,7 +356,7 @@
     const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
     const currentActor = response.headers.get('X-FeedbackPress-Actor-Id');
     if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
-      c.privateNotes = false; privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
+      c.privateNotes = false; for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
       issueCache.clear(); issues = []; pageIssues = []; selected = null; cacheDenied = true; notesRequest++;
       clearAttachments(true); dismissInterface(); issuePopup.replaceChildren();
       try { sessionStorage.removeItem(cacheKey); } catch (_) {}

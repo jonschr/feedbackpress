@@ -10,6 +10,8 @@ final class API {
     public static function read($r = null) { if ($r && $r->get_header('origin')) { $home = wp_parse_url(home_url()); $origin = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : ''); if ($r->get_header('origin') !== $origin) return self::error('Open feedback on this site.', 403); } if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
     public static function write(\WP_REST_Request $r) {
         if (!self::can_view()) return self::error('Feedback is unavailable.', 403);
+        $actor = (string) $r->get_header('x-feedbackpress-expected-actor');
+        if ($actor && (!is_user_logged_in() || !hash_equals(Identity::id(wp_get_current_user()->user_email), $actor))) return self::error('Your WordPress identity changed. Reload this page to continue.', 409);
         if ($r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload before saving.', 409);
         if (current_user_can('manage_options') && !$r->get_header('origin')) return true;
         $home = wp_parse_url(home_url()); $expected = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : '');
