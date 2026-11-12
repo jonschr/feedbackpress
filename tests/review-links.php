@@ -1,4 +1,5 @@
 <?php
+defined('ABSPATH') || exit;
 // Real WordPress options/identity; isolated fixture only, no central requests or feedback writes.
 if (home_url() !== 'https://feedbackpress-access-qa.localhost:8453') throw new RuntimeException('Isolated review-access fixture only.');
 require_once dirname(__DIR__) . '/feedbackpress.php';

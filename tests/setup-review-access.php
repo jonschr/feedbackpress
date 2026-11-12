@@ -1,4 +1,5 @@
 <?php
+defined('ABSPATH') || exit;
 // New, independent local fixtures only. Secrets/receipts are written privately, never printed.
 if (!current_user_can('manage_options') || !in_array(home_url(), ['https://feedbackpress-access-qa.localhost:8453', 'https://feedbackpress-access-other.localhost:8453'], true)) throw new RuntimeException('Isolated administrator fixture only.');
 use FeedbackPress\Service;
