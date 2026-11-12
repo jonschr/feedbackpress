@@ -22,7 +22,7 @@ const path = require('node:path');
       if (url.pathname.endsWith('.css')) return route.fulfill({ contentType: 'text/css', body: fs.readFileSync(root + '/assets/review.css', 'utf8') });
       if (url.pathname.startsWith('/api/')) {
         if (endpoint === 'issues') {
-          if (url.searchParams.get('order') === 'updated') await new Promise(resolve => setTimeout(resolve, 350));
+          if (url.searchParams.get('order') === 'updated_desc') await new Promise(resolve => setTimeout(resolve, 350));
           const found = url.searchParams.has('path') ? items.filter(item => item.path === url.searchParams.get('path')) : items;
           const page = Number(url.searchParams.get('page')) || 1;
           return route.fulfill({ json: { issues: found.slice((page - 1) * 50, page * 50), total: found.length, page } });
@@ -83,11 +83,11 @@ const path = require('node:path');
     const count = writes.length; await page.keyboard.press('5'); assert.equal(writes.length, count);
     // Clicking an issue takes precedence over an earlier hovered target.
     await row(2).locator('.issue-open').click(); await selected(2); await status('3', 2, 'doing');
-    const refreshing = page.waitForRequest(request => new URL(request.url()).searchParams.get('order') === 'updated');
-    await panel.getByLabel('Order issues').selectOption('updated'); await refreshing;
+    const refreshing = page.waitForRequest(request => new URL(request.url()).searchParams.get('order') === 'updated_desc');
+    await panel.getByLabel('Order issues').selectOption('updated_desc'); await refreshing;
     await page.keyboard.press('ArrowDown'); await selected(3); // Known rows remain usable during refresh.
     await page.keyboard.press('ArrowUp'); await selected(2);
-    await panel.getByLabel('Order issues').selectOption('number');
+    await panel.getByLabel('Order issues').selectOption('created_asc');
     for (const field of [page.locator('#native'), page.locator('#editable'), page.locator('#custom'), popup.getByRole('textbox', { name: 'Reply', exact: true })]) {
       await field.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('1'); await page.keyboard.press('n'); await page.keyboard.press('p'); await selected(2);
     }

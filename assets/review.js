@@ -39,7 +39,8 @@
       name = saved ? decodeURIComponent(saved.slice('feedbackpress_name='.length)) : localStorage.getItem('feedbackpress-name') || '';
     } catch (_) { /* Identity can still be entered when browser storage is disabled. */ }
   }
-  let issues = [], pageIssues = [], selected = null, sort = 'number', search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
+  const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
+  let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'none', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
@@ -58,7 +59,10 @@
   let previewIssueId = null, previewFileId = null, viewerRequest = 0, returnFocus = null;
   try {
     const view = JSON.parse(sessionStorage.getItem(viewKey) || '{}');
-    if (['page', 'number', 'completed', 'updated'].includes(view.sort)) sort = view.sort;
+    if (Object.hasOwn(sortLabels, view.sort)) sort = view.sort;
+    if (view.scope === 'current') scope = 'current';
+    if (view.grouping === 'page') grouping = 'page';
+    scopePath = view.scopePath;
     if (typeof view.search === 'string') search = view.search;
     if (Array.isArray(view.filter)) filter = Object.keys(labels).filter(status => view.filter.includes(status));
     else if (view.filter === 'all') filter = Object.keys(labels);
@@ -69,14 +73,16 @@
     listScroll = hasListPosition ? view.scrollTop : 0;
     resumeOpen = view.open === true;
   } catch (_) { /* Storage is optional. */ }
-  function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ statusVersion: 5, sort, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue) })); } catch (_) {} }
+  function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ statusVersion: 5, sort, scope, grouping, scopePath, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue) })); } catch (_) {} }
   const homePath = new URL(c.home).pathname.replace(/\/$/, '');
   const pagePath = (location.pathname.slice(homePath.length) || '/') + location.search;
+  if (scope === 'current' && scopePath !== pagePath) { listPage = 1; listScroll = 0; hasListPosition = false; }
+  scopePath = pagePath;
   const issueCache = new Map(), issueReads = new Map();
   const cacheKey = 'feedbackpress-shared-cache:' + c.home + ':' + (c.network || '') + ':' + (c.authorId || c.userName || 'guest');
   const cacheLifetime = 30000;
   let cacheSaveTimer = null, restoringList = false, restoredSelection = null, restoredDetails = false, cacheDenied = false, knownIssues = null;
-  const listSignature = () => JSON.stringify([sort, search, filter, listPage]);
+  const listSignature = () => JSON.stringify([sort, grouping, scope, scope === 'current' ? pagePath : '', search, filter, listPage]);
   const freshCache = at => Number.isFinite(at) && Date.now() - at >= 0 && Date.now() - at < cacheLifetime;
   function scheduleCacheSave() { if (!cacheDenied && cacheSaveTimer === null) cacheSaveTimer = setTimeout(persistIssueCache, 0); }
   function persistIssueCache(carryView = false) {
@@ -106,8 +112,8 @@
     const carried = new Set(view && freshCache(view.at) ? [...view.ids, view.selected] : []);
     for (const entry of (saved.entries || []).slice(0, 200)) if (freshCache(entry.at) || carried.has(entry.issue.id)) issueCache.set(entry.issue.id, entry);
     if (view && freshCache(view.at)) {
-      if (view.counts && Object.keys(labels).every(status => Number.isSafeInteger(view.counts[status]) && view.counts[status] >= 0)) statusCounts = view.counts;
-      for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesSearch(issue) });
+      if (view.signature === listSignature() && view.counts && Object.keys(labels).every(status => Number.isSafeInteger(view.counts[status]) && view.counts[status] >= 0)) statusCounts = view.counts;
+      for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
       if (Number.isFinite(view.pointer?.x) && Number.isFinite(view.pointer?.y)) lastPointer = view.pointer;
       for (const [id, top] of (view.threads || []).slice(-200)) if (Number.isFinite(top) && top >= 0) threadScrolls.set(id, top);
       if (view.signature === listSignature() && view.ids.every(id => issueCache.has(id))) {
@@ -347,7 +353,7 @@
   }
   async function loadPagePins(statusFilter) {
     const result = [];
-    const params = new URLSearchParams({ path: pagePath, order: 'number' });
+    const params = new URLSearchParams({ path: pagePath, order: 'created_asc' });
     if (search.trim()) params.set('search', search.trim());
     params.set('status', statusFilter.join(',') || 'none');
     for (let page = 1; ; page++) {
@@ -360,7 +366,8 @@
   async function load(focus = null, preserveOrder = false) {
     clearTimeout(searchTimer);
     const ticket = ++requestNumber;
-    const params = new URLSearchParams({ page: String(listPage), order: sort });
+    const params = new URLSearchParams({ page: String(listPage), order: sort, group: grouping });
+    if (scope === 'current') params.set('path', pagePath);
     if (search.trim()) params.set('search', search.trim());
     if (typeof focus === 'string') params.set('focus', focus);
     params.set('status', filter.join(',') || 'none');
@@ -382,7 +389,7 @@
         } else { issues = data.issues.map(optimisticIssue); total = data.total; listPage = data.page; keepListOrder = false; }
         if (data.status_counts) {
           statusCounts = { ...data.status_counts }; countedStatuses.clear();
-          for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesSearch(issue) });
+          for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
           for (const { issue } of issueCache.values()) updateStatusCount(optimisticIssue(issue));
         }
         listLoaded = true; restoringList = false;
@@ -414,8 +421,10 @@
     const text = [issue.title || '', issue.body || '', ...(issue.activity || []).map(event => event.payload?.body || '')].join(' ').toLocaleLowerCase();
     return search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean).every(term => text.includes(term));
   }
+  function matchesScope(issue) { return scope === 'all' || issue.path === pagePath; }
+  function matchesListSearch(issue) { return matchesScope(issue) && matchesSearch(issue); }
   function updateStatusCount(issue) {
-    const before = countedStatuses.get(issue.id), matches = matchesSearch(issue);
+    const before = countedStatuses.get(issue.id), matches = matchesListSearch(issue);
     if (statusCounts && before && (before.status !== issue.status || before.matches !== matches)) {
       if (before.matches) statusCounts[before.status] = Math.max(0, statusCounts[before.status] - 1);
       if (matches) statusCounts[issue.status]++;
@@ -476,9 +485,12 @@
       search = event.target.value; listPage = 1; resetListScroll(); saveView(); requestNumber++;
       clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 200);
     } });
-    const order = el('select', { 'aria-label': 'Order issues', onchange: event => { sort = event.target.value; listPage = 1; resetListScroll(); saveView(); load(); } }, el('option', { value: 'number' }, 'By issue number'), el('option', { value: 'page' }, 'By page'), el('option', { value: 'completed' }, 'Completed: newest'), el('option', { value: 'updated' }, 'Last edited: newest')); order.value = sort;
+    const changeView = () => { listPage = 1; resetListScroll(); saveView(); load(); };
+    const pages = el('select', { 'aria-label': 'Issue page scope', onchange: event => { scope = event.target.value; changeView(); } }, el('option', { value: 'all' }, 'All pages'), el('option', { value: 'current' }, 'Current page')); pages.value = scope;
+    const groups = el('select', { 'aria-label': 'Group issues', onchange: event => { grouping = event.target.value; changeView(); } }, el('option', { value: 'none' }, 'Flat list'), el('option', { value: 'page' }, 'By page')); groups.value = grouping;
+    const order = el('select', { 'aria-label': 'Order issues', onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
     const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
-    panel.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, order, statusFilterControl())), list);
+    panel.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, groups), el('div', { class: 'filters sort-filters' }, order, statusFilterControl())), list);
     if (!issues.length) {
       if (listLoading) list.append(el('div', { class: 'list-placeholder', role: 'status', 'aria-label': 'Loading issues' }, ...Array.from({ length: 3 }, () => el('div', {}, el('span'), el('span'), el('span')))));
       else if (listError) list.append(el('div', { class: 'empty', role: 'status' }, el('p', { class: 'subtle' }, listError), button('Try again', () => load(), { class: 'fp-quiet' })));
@@ -486,13 +498,13 @@
     }
     let path = null;
     for (const issue of issues) {
-      if (sort === 'page' && path !== issue.path) {
+      if (grouping === 'page' && path !== issue.path) {
         path = issue.path;
         list.append(el('div', { class: 'page-heading' }, el('h3', { class: 'page-title' }, issue.page_title || 'Page'), el('small', { class: 'page-url' }, new URL(path, c.home).href)));
       }
       list.append(issueRow(issue));
     }
-    if (selected && !listLoading && !issues.some(issue => issue.id === selected.id)) list.append(el('small', { class: 'outside-filter' }, 'Selected issue outside this list'), issueRow(selected));
+    if (selected && matchesScope(selected) && !listLoading && !issues.some(issue => issue.id === selected.id)) list.append(el('small', { class: 'outside-filter' }, 'Selected issue outside this list'), issueRow(selected));
     if (total > 50) panel.append(el('nav', { class: 'actions pagination', 'aria-label': 'Issue pages' }, button(icon('previous'), () => { listPage--; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Previous list page', disabled: listPage <= 1 }), el('small', {}, `${listPage} / ${Math.ceil(total / 50)}`), button(icon('next'), () => { listPage++; resetListScroll(); load(); }, { class: 'fp-icon-button', 'aria-label': 'Next list page', disabled: listPage * 50 >= total })));
     // Hidden/mobile and loading lists have no usable scroll range; retain the saved position until visible.
     if (stylesReady && !panel.hidden && issues.length) {
@@ -508,11 +520,17 @@
   function issueRow(issue) {
     const active = selected?.id === issue.id;
     return el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
-      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author)), el('span', { class: 'issue-body' }, issue.title || issue.body), sort !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null), statusControl(issue, 'row-status'));
+      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author)), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null), statusControl(issue, 'row-status'));
+  }
+  function compareIssues(a, b) {
+    if (grouping === 'page' && a.path !== b.path) return a.path.localeCompare(b.path, 'en', { numeric: true });
+    const [field, direction] = sort.split('_'), left = a[field + '_at'] || '', right = b[field + '_at'] || '', sign = direction === 'desc' ? -1 : 1;
+    if (!left || !right) return Number(!left) - Number(!right) || Number(a.number) - Number(b.number);
+    return left.localeCompare(right) * sign || (Number(a.number) - Number(b.number)) * (field === 'created' ? sign : 1);
   }
   function navigationIssues() {
-    if (!selected || issues.some(issue => issue.id === selected.id)) return issues;
-    return [...issues, selected].sort((a, b) => (['completed', 'updated'].includes(sort) ? (b[sort + '_at'] || '').localeCompare(a[sort + '_at'] || '') : 0) || (sort === 'page' ? a.path.localeCompare(b.path, 'en', { numeric: true }) : 0) || String(a.number).localeCompare(String(b.number), 'en', { numeric: true }) || a.id.localeCompare(b.id));
+    if (!selected || !matchesScope(selected) || issues.some(issue => issue.id === selected.id)) return issues;
+    return [...issues, selected].sort(compareIssues);
   }
   function updateNavigation() {
     if (!selected || issuePopup.hidden) return;
@@ -1283,8 +1301,7 @@
     }));
   }
   function matchesView(issue) {
-    const text = [issue.title || '', issue.body || '', ...issue.activity.map(event => event.payload?.body || '')].join(' ').toLocaleLowerCase();
-    return filter.includes(issue.status) && search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean).every(term => text.includes(term));
+    return filter.includes(issue.status) && matchesListSearch(issue);
   }
   function showPendingCreate(job) {
     if (job.phase !== 'text' || job.kind !== 'create') return;
@@ -1424,7 +1441,7 @@
       if (c.network && data.network !== c.network) { message('The feedback network changed. Reload this page to continue.'); return; }
       if (!cacheDenied && Array.isArray(data.issues) && writeVersion === localWriteVersion) {
         const byId = new Map(data.issues.map(issue => [issue.id, issue]));
-        const matches = issue => filter.includes(issue.status) && search.trim().split(/\s+/).filter(Boolean).every(term => [issue.title || '', issue.body, ...issue.activity.filter(event => event.kind === 'reply').map(event => event.payload.body)].join('\n').toLocaleLowerCase().includes(term.toLocaleLowerCase()));
+        const matches = matchesView;
         const visible = new Set(issues.map(issue => issue.id));
         // Keep each visible row in place, including status changes received from another site.
         issues = issues.filter(issue => byId.has(issue.id) || issue.pending).map(issue => byId.has(issue.id) ? optimisticIssue(byId.get(issue.id)) : issue);
@@ -1432,7 +1449,7 @@
         for (const id of data.new_issues || []) { const issue = byId.get(id); if (knownIssues && !knownIssues.has(id) && issue && !visible.has(id) && matches(issue)) { issues.push(issue); total++; } }
         knownIssues = new Set(byId.keys());
         statusCounts = Object.fromEntries(Object.keys(labels).map(status => [status, 0])); countedStatuses.clear();
-        for (const item of data.issues) { const current = optimisticIssue(item), matches = matchesSearch(current); countedStatuses.set(item.id, { status: current.status, matches }); if (matches) statusCounts[current.status]++; }
+        for (const item of data.issues) { const current = optimisticIssue(item), matches = matchesListSearch(current); countedStatuses.set(item.id, { status: current.status, matches }); if (matches) statusCounts[current.status]++; }
         paintStatusCounts();
         keepListOrder = listLoaded;
         pageIssues = data.issues.filter(issue => issue.path === pagePath && matches(issue)).map(optimisticIssue);

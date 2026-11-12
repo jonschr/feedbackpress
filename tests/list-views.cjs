@@ -1,0 +1,35 @@
+// Browser -> actual PHP listing code, using synthetic snapshots only.
+const {chromium}=require('playwright'),fs=require('node:fs'),{spawnSync}=require('node:child_process'),assert=require('node:assert/strict');
+const fixture=require('./fixtures/list-orders.json');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const base='https://feedbackpress.test',context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce',hasTouch:process.env.FEEDBACKPRESS_TOUCH==='1'}),items=structuredClone(fixture.items),errors=[],requests=[];let delay=0,syncs=0;
+ await context.route(base+'/**',async route=>{const req=route.request(),u=new URL(req.url());
+  if(u.pathname.endsWith('.woff2'))return route.fulfill({body:fs.readFileSync('assets/fonts/InterVariable.woff2'),contentType:'font/woff2'});
+  if(u.pathname.endsWith('.css'))return route.fulfill({body:fs.readFileSync('assets/review.css','utf8'),contentType:'text/css'});
+  if(u.pathname==='/api/issues'){
+   const params=Object.fromEntries(u.searchParams);requests.push(params);if(delay)await new Promise(r=>setTimeout(r,delay));
+   const result=spawnSync('php',['tests/list-orders.php','serve'],{input:JSON.stringify({items,params}),encoding:'utf8'});assert.equal(result.status,0,result.stderr);return route.fulfill({json:JSON.parse(result.stdout)});
+  }
+  if(u.pathname==='/api/sync/activity'){syncs++;return route.fulfill({json:{issues:structuredClone(items),new_issues:items.map(i=>i.id),cursor:syncs}})}
+  if(u.pathname.startsWith('/api/issues/'))return route.fulfill({json:items.find(i=>u.pathname.includes(i.id))});
+  return route.fulfill({contentType:'text/html',body:`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><a id="another-page" href="/?page_id=2&view=full">Sample Page</a><div id="target" style="margin:180px">Target</div><script>window.FeedbackPressConfig={home:'${base}',api:'${base}/api/',css:'${base}/review.css',userName:'Reviewer',nonce:'fixture',activitySync:true}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script><script>window.listViewBoot={rows:[...document.querySelector('#feedbackpress-root').shadowRoot.querySelectorAll('.issue-row')].map(n=>n.dataset.issue),counts:[...document.querySelector('#feedbackpress-root').shadowRoot.querySelectorAll('[data-count-status]')].map(n=>n.textContent)}</script>`});
+ });
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/b/');await page.getByRole('button',{name:'View issues',exact:true}).click();
+ const panel=page.getByRole('complementary',{name:'Issues',exact:true}),scope=panel.getByLabel('Issue page scope'),group=panel.getByLabel('Group issues'),order=panel.getByLabel('Order issues'),filter=panel.getByRole('button',{name:'Filter statuses'});
+ const rows=async numbers=>{await page.waitForFunction(numbers=>{const root=document.querySelector('#feedbackpress-root').shadowRoot;return root.querySelector('.issue-list')?.getAttribute('aria-busy')==='false'&&JSON.stringify([...root.querySelectorAll('.issue-row .row-number')].map(n=>Number(n.textContent.slice(1))))===JSON.stringify(numbers)},numbers)};
+ await rows([2]);assert.equal(await scope.inputValue(),'all');assert.equal(await group.inputValue(),'none');assert.equal(await order.inputValue(),'created_asc');assert.ok(requests.some(r=>!r.path));
+ await filter.click();await panel.getByRole('checkbox',{name:'Done',exact:true}).check();await page.keyboard.press('Escape');await rows([1,2,3,4]);
+ for(const [groupValue,key] of [['none','flat'],['page','grouped']]){
+  await group.selectOption(groupValue);
+  for(const [sort,numbers] of Object.entries(fixture[key])){await order.selectOption(sort);await rows(numbers);assert.equal(await scope.inputValue(),'all');assert.equal(await panel.locator('.page-heading').count(),groupValue==='page'?2:0)}
+ }
+ await scope.selectOption('current');for(const [sort,numbers] of Object.entries(fixture.grouped)){await order.selectOption(sort);await rows(numbers.filter(n=>n%2===1))}
+ await filter.click();assert.equal(await panel.locator('[data-count-status=todo]').textContent(),'0');assert.equal(await panel.locator('[data-count-status=done]').textContent(),'2');await page.keyboard.press('Escape');
+ await page.locator('#target').click({position:{x:5,y:5}});
+ const sync=async()=>{const before=syncs;await page.evaluate(()=>{const now=Date.now;Date.now=()=>now()+61000;document.dispatchEvent(new Event('visibilitychange'))});await page.waitForResponse(r=>new URL(r.url()).pathname==='/api/sync/activity');assert.ok(syncs>before);await page.waitForTimeout(50)};
+ await sync();items.push({...items[1],id:'00000005-1111-4111-8111-111111111111',number:5,title:'Foreign page new issue'});await sync();await rows([1,3]);await filter.click();assert.equal(await panel.locator('[data-count-status=todo]').textContent(),'0');await page.keyboard.press('Escape');
+ delay=500;await page.locator('#another-page').click();await page.waitForURL(base+'/?page_id=2&view=full');await rows([4,2,5]);const boot=await page.evaluate(()=>listViewBoot);assert.deepEqual(boot.rows,[]);assert.ok(boot.counts.every(v=>!v||v==='…'));assert.equal(await scope.inputValue(),'current');assert.equal(await group.inputValue(),'page');assert.equal(await order.inputValue(),'completed_desc');assert.equal(await panel.locator('.outside-filter').count(),0);
+ await scope.selectOption('all');await rows([4,2,5,1,3]);await order.selectOption('updated_asc');await rows([2,5,4,3,1]);
+ for(const width of [1280,390,320]){await page.setViewportSize({width,height:900});await panel.waitFor();assert.ok(await panel.evaluate(n=>n.scrollWidth<=n.clientWidth));const controls=await panel.locator('.filters select,.status-filter-trigger').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,right:r.right,left:r.left}}));await page.screenshot({path:`/tmp/feedbackpress-list-views-${process.env.FEEDBACKPRESS_TOUCH?'touch-':''}${width}.png`});assert.ok(controls.every(r=>r.width>=95&&r.left>=0&&r.right<=width+1),JSON.stringify({width,controls}))}
+ assert.deepEqual(errors,[]);console.log('PASS All-page default, six PHP-backed orders × grouping/scope, null completions, query-specific page isolation/counts/background arrivals, saved view across documents, 390/320px controls.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

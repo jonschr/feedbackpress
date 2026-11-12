@@ -280,3 +280,11 @@ See docs/UPDATE-REVIEW.md for the post-restart 22-case PostgreSQL, two real gate
 - `php tests/page-titles.php`: local-only title resolution for home/static front pages, permalinks/query IDs, ports/subdirectories, decoded entities, missing/private/password pages and external URL rejection. No database/network writes.
 - `NODE_PATH=/tmp/feedbackpress-browser/node_modules node tests/page-groups.cjs`: title/full URL hierarchy, repeated query parameters, fallback, group spacing and 390/320px wrapping. Real document navigation retains cached titles/order and exact list scroll while reads are delayed.
 - Existing list-navigation and navigation-continuity fixtures pass. One initial mobile scroll assertion failed during a combined run; the isolated repeat passed. Service code/schema are unchanged.
+
+
+## Independent list views and bidirectional date ordering — November 12, 2026
+
+- `php tests/list-orders.php`: actual gateway listing code with synthetic snapshots, all six date orders, grouped/flat lists, exact-query page scope, null dates last, deterministic ties, matching status counts/search and reverse/focus pagination (125 issues).
+- `tests/list-views.cjs` drives those PHP responses from Chrome. It checks All pages/Flat list/Created oldest defaults, every order/group/scope combination, cross-document saved controls, current-page query isolation, background arrivals, scoped counts, and no stale rows/counts from another page before revalidation. Mouse and touch 1280/390/320px renders inspected. No external API/customer writes.
+- Existing stable-status-order, issue-keyboard, statuses, list-navigation, navigation-continuity, query-navigation, review-design, tooltips, navigation-shortcuts, authors-ui and page-groups pass. The combined continuity run failed the mobile scroll assertion (0 versus 700); isolated repeat passed, with 50 rows/no placeholders and the exact 700px first-paint/list position. This remains a recorded intermittent timing limit.
+- PHP/JS syntax and whitespace checks pass. No service/schema change; its prior real PostgreSQL verification remains applicable.

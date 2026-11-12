@@ -1,0 +1,164 @@
+{
+  "items": [
+    {
+      "id": "00000001-1111-4111-8111-111111111111",
+      "number": 1,
+      "title": "Issue 1",
+      "body": "Shared body",
+      "author": "Reviewer",
+      "path": "/b/",
+      "page_title": "Beta",
+      "created_at": "2026-11-01T12:00:00Z",
+      "updated_at": "2026-11-05T12:00:00Z",
+      "completed_at": "2026-11-06T12:00:00Z",
+      "status": "done",
+      "target": {
+        "selector": "#target",
+        "x": 0.5,
+        "y": 0.5
+      },
+      "revision": 1,
+      "files": [],
+      "activity": []
+    },
+    {
+      "id": "00000002-1111-4111-8111-111111111111",
+      "number": 2,
+      "title": "Issue 2",
+      "body": "Shared body",
+      "author": "Reviewer",
+      "path": "/?page_id=2&view=full",
+      "page_title": "Sample Page",
+      "created_at": "2026-11-02T12:00:00Z",
+      "updated_at": "2026-11-04T12:00:00Z",
+      "completed_at": null,
+      "status": "todo",
+      "target": {
+        "selector": "#target",
+        "x": 0.5,
+        "y": 0.5
+      },
+      "revision": 1,
+      "files": [],
+      "activity": []
+    },
+    {
+      "id": "00000003-1111-4111-8111-111111111111",
+      "number": 3,
+      "title": "Issue 3",
+      "body": "Shared body",
+      "author": "Reviewer",
+      "path": "/b/",
+      "page_title": "Beta",
+      "created_at": "2026-11-03T12:00:00Z",
+      "updated_at": "2026-11-03T12:00:00Z",
+      "completed_at": "2026-11-04T12:00:00Z",
+      "status": "done",
+      "target": {
+        "selector": "#target",
+        "x": 0.5,
+        "y": 0.5
+      },
+      "revision": 1,
+      "files": [],
+      "activity": []
+    },
+    {
+      "id": "00000004-1111-4111-8111-111111111111",
+      "number": 4,
+      "title": "Issue 4",
+      "body": "Shared body",
+      "author": "Reviewer",
+      "path": "/?page_id=2&view=full",
+      "page_title": "Sample Page",
+      "created_at": "2026-11-04T12:00:00Z",
+      "updated_at": "2026-11-06T12:00:00Z",
+      "completed_at": "2026-11-05T12:00:00Z",
+      "status": "done",
+      "target": {
+        "selector": "#target",
+        "x": 0.5,
+        "y": 0.5
+      },
+      "revision": 1,
+      "files": [],
+      "activity": []
+    }
+  ],
+  "flat": {
+    "created_asc": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "created_desc": [
+      4,
+      3,
+      2,
+      1
+    ],
+    "updated_asc": [
+      3,
+      2,
+      1,
+      4
+    ],
+    "updated_desc": [
+      4,
+      1,
+      2,
+      3
+    ],
+    "completed_asc": [
+      3,
+      4,
+      1,
+      2
+    ],
+    "completed_desc": [
+      1,
+      4,
+      3,
+      2
+    ]
+  },
+  "grouped": {
+    "created_asc": [
+      2,
+      4,
+      1,
+      3
+    ],
+    "created_desc": [
+      4,
+      2,
+      3,
+      1
+    ],
+    "updated_asc": [
+      2,
+      4,
+      3,
+      1
+    ],
+    "updated_desc": [
+      4,
+      2,
+      1,
+      3
+    ],
+    "completed_asc": [
+      4,
+      2,
+      3,
+      1
+    ],
+    "completed_desc": [
+      4,
+      2,
+      1,
+      3
+    ]
+  }
+}
