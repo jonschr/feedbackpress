@@ -1202,7 +1202,9 @@
       if (pin.className !== className) pin.className = className;
       if (pin.textContent !== String(issue.number)) pin.textContent = String(issue.number);
       pin.setAttribute('aria-label', `Issue ${issue.number}, ${labels[issue.status]}: ${(issue.title || issue.body).slice(0, 90)}`);
-      pin.dataset.tooltip = resolved.approximate ? 'Approximate location · drag to refine' : 'Click to open · drag to move';
+      pin.dataset.tooltip = (issue.title || issue.body || 'Issue ' + issue.number).slice(0, 120);
+      if (resolved.approximate) pin.dataset.tooltipNote = 'Approximate location';
+      else delete pin.dataset.tooltipNote;
       pin.dataset.approximate = String(resolved.approximate); pin.style.left = `${point.x}px`; pin.style.top = `${point.y}px`;
     });
     for (const [id, pin] of existing) if (!retained.has(id)) pin.remove();

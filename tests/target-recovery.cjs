@@ -10,10 +10,11 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  await check(false);await page.getByRole('button',{name:'View issues',exact:true}).click();await page.locator('.issue-open').click();
  await page.waitForFunction(()=>Math.abs(document.querySelector('footer a').getBoundingClientRect().top+50*.58-parseFloat(document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.pins .pin').style.top))<1);
  assert.equal(await page.getByText(/original element has changed/).count(),0);
+ assert.equal(await pin.getAttribute('data-tooltip'),issue.title);await pin.dispatchEvent('pointerover',{pointerType:'mouse'});assert.equal(await page.getByRole('tooltip').locator('.tooltip-line span').textContent(),issue.title);
  // Adding the administrator toolbar makes the original full selector valid again.
  await page.evaluate(()=>{const bar=document.createElement('div');bar.id='wpadminbar';document.body.prepend(bar)});await check(false);
- await page.evaluate(()=>document.querySelector('footer h2').remove());await check(true);assert.equal(await pin.getAttribute('data-tooltip'),'Approximate location · drag to refine');
- await page.evaluate(()=>document.querySelector('footer').innerHTML='<h2><a href="#">Same site title</a></h2>');await check(false);
+ await page.evaluate(()=>document.querySelector('footer h2').remove());await check(true);assert.equal(await pin.getAttribute('data-tooltip'),issue.title);assert.equal(await pin.getAttribute('data-tooltip-note'),'Approximate location');
+ await page.evaluate(()=>document.querySelector('footer').innerHTML='<h2><a href="#">Same site title</a></h2>');await check(false);assert.equal(await pin.getAttribute('data-tooltip-note'),null);
  await page.setViewportSize({width:390,height:844});await check(false);
  await page.evaluate(()=>document.querySelector('footer a').style.display='none');await page.waitForFunction(()=>!document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.pins .pin'));
  assert.deepEqual(errors,[]);console.log('PASS Cross-copy target recovery ignores changed body siblings, disambiguates identical header/footer text, retains an approximate pin after removal, reanchors after restoration, and respects hidden targets/mobile.');
