@@ -122,10 +122,10 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .row-attachment img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .row-attachment-more { margin-left: 2px; font-size: 10px; font-weight: 600; }
 .issue-row[data-status=done] .row-attachment img { filter: grayscale(1); }
-.page-heading { margin: 0; padding: 16px 20px 12px; background: var(--fp-ink); }
+.page-heading { margin: 0; padding: 14px 20px; background: var(--fp-ink); }
 .page-title { color: #ffffff; font-size: 15px; font-weight: 650; line-height: 21px; }
-.page-url { display: block; margin-top: 4px; color: #c8ced7; font-size: 11px; font-weight: 400; line-height: 17px; }
-.page-url:hover { color: #ffffff; }
+.page-url { display: block; margin-top: 4px; color: #9ba4b2; font-size: 11px; font-weight: 400; line-height: 17px; }
+.page-url:hover { color: #bbc2cc; }
 .page-url:focus-visible { outline-color: #ffffff; outline-offset: 2px; }
 .row-status { position: absolute; inset-inline-end: 16px; top: 12px; }
 .status-controls, .status-actions { display: flex; align-items: center; gap: 3px; }
