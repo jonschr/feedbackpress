@@ -77,11 +77,13 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     const cache = await page.evaluate(() => sessionStorage.getItem('feedbackpress-shared-cache:https://feedbackpress.test:project-a:owner-a'));
     assert.ok(cache.length <= 1024 * 1024); assert.ok(JSON.parse(cache).entries.length <= 200);
     await page.setViewportSize({ width: 390, height: 844 });
+    // Let the resize handler switch the drawer/popup before choosing the mobile action.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     if (!await panel.isVisible()) await page.keyboard.press('v');
     await list.locator(`[data-issue="${items[10].id}"] .issue-open`).click();
     await page.waitForURL(base + '/#feedbackpress=' + items[10].id); await popup.waitFor();
     assert.equal((await page.evaluate(() => fixtureBoot)).rows, 50);
-    await page.keyboard.press('v'); await panel.waitFor();
+    await page.keyboard.press('v'); await panel.waitFor(); await page.evaluate(() => new Promise(requestAnimationFrame));
     assert.equal(await list.evaluate(node => node.scrollTop), 700); assert.equal(await popup.isVisible(), false);
     assert.equal(await list.locator('.is-selected').count(), 1);
     await page.setViewportSize({ width: 1280, height: 900 });

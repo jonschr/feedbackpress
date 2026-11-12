@@ -81,7 +81,7 @@
   const issueCache = new Map(), issueReads = new Map();
   const cacheKey = 'feedbackpress-shared-cache:' + c.home + ':' + (c.network || '') + ':' + (c.authorId || c.userName || 'guest');
   const cacheLifetime = 30000;
-  let cacheSaveTimer = null, restoringList = false, restoredSelection = null, restoredDetails = false, cacheDenied = false, knownIssues = null;
+  let cacheSaveTimer = null, restoringList = false, restoredSelection = null, restoredDetails = false, cacheDenied = false, knownIssues = null, loadedListSignature = null;
   const listSignature = () => JSON.stringify([sort, grouping, scope, scope === 'current' ? pagePath : '', search, filter, listPage]);
   const freshCache = at => Number.isFinite(at) && Date.now() - at >= 0 && Date.now() - at < cacheLifetime;
   function scheduleCacheSave() { if (!cacheDenied && cacheSaveTimer === null) cacheSaveTimer = setTimeout(persistIssueCache, 0); }
@@ -89,7 +89,7 @@
     cacheSaveTimer = null;
     if (cacheDenied) return;
     const visible = issues.filter(issue => !issue.pending);
-    const view = listLoaded ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].slice(-200) } : null;
+    const view = listLoaded && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].slice(-200) } : null;
     const priority = new Set([selected?.id, ...visible.map(issue => issue.id)]);
     const known = knownIssues ? [...knownIssues] : null, at = Date.now();
     const entries = [], saved = new Set(); let size = JSON.stringify({ entries: [], view, known, at }).length;
@@ -118,7 +118,7 @@
       for (const [id, top] of (view.threads || []).slice(-200)) if (Number.isFinite(top) && top >= 0) threadScrolls.set(id, top);
       if (view.signature === listSignature() && view.ids.every(id => issueCache.has(id))) {
         issues = view.ids.map(id => issueCache.get(id).issue); total = view.total;
-        listLoaded = true; listLoading = false; restoringList = true;
+        listLoaded = true; listLoading = false; restoringList = true; loadedListSignature = view.signature;
         keepListOrder = performance.getEntriesByType('navigation')[0]?.type !== 'reload';
         restoredSelection = view.selected; restoredDetails = view.detailOpen === true;
         selected = issueCache.get(restoredSelection)?.issue || null;
@@ -392,7 +392,7 @@
           for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
           for (const { issue } of issueCache.values()) updateStatusCount(optimisticIssue(issue));
         }
-        listLoaded = true; restoringList = false;
+        listLoaded = true; restoringList = false; loadedListSignature = listSignature();
       }
       for (const job of sharedJobs.values()) showPendingCreate(job);
       saveView();

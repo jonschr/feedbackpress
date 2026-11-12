@@ -245,8 +245,6 @@ header { justify-content: space-between; margin-bottom: 12px; }
   .fp-icon-button { min-width: 32px; min-height: 32px; }
   input, textarea, select { font-size: 16px; }
   .filters > select, .status-filter-trigger { font-size: 16px; }
-}
-@media (pointer: coarse) {
   .sort-filters { flex-wrap: wrap; }
   .sort-filters > select, .sort-filters .status-filter { flex: 1 1 100%; width: 100%; }
 }
