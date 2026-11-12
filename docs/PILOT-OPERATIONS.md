@@ -1,6 +1,6 @@
 # FeedbackPress pilot operations
 
-Latest release: plugin 0.3.0-beta.1 and private service 0.1.0-beta.1 published/verified. Stable updater stays 0.2.2; hosted API d9799c69187c unchanged. See final receipt, including the failed latency benchmark.
+Latest release: plugin 0.3.0-beta.2 published; rapid-review limiter repaired per native user/project, background refresh uncharged. Historical delete investigation still awaits issue number. Stable updater stays 0.2.2; hosted API d9799c69187c unchanged.
 
 Verified November 12, 2026. This is a controlled beta; live paid billing remains disabled.
 
@@ -339,3 +339,13 @@ Read-only inspection confirmed secure-ai-now has ten existing active issues and 
 Checks: tests/rate-limits.php runs 600/120 in-memory requests without WP database/network/mail; verifies same-IP native user isolation, fixed-window expiry/Retry-After, forged actor/proxy headers, nonce/origin checks and uncharged activity permission. Both independent real native WordPress gateways pass against fresh disposable PostgreSQL, now sending actual Origin/nonce/expected-actor through rest_do_request for root delete, same-key retry and coded missing-item response, alongside private/owner/guest checks. Existing native-identity precondition also passes. No backend source/schema/config was changed; the prior 37/37 service baseline remains. PHP syntax/whitespace pass. Current final backend and client timing limitations remain as previously recorded.
 
 Private backups/read-only receipts: /Users/jonschroeder/Library/Application Support/FeedbackPress/private/rate-delete-20261112T162109Z. The real site's connections/settings and all original feedback are preserved. Publish/install as plugin 0.3.0-beta.2 with the earlier single-line page-title fix; stable updater remains 0.2.2. No actual email/billing/provider, hosted runtime or other-service change. Laurel's legacy checkout/pending work remains untouched because the newly published central main is not integrated there.
+
+## Rapid-review repair published — November 12, 2026
+
+Plugin 0.3.0-beta.2 published and verified: https://github.com/jonschr/feedbackpress/releases/tag/0.3.0-beta.2, tagged source df85e8436b11fdd003f8165b7ed89657dd75a479. The installable ZIP/manifest/SHA256SUMS were downloaded from GitHub and matched local hashes; ZIP SHA256 5bd65f6aa6abadcef703c15a205c79ebb8e367af1743a60e6f57002134c792e5. Stable GitHub Latest/updater remain 0.2.2. Six physical QA/onboarding/access copies match all 209 tagged files; affected secure-ai-now serves beta.2 through its pre-existing canonical plugin path. No new symlink, customer connection switch, data reset or replay of pending actions. START-HERE points to the verified beta.2 ZIP and existing owner key. No hosted central-runtime/firewall/provider/email/billing change.
+
+Affected-site HTTP origin/nonce/rate permission was checked with one intentionally invalid guest request lacking an idempotency key. It reached validation and returned the expected400, not429, before any central write. This is not a real load probe or destructive test. In-memory quota tests, real two-copy Origin/nonce/actor-bound delete/retry/missing-item tests, native identity and installed beta.2 normal/AJAX updater checks pass. PHP syntax/whitespace pass. Backend source is unchanged, with the previous37/37 isolated PostgreSQL baseline. Earlier latency limitation remains open.
+
+The historical reported delete remains unconfirmed pending issue number/site confirmation. The inspected project had ten active original issues and no committed delete audit. Existing bounded logs do not reconstruct the failed attempt. No customer issue was deleted to reproduce it. New contextual errors and bounded method/category/status/code diagnostics support the next occurrence. Failed work cards retain a deliberate Retry; no automatic replay was introduced.
+
+Private state backup/read-only receipts, source/ZIP/manifests/full six-copy rollback backups and verification: /Users/jonschroeder/Library/Application Support/FeedbackPress/private/rate-delete-20261112T162109Z. Restore source only for rollback, leaving feedback/options intact; earlier limits may return with older code. Canonical plan/handoff and Harrison mirrors are current; Laurel's legacy/pending source was preserved and not integrated.
