@@ -47,7 +47,7 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     const paint = () => page.waitForFunction(() => window.fixturePaint);
     await page.goto(base); await page.getByRole('button', { name: 'View issues', exact: true }).click(); await ready();
     await list.locator('.issue-row').nth(49).waitFor();
-    await list.evaluate(node => { node.scrollTop = 700; });
+    await page.evaluate(() => { document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list').scrollTop = 700; });
     await page.waitForFunction(() => JSON.parse(sessionStorage.getItem('feedbackpress-view:https://feedbackpress.test')).scrollTop === 700);
     const selectedId = await list.evaluate(node => [...node.querySelectorAll('.issue-row')].find(row => {
       const rect = row.getBoundingClientRect(), bounds = node.getBoundingClientRect();
@@ -89,7 +89,7 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     await page.waitForURL(base + '/#feedbackpress=' + mobileId); await popup.waitFor();
     assert.equal((await page.evaluate(() => fixtureBoot)).rows, 50);
     await page.keyboard.press('v'); await panel.waitFor(); await page.evaluate(() => new Promise(requestAnimationFrame));
-    assert.equal(await list.evaluate(node => node.scrollTop), 700); assert.equal(await popup.isVisible(), false);
+    assert.equal(await page.evaluate(() => document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list').scrollTop), 700); assert.equal(await popup.isVisible(), false);
     assert.equal(await list.locator('.is-selected').count(), 1);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(base + destination + '#feedbackpress=' + selectedId); await paint();

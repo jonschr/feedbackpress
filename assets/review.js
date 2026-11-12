@@ -43,7 +43,7 @@
     } catch (_) { /* Identity can still be entered when browser storage is disabled. */ }
   }
   const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
-  let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'none', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
+  let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'none', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
   let sidebarSide = 'right', pageLayout = 'overlay';
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
@@ -850,7 +850,8 @@
   }
   lightbox.addEventListener('cancel', event => { event.preventDefault(); closeLightbox(); });
   lightbox.addEventListener('click', event => { if (event.target === lightbox) { const rect = lightbox.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLightbox(); } });
-  addEventListener('pagehide', () => { captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
+  addEventListener('pageshow', () => { pageLeaving = false; });
+  addEventListener('pagehide', () => { pageLeaving = true; captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
   async function editAuthor(trigger, issue) {
     try {
       const people = await (await api('authors')).json();
@@ -1767,6 +1768,7 @@
       if (job.kind !== 'status') api('issues/' + job.issueId).then(response => response.json()).then(applyIssue).catch(() => {});
       setTimeout(() => { if (job.phase === 'done') { sharedJobs.delete(job.id); renderJobs(); } }, 6000);
     } catch (error) {
+      if (pageLeaving) return;
       job.error = error.message; await storeJob(job).catch(() => {}); renderJobs();
       if (job.kind === 'status' || job.kind === 'edit') { const current = issueCache.get(job.issueId)?.issue; if (current) applyIssue(current); }
     } finally { executingJobs.delete(job.id); }

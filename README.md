@@ -2,6 +2,8 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
+**0.3.0-beta.1 is a breaking central-service beta.** Download it from [GitHub Releases](https://github.com/jonschr/feedbackpress/releases/tag/0.3.0-beta.1). It requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. Automatic stable updates remain on 0.2.2. See the [changelog](CHANGELOG.md).
+
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.
 - Track To do, Information needed, Doing, Review, and Done statuses.
@@ -23,7 +25,7 @@ Review access initially allows everyone. Choose administrator-only access for pr
 
 See [central service testing](docs/CENTRAL-TESTING.md) for the current pilot and agent commands.
 
-The [central service plan](docs/CENTRAL-SERVICE-PLAN.md) records the architecture and remaining paid-service gates.
+The [central service plan](https://github.com/jonschr/feedbackpress/blob/main/docs/CENTRAL-SERVICE-PLAN.md) records the architecture and remaining paid-service gates.
 
 ## License
 

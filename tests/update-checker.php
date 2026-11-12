@@ -10,9 +10,12 @@ if (!defined('ABSPATH')) {
 $metadata = json_decode(file_get_contents(dirname(__DIR__) . '/update.json'), true, 512, JSON_THROW_ON_ERROR);
 $plugin = dirname(__DIR__) . '/feedbackpress.php';
 $headers = get_file_data($plugin, ['Version' => 'Version', 'UpdateURI' => 'Update URI']);
-if ($metadata['version'] !== FeedbackPress\VERSION || $headers['Version'] !== $metadata['version'] || $headers['UpdateURI'] !== 'https://github.com/jonschr/feedbackpress'
+$beta = str_contains(FeedbackPress\VERSION, '-');
+if ($headers['Version'] !== FeedbackPress\VERSION || (!$beta && $metadata['version'] !== FeedbackPress\VERSION)
+    || ($beta && (str_contains($metadata['version'], '-') || version_compare($metadata['version'], FeedbackPress\VERSION, '>=')))
+    || $headers['UpdateURI'] !== 'https://github.com/jonschr/feedbackpress'
     || $metadata['download_url'] !== 'https://github.com/jonschr/feedbackpress/archive/refs/tags/' . $metadata['version'] . '.zip') {
-    throw new RuntimeException('Plugin header, runtime version, and update metadata must agree.');
+    throw new RuntimeException('Plugin header/runtime and the stable update channel policy must agree.');
 }
 $url = 'https://raw.githubusercontent.com/jonschr/feedbackpress/main/update.json';
 $found = [];
@@ -49,4 +52,4 @@ try {
     $state->setUpdate($previous); // Keep synthetic update data in memory; never save it to WordPress.
     remove_filter('pre_http_request', $mock, 10);
 }
-echo 'PASS FeedbackPress JSON updates: version parity, single checker, plugin basename, current/newer releases, and ' . (wp_doing_ajax() ? 'update AJAX' : 'WP-CLI') . " boot. No update installed.\n";
+echo 'PASS FeedbackPress JSON updates: stable-channel policy, single checker, plugin basename, current/newer releases, and ' . (wp_doing_ajax() ? 'update AJAX' : 'WP-CLI') . " boot. No update installed.\n";
