@@ -310,3 +310,6 @@ Dismissal regression: job-restore-navigation exercises click/Enter on independen
 
 
 Sidebar icons: sidebar-layout checks an always-visible sub60px footer, four native icon radios, hover/focus tooltips including scaled-page placement, keyboard side selection, mobile disabled descriptions, exact list scroll/persistence and source-style cleanup. Job-restore-navigation checks the history SVG/count/tooltip, one-click recovery and a320px footer with history plus End review session visible. Review-access directly exercises the session-end icon. Page-scale/tooltips/screenshot-pin/pin-drag retain existing behavior. All HTTP intercepted.
+
+
+Default-fit acceptance: sidebar-layout checks fresh Right/Make room and explicitly saved Overlay across reload without clearing browser state. Scroll-focus/target-recovery derive positions from rendered scaled header/element heights, preserving strict pixel bounds and manual-input cancellation assertions. Other final frontend checks listed in the canonical plan use intercepted HTTP.

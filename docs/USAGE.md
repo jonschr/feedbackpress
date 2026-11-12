@@ -24,3 +24,6 @@ Rapid review: shared/private writes use a per-project one-minute allowance of 60
 
 
 The × on a failed background notification dismisses that message. Shared unsaved text/files remain recoverable: use the **notification-history icon** (with its count) at the bottom of the sidebar, then use **Retry** or **Restore draft**. Dismissal does not retry or override a stale revision. Private failed notes are recoverable only while that page remains open; they are never stored in the browser's persistent work queue.
+
+
+New sessions start with the sidebar on the right and Scale page to fit selected. Existing saved preferences take precedence; select the fit icon to change an older Overlay session.

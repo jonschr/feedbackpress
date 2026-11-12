@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-beta.7 — November 12, 2026
+
+- Default new review sessions to a right sidebar with Scale page to fit. Preserve explicitly saved left/right and overlay/fit choices across navigation and reload.
+- Avoid redundant native scroll writes while reconciling scaled layouts.
+- Complete final frontend regressions for default scaling, scrolling, navigation, pins, screenshots and review controls. Stable automatic updates remain 0.2.2.
+
 ## 0.3.0-beta.6 — November 12, 2026
 
 - Replace the expandable sidebar settings drawer with an always-visible compact icon bar. Two groups select left/right placement and overlay/scale-to-fit, with selected highlights, hover/focus tooltips, accessible names and native radio keyboard controls.

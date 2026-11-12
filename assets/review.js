@@ -51,7 +51,7 @@
   const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
   let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'none', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
-  let sidebarSide = 'right', pageLayout = 'overlay';
+  let sidebarSide = 'right', pageLayout = 'room';
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
@@ -90,7 +90,7 @@
     listScroll = hasListPosition ? view.scrollTop : 0;
     resumeOpen = view.open === true;
     if (view.sidebarSide === 'left') sidebarSide = 'left';
-    if (view.pageLayout === 'room') pageLayout = 'room';
+    if (['room', 'overlay'].includes(view.pageLayout)) pageLayout = view.pageLayout;
   } catch (_) { /* Storage is optional. */ }
   function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ statusVersion: 5, sort, scope, grouping, scopePath, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue), sidebarSide, pageLayout })); } catch (_) {} }
   const homePath = new URL(c.home).pathname.replace(/\/$/, '');
@@ -254,7 +254,8 @@
     }
     pageLayoutStyle.disabled = false;
     const scale = pageFit?.scale || 1;
-    nativeScrollTo.call(document.scrollingElement, { left: x * scale / previousScale, top: y * scale / previousScale, behavior: 'instant' });
+    const left = x * scale / previousScale, top = y * scale / previousScale;
+    if (Math.abs(scrollX - left) > 1 || Math.abs(scrollY - top) > 1) nativeScrollTo.call(document.scrollingElement, { left, top, behavior: 'instant' });
     targetEpoch++; requestAnimationFrame(() => { drawPins(); positionDraft(); });
   }
   const composer = el('section', { class: 'composer', 'aria-label': 'New feedback', hidden: true });

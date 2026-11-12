@@ -8,7 +8,7 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  const pin=page.getByRole('button',{name:/Issue 6,/});await pin.waitFor({state:'attached'});
  const check=async approximate=>{await page.waitForFunction(expected=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.pins .pin')?.dataset.approximate===expected,String(approximate));assert.equal(await pin.count(),1)};
  await check(false);await page.getByRole('button',{name:'View issues',exact:true}).click();await page.locator('.issue-open').click();
- await page.waitForFunction(()=>Math.abs(document.querySelector('footer a').getBoundingClientRect().top+50*.58-parseFloat(document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.pins .pin').style.top))<1);
+ await page.waitForFunction(()=>Math.abs(document.querySelector('footer a').getBoundingClientRect().top+document.querySelector('footer a').getBoundingClientRect().height*.58-parseFloat(document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.pins .pin').style.top))<1);
  assert.equal(await page.getByText(/original element has changed/).count(),0);
  assert.equal(await pin.getAttribute('data-tooltip'),issue.title);await pin.dispatchEvent('pointerover',{pointerType:'mouse'});assert.equal(await page.getByRole('tooltip').locator('.tooltip-line span').textContent(),issue.title);
  // Adding the administrator toolbar makes the original full selector valid again.

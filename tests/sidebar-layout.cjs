@@ -17,8 +17,9 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  const rootRect=()=>page.locator('html').boundingBox();
  await page.getByRole('button',{name:'View issues',exact:true}).click();await list.locator('.issue-row').last().waitFor();
  await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list').getAttribute('aria-busy')==='false');
- assert.equal((await panel.boundingBox()).x,1040);assert.equal((await rootRect()).width,1440);
+ assert.equal((await panel.boundingBox()).x,1040);assert.equal((await rootRect()).width,1040);assert.equal(await panel.getByRole('radio',{name:'Right',exact:true}).isChecked(),true);assert.equal(await panel.getByRole('radio',{name:'Make room',exact:true}).isChecked(),true);
  const left=panel.getByRole('radio',{name:'Left',exact:true}),right=panel.getByRole('radio',{name:'Right',exact:true}),room=panel.getByRole('radio',{name:'Make room',exact:true}),overlay=panel.getByRole('radio',{name:'Overlay page',exact:true});
+ await overlay.check();await page.reload();await panel.waitFor();await list.locator('.issue-row').last().waitFor();assert.equal((await rootRect()).width,1440);assert.equal(await overlay.isChecked(),true);
  assert.equal(await panel.locator('summary,details').count(),0);assert.equal(await panel.locator('.sidebar-settings svg').count(),5);assert.ok((await panel.locator('.sidebar-settings').boundingBox()).height<=60);
  await left.hover();await page.getByRole('tooltip').getByText('Sidebar on the left',{exact:true}).waitFor();await room.focus();await page.getByRole('tooltip').getByText('Scale page to fit',{exact:true}).waitFor();await right.focus();await page.keyboard.press('ArrowLeft');assert.equal(await left.isChecked(),true);await page.keyboard.press('ArrowRight');assert.equal(await right.isChecked(),true);assert.equal((await panel.boundingBox()).x,1040);
  await list.evaluate(e=>e.scrollTop=800);await page.waitForFunction(()=>JSON.parse(sessionStorage.getItem('feedbackpress-view:https://feedbackpress.test')).scrollTop===800);
