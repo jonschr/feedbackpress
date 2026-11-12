@@ -1,0 +1,32 @@
+// Focused new-feature fixture; every gateway/upload is intercepted, no real feedback or email.
+const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const ctx=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'}),base='https://feedbackpress.test',writes=[],uploads=[],errors=[];
+ const items=[1,2].map(n=>({id:`${n}1111111-1111-4111-8111-111111111111`,number:n,title:'Drop target '+n,body:'Original',author:'Reviewer',status:'todo',path:n===1?'/':'/?page_id=2',revision:1,activity:[],files:[],target:{selector:'#target',x:.5,y:.5},created_at:'2026-11-12T12:00:00Z'}));
+ let release,hold=new Promise(r=>release=r);
+ await ctx.route(base+'/**',async route=>{const req=route.request(),u=new URL(req.url());
+  if(u.pathname.endsWith('.woff2'))return route.fulfill({body:fs.readFileSync('assets/fonts/InterVariable.woff2'),contentType:'font/woff2'});
+  if(u.pathname.endsWith('.css'))return route.fulfill({body:fs.readFileSync('assets/review.css','utf8'),contentType:'text/css'});
+  if(u.pathname==='/api/mentions')return route.fulfill({json:{people:[],review_site:null,delivery:'capture'}});
+  if(u.pathname==='/api/issues'){const found=u.searchParams.has('path')?items.filter(i=>i.path===u.searchParams.get('path')):items;return route.fulfill({json:{issues:structuredClone(found),total:found.length,page:1}})}
+  if(u.pathname.startsWith('/api/issues/')){
+   const item=items.find(i=>u.pathname.includes(i.id));
+   if(u.pathname.endsWith('/notes'))return route.fulfill({json:{notes:[]}});
+   if(req.method()==='POST'&&u.pathname.endsWith('/replies')){const body=req.postDataJSON();writes.push({issue:item.id,body});item.revision++;const id='reply-'+writes.length;item.activity.push({id,kind:'reply',created_at:item.created_at,payload:{body:body.body,author:'Reviewer'}});return route.fulfill({json:{...structuredClone(item),reply_id:id}})}
+   if(req.method()==='POST'&&u.pathname.endsWith('/files')){const bytes=req.postData().toString(),comment=bytes.match(/name="comment_id"\r\n\r\n([^\r]+)/)?.[1];uploads.push({issue:item.id,comment});await hold;return route.fulfill({json:{id:'file-'+uploads.length}})}
+   return route.fulfill({json:structuredClone(item)});
+  }
+  return route.fulfill({contentType:'text/html',body:`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><div id="target" style="margin:180px">Target</div><script>window.FeedbackPressConfig={home:'${base}',api:'${base}/api/',css:'${base}/review.css',userName:'Reviewer',privateNotes:true,nonce:'fixture',maxBytes:5242880}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`});
+ });
+ const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await page.getByRole('button',{name:'View issues',exact:true}).click();await page.locator('.issue-open').first().click();const popup=page.locator('.issue-popup'),reply=popup.getByRole('textbox',{name:'Reply',exact:true});await reply.fill('Keep my unsent text');
+ const transfer=async(names,type='image/png',size=12)=>page.evaluateHandle(({names,type,size})=>{const data=new DataTransfer();for(const name of names)data.items.add(new File([new Uint8Array(size)],name,{type}));return data},{names,type,size});
+ const drop=async(target,names)=>{const data=await transfer(names);await target.dispatchEvent('dragover',{dataTransfer:data});await target.dispatchEvent('drop',{dataTransfer:data});await data.dispose()};
+ const first=await transfer(['one.png','two.png']);await popup.dispatchEvent('dragover',{dataTransfer:first});await page.getByText('Drop images to reply to #1',{exact:true}).waitFor();await page.screenshot({path:'/tmp/feedbackpress-image-drop-card.png'});await popup.dispatchEvent('drop',{dataTransfer:first});await first.dispose();
+ await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.work-item[data-state=files]'));await drop(popup,['three.png']);assert.equal(await reply.inputValue(),'Keep my unsent text');assert.equal(writes.length,1);assert.equal(writes[0].body.body,'');assert.equal(writes[0].body.attachment_only,true);release();await page.getByRole('status').filter({hasText:'Saved'}).waitFor();assert.equal(uploads.length,3);assert.equal(new Set(uploads.map(u=>u.comment)).size,1);
+ await drop(popup,['four.png']);await page.getByRole('status').filter({hasText:'Saved'}).waitFor();assert.equal(writes.length,1);assert.equal(uploads.length,4);assert.equal(new Set(uploads.map(u=>u.comment)).size,1);
+ const row=page.locator('[data-issue="'+items[1].id+'"]');const data=await transfer(['other.png']);await row.dispatchEvent('dragover',{dataTransfer:data});await page.screenshot({path:'/tmp/feedbackpress-image-drop-row.png'});await row.dispatchEvent('drop',{dataTransfer:data});await page.waitForFunction(()=>!document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.work-item[data-state=text],.work-item[data-state=files]'));assert.equal(writes.length,2);assert.equal(writes[1].issue,items[1].id);assert.equal(page.url(),base+'/');assert.equal(await reply.inputValue(),'Keep my unsent text');
+ await popup.getByRole('checkbox',{name:'Private note',exact:true}).check();await drop(popup,['private.png']);assert.equal(writes.length,2);await popup.getByRole('checkbox',{name:'Private note',exact:true}).uncheck();
+ const bad=await transfer(['bad.txt'],'text/plain');await popup.dispatchEvent('drop',{dataTransfer:bad});assert.equal(writes.length,2);await bad.dispose();
+ await reply.fill('');await popup.getByLabel('Issue attachments').setInputFiles({name:'picker.png',mimeType:'image/png',buffer:Buffer.from('synthetic-image')});assert.equal(await reply.getAttribute('required'),null);await popup.getByRole('button',{name:'Reply',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.work-item[data-state=text],.work-item[data-state=files]'));assert.equal(writes.length,3);assert.equal(writes[2].body.attachment_only,true);
+ assert.deepEqual(errors,[]);console.log('PASS Card/sidebar drops, multi-image and consecutive completed/in-flight batches share one reply, other-page target without navigation, preserved text draft, private/invalid-file guards, and picker-only reply.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

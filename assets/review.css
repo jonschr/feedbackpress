@@ -147,6 +147,12 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .attached-file small { min-width: 0; overflow-wrap: anywhere; }
 .attached-files:empty { display: none; }
 .issue-popup { width: min(400px, calc(100vw - 24px)); padding: 16px; border-inline-start: 0; }
+.image-drop-active { outline: 2px dashed var(--fp-focus); outline-offset: -5px; }
+.image-drop-hint { position: absolute; inset: 6px; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-radius: 6px; background: #ffffffed; color: var(--fp-ink); text-align: center; pointer-events: none; }
+.image-drop-hint > svg { width: 24px; height: 24px; }
+.image-drop-hint strong { font-size: 13px; line-height: 18px; }
+.image-drop-hint small { color: var(--fp-muted); font-size: 11px; line-height: 16px; }
+.image-drop-blocked { outline-style: solid; }
 .popup-header { margin: -4px -4px 8px 0; gap: 6px; }
 .popup-header strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .popup-header .popup-status { margin-inline-end: auto; }

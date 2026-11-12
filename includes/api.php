@@ -37,7 +37,7 @@ final class API {
         $route($id, 'GET', fn($r) => Service::view(Service::request('GET', '/issues/' . $r['id'])), $read);
         foreach (['status', 'target'] as $action) $route($id . '/' . $action, 'POST', fn($r) => Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/' . $action, ['revision' => (int) $r->get_param('revision'), $action => $r->get_param($action)], self::key($r))));
         $route($id . '/replies', 'POST', function ($r) {
-            $raw = Service::request('POST', '/issues/' . $r['id'] . '/replies', ['revision' => (int) $r->get_param('revision'), 'body' => $r->get_param('body'), 'mentions' => $r->get_param('mentions') ?? [], 'author' => Identity::request($r)], self::key($r));
+            $raw = Service::request('POST', '/issues/' . $r['id'] . '/replies', ['revision' => (int) $r->get_param('revision'), 'body' => $r->get_param('body'), 'attachment_only' => $r->get_param('attachment_only') === true, 'mentions' => $r->get_param('mentions') ?? [], 'author' => Identity::request($r)], self::key($r));
             $reply = end($raw['comments']);
             return Service::view($raw) + ['reply_id' => $reply['id']];
         });

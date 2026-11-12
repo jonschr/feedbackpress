@@ -45,6 +45,7 @@
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
+  let imageDropJob = null, imageDropTarget = null, imageDropTimer = null;
   const mentionDrafts = new Map();
   let mentionData = null, mentionRead = null, mentionAt = 0, mentionActive = null, mentionPicker = null, mentionList = null;
   const replyFiles = new Map();
@@ -351,12 +352,62 @@
   }
   function toggle(value) {
     if (busy) return;
+    if (!value) imageDropJob = null; clearImageDrop();
     captureListScroll();
     issueRequest++; openingIssue = 0; if (!value) closeStatusFilter(); closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
     if (value) prepareListReveal(); panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
     updateChrome(); positionDraft();
     if (value) { render(); load(null, true); } else { panel.removeAttribute('data-continuing'); viewButton.focus(); }
   }
+  function clearImageDrop() {
+    clearTimeout(imageDropTimer);
+    imageDropTarget?.classList.remove('image-drop-active', 'image-drop-blocked');
+    imageDropTarget?.querySelector(':scope > .image-drop-hint')?.remove(); imageDropTarget = null;
+  }
+  function imageDropInfo(event) {
+    if (![...(event.dataTransfer?.types || [])].includes('Files') || lightbox.open || !identity.hidden) return null;
+    const surface = event.composedPath().find(node => node instanceof Element && node.matches('.issue-row, .issue-popup'));
+    if (!surface || surface.hidden) return null;
+    const id = surface === issuePopup ? selected?.id : surface.dataset.issue;
+    const issue = issueCache.get(id)?.issue || issues.find(item => item.id === id) || (selected?.id === id ? selected : null);
+    if (!issue) return null;
+    const blocked = privateReply.has(id) ? 'Switch off Private note to attach shared images.' : issue.pending ? 'Wait for this issue to finish saving.' : busy ? 'Finish the current action before attaching images.' : '';
+    return { surface, issue, blocked };
+  }
+  root.addEventListener('dragover', event => {
+    const info = imageDropInfo(event);
+    if (!info) { clearImageDrop(); return; }
+    event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = info.blocked ? 'none' : 'copy';
+    if (imageDropTarget !== info.surface || imageDropTarget.classList.contains('image-drop-blocked') !== Boolean(info.blocked)) {
+      clearImageDrop(); imageDropTarget = info.surface;
+      imageDropTarget.classList.add('image-drop-active'); imageDropTarget.classList.toggle('image-drop-blocked', Boolean(info.blocked));
+      imageDropTarget.append(el('div', { class: 'image-drop-hint', role: 'status' }, icon('image'), el('strong', {}, info.blocked || (imageDropJob?.issueId === info.issue.id ? 'Add images to this reply' : 'Drop images to reply to #' + info.issue.number)), el('small', {}, info.blocked ? 'No images will be attached.' : 'Shared image reply · 5 MB per image')));
+    }
+    clearTimeout(imageDropTimer); imageDropTimer = setTimeout(clearImageDrop, 1200);
+  });
+  root.addEventListener('dragleave', event => { if (!(event.relatedTarget instanceof Node) || !imageDropTarget?.contains(event.relatedTarget)) clearImageDrop(); });
+  root.addEventListener('drop', event => {
+    const info = imageDropInfo(event); clearImageDrop(); if (!info) return;
+    event.preventDefault(); event.stopPropagation();
+    if (info.blocked) return message(info.blocked);
+    const files = [...event.dataTransfer.files];
+    if (!files.length || files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type.toLowerCase()) && (file.type || !/\.(png|jpe?g|webp)$/i.test(file.name)))) return message('Drop PNG, JPEG or WebP images. Use the attachment button for PDFs.');
+    const invalid = files.find(file => !file.size || file.size > c.maxBytes);
+    if (invalid) return message(!invalid.size ? invalid.name + ' is empty.' : invalid.name + ' exceeds 5 MB.');
+    const id = info.issue.id;
+    withIdentity(() => {
+      if (cacheDenied || privateReply.has(id)) return;
+      const current = issueCache.get(id)?.issue || info.issue;
+      if (imageDropJob?.issueId === id) {
+        const job = imageDropJob;
+        job.files.push(...files.map(file => ({ file, key: crypto.randomUUID(), screenshot: false })));
+        if (job.phase === 'done') job.phase = 'files'; delete job.error;
+        sharedJobs.set(job.id, job); renderJobs();
+        storeJob(job).catch(error => { job.error = error.message; renderJobs(); }); executeJob(job);
+      } else imageDropJob = enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, body: '', mentions: [], attachment_only: true, revision: current.revision }, files);
+    });
+  });
+  addEventListener('dragend', clearImageDrop); addEventListener('blur', clearImageDrop);
   async function loadPagePins(statusFilter) {
     const result = [];
     const params = new URLSearchParams({ path: pagePath, order: 'created_asc' });
@@ -585,7 +636,7 @@
       else if (busy) control.setAttribute('data-fp-busy-disabled', '');
     }
   }
-  function closeIssue() { captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
+  function closeIssue() { imageDropJob = null; clearImageDrop(); captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
   async function stepIssue(direction) {
     if (busy || steppingPage) return;
     const items = navigationIssues();
@@ -599,6 +650,8 @@
     else if (items[next]) await showIssue(items[next].id);
   }
   async function showIssue(id, scroll = true) {
+    if (imageDropJob?.issueId !== id) imageDropJob = null;
+    clearImageDrop();
     if (scroll) { closeStatusFilter(); targetIssueShortcuts(id); }
     captureListScroll(); captureThreadScroll(); const keepPosition = hasListPosition;
     const ticket = ++issueRequest; openingIssue = ticket;
@@ -856,7 +909,7 @@
     } });
     if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (selected?.id !== draft.issue) return; selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && latest.author_id === actorId) editComment({ ...latest, id: comment.id }); else { editDrafts.delete(comment.id); renderIssue(); } }), { class: 'fp-quiet' }));
     if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
-    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue, maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
+    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
     return form;
   }
   function commentView(comment, files) {
@@ -928,10 +981,11 @@
     const unmatched = issue.files.filter(file => !known.has(file.comment_id || issue.id));
     if (unmatched.length) thread.append(el('div', { class: 'attachment-strip', role: 'group', 'aria-label': 'Uploads awaiting comment sync' }, ...unmatched.map(attachmentThumbnail)));
     issuePopup.append(thread);
-    const reply = el('textarea', { name: 'body', rows: 2, maxlength: 10000, required: true, placeholder: 'Reply…', 'aria-label': 'Reply', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => replyDrafts.set(issue.id, event.target.value) }); reply.value = replyDrafts.get(issue.id) || '';
+    const reply = el('textarea', { name: 'body', rows: 2, maxlength: 10000, required: true, placeholder: 'Reply or attach images…', 'aria-label': 'Reply', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => replyDrafts.set(issue.id, event.target.value) }); reply.value = replyDrafts.get(issue.id) || '';
     const files = replyFiles.get(issue.id) || []; replyFiles.set(issue.id, files);
     const queued = el('div', { class: 'attached-files reply-queued', 'aria-live': 'polite' });
     function renderQueued() {
+      reply.required = privateReply.has(issue.id) || !files.length;
       queued.replaceChildren(...files.map((file, index) => el('div', { class: 'attached-file' }, el('small', {}, file.name), button(icon('close'), () => {
         files.splice(index, 1);
         renderQueued();
@@ -946,12 +1000,12 @@
       input.value = ''; renderQueued();
     });
     renderQueued();
-    const privateToggle = c.privateNotes ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
+    const privateToggle = c.privateNotes ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
     input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
     issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
       if (!privateReply.has(issue.id)) return submitReply(event, issue.id);
       event.preventDefault(); if (files.length) { message('Remove queued attachments before leaving a private note.'); return; }
-      const body = reply.value, key = crypto.randomUUID();
+      const body = reply.value, key = crypto.randomUUID(); imageDropJob = null;
       replyDrafts.delete(issue.id); mentionDrafts.delete('reply:' + issue.id); reply.value = '';
       privateWork('private note', async () => {
         await api(`issues/${issue.id}/notes`, { method: 'POST', requestId: key, body: { body, kind: 'human' } });
@@ -979,9 +1033,11 @@
     const current = issueCache.get(id)?.issue || selected;
     if (!current || current.pending) return;
     const content = readMentionField(form.elements.body), files = [...(replyFiles.get(id) || [])];
+    if (!content.body && !files.length) return;
+    imageDropJob = null;
     replyDrafts.delete(id); mentionDrafts.delete('reply:' + id); replyFiles.delete(id); form.elements.body.value = '';
     const key = replyOperations.get(id)?.key || crypto.randomUUID(); replyOperations.delete(id);
-    enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, ...content, revision: current.revision }, files, null, key);
+    enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, ...content, attachment_only: !content.body && files.length > 0, revision: current.revision }, files, null, key);
     if (selected?.id === id) renderIssue();
   }
   async function upload(id, file, capture = false, comment = null, requestId = null) {
@@ -1027,6 +1083,7 @@
   function closeDraft() { closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
   function newDraft(target) {
     if (busy) return;
+    imageDropJob = null; clearImageDrop();
     cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); open = false; panel.hidden = true; updateChrome(); viewButton.setAttribute('aria-expanded', 'false');
     notice.hidden = true; drawPins(); screenshot = capture(target); renderDraft();
   }
@@ -1436,7 +1493,7 @@
   function renderJobs() {
     workPanel.hidden = !sharedJobs.size;
     workPanel.replaceChildren(...[...sharedJobs.values()].map(job => {
-      const label = job.error ? job.error : job.phase === 'done' ? 'Saved' : job.phase === 'files' ? 'Uploading ' + (job.files[0]?.file.name || 'screenshot') + '…' : 'Saving ' + (job.kind === 'create' ? 'feedback' : job.kind) + '…';
+      const label = job.error ? job.error : job.phase === 'done' ? 'Saved' : job.phase === 'files' ? 'Uploading ' + (job.files[0]?.file.name || 'screenshot') + (job.files.length > 1 ? ' (' + job.files.length + ' remaining)' : '') + '…' : 'Saving ' + (job.kind === 'create' ? 'feedback' : job.kind) + '…';
       return el('div', { class: 'work-item', 'data-state': job.error ? 'error' : job.phase, role: 'status' }, el('span', { class: 'work-indicator', 'aria-hidden': 'true' }, job.phase === 'done' ? icon('check') : job.error ? icon('close') : null), el('span', {}, label),
         job.error ? button('Retry', () => { delete job.error; if (job.retry) job.retry(); else executeJob(job); }) : null,
         job.error && job.missingFiles ? el('input', { type: 'file', multiple: true, 'aria-label': 'Reattach interrupted files', onchange: event => { job.files = [...event.target.files].map(file => ({ file, key: crypto.randomUUID(), screenshot: false })); job.missingFiles = 0; delete job.error; executeJob(job); } }) : null,
@@ -1504,14 +1561,18 @@
         await storeJob(job);
       }
       if (job.missingFiles) throw new Error('Feedback is saved. Reattach files interrupted before browser storage completed.');
-      while (job.files.length) {
-        renderJobs(); const item = job.files[0];
-        await upload(job.issueId, item.file, item.screenshot, job.commentId, item.key);
-        job.files.shift(); await storeJob(job);
+      for (;;) {
+        while (job.files.length) {
+          renderJobs(); const item = job.files[0];
+          await upload(job.issueId, item.file, item.screenshot, job.commentId, item.key);
+          job.files.shift(); await storeJob(job);
+        }
+        await storeJob(job, true);
+        if (!job.files.length) break;
       }
-      await storeJob(job, true); job.phase = 'done'; renderJobs();
+      job.phase = 'done'; renderJobs();
       if (job.kind !== 'status') api('issues/' + job.issueId).then(response => response.json()).then(applyIssue).catch(() => {});
-      setTimeout(() => { sharedJobs.delete(job.id); renderJobs(); }, 6000);
+      setTimeout(() => { if (job.phase === 'done') { sharedJobs.delete(job.id); renderJobs(); } }, 6000);
     } catch (error) {
       job.error = error.message; await storeJob(job).catch(() => {}); renderJobs();
       if (job.kind === 'status' || job.kind === 'edit') { const current = issueCache.get(job.issueId)?.issue; if (current) applyIssue(current); }
