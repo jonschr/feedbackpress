@@ -1,3 +1,7 @@
+# Five-status/count acceptance — 2026-11-12 UTC
+
+23 service cases pass, including idempotent expansion of an old status constraint without data changes. statuses.cjs validates five ordered statuses/keys/icons, default needs_info visibility, 90-issue counts independent of pagination/checkboxes, search/zero counts, optimistic deltas and 390/320px overflow. Shifted existing keyboard/tooltip tests pass. New status ink #15675f on #ddf3ef passes body contrast; SVG is an authored question-circle.
+
 # Current pending navigation continuity — 2026-11-11
 
 - Normal-motion real-document baseline: first styled frame contained no rows, one placeholder, scroll zero and fp-dock-in. `navigation-continuity.cjs` restores 50 rows at scroll 700 with no placeholder/animation before held API delivery. Conversation scroll 350, long reading pauses, repeated/encoded query pages, mobile list return, scoped cache bounds/expiry, private exclusion, temporary outage and shared denial pass.

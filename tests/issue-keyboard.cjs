@@ -63,22 +63,22 @@ const path = require('node:path');
     await page.keyboard.press('v'); await row(1).waitFor(); await bodyFocus();
     await page.keyboard.press('ArrowDown'); await selected(1);
     await page.keyboard.press('ArrowUp'); await selected(1); // Start boundary.
-    await row(3).hover(); await status('2', 3, 'doing'); await selected(1); // Hover does not open it.
+    await row(3).hover(); await status('3', 3, 'doing'); await selected(1); // Hover does not open it.
     await page.keyboard.press('ArrowDown'); await selected(2);
-    await status('3', 2, 'review'); // Stationary mouse over #3 cannot win.
+    await status('4', 2, 'review'); // Stationary mouse over #3 cannot win.
     // Simulate a redraw's pointer event at the unchanged screen coordinates.
     await row(3).hover({ position: { x: 20, y: 20 } });
     const point = await page.evaluate(() => window.fixtureMouse);
     await page.keyboard.press('ArrowUp'); await selected(1);
     await row(3).dispatchEvent('pointerover', { pointerType: 'mouse', clientX: point.x, clientY: point.y });
     await row(3).dispatchEvent('pointermove', { pointerType: 'mouse', clientX: point.x, clientY: point.y });
-    await status('4', 1, 'done');
+    await status('5', 1, 'done');
     await row(3).hover({ position: { x: 21, y: 21 } });
-    await status('3', 3, 'review'); // A real mouse movement takes control back.
-    await status('1', 3, 'todo'); await status('4', 3, 'done');
-    const count = writes.length; await page.keyboard.press('4'); assert.equal(writes.length, count);
+    await status('4', 3, 'review'); // A real mouse movement takes control back.
+    await status('1', 3, 'todo'); await status('5', 3, 'done');
+    const count = writes.length; await page.keyboard.press('5'); assert.equal(writes.length, count);
     // Clicking an issue takes precedence over an earlier hovered target.
-    await row(2).locator('.issue-open').click(); await selected(2); await status('2', 2, 'doing');
+    await row(2).locator('.issue-open').click(); await selected(2); await status('3', 2, 'doing');
     const refreshing = page.waitForRequest(request => new URL(request.url()).searchParams.get('order') === 'updated');
     await panel.getByLabel('Order issues').selectOption('updated'); await refreshing;
     await page.keyboard.press('ArrowDown'); await selected(3); // Known rows remain usable during refresh.
@@ -98,7 +98,7 @@ const path = require('node:path');
     // Mouse-only shortcuts work on passive pins, but Escape clears stale targeting.
     await page.keyboard.press('Escape'); await page.keyboard.press('2'); assert.equal(writes.length, count + 1);
     const pin = page.locator(`[data-pin-issue="${items[3].id}"]`);
-    await pin.hover(); await status('2', 4, 'doing'); assert.equal(await popup.isVisible(), false);
+    await pin.hover(); await status('3', 4, 'doing'); assert.equal(await popup.isVisible(), false);
     await page.mouse.move(5, 5); await page.keyboard.press('3'); assert.equal(writes.length, count + 2);
     // Up from an unselected list starts at its last issue. Arrows cross list and real query-page boundaries.
     await bodyFocus(); await page.keyboard.press('v'); await row(50).waitFor({ state: 'attached' });
@@ -106,13 +106,13 @@ const path = require('node:path');
     await page.keyboard.press('ArrowDown'); await page.waitForURL(base + queryPath + '#feedbackpress=' + items[50].id); await selected(51);
     const carriedPointer = await page.evaluate(base => JSON.parse(sessionStorage.getItem('feedbackpress-shared-cache:' + base + '::Reviewer')).view.pointer, base);
     await row(52).dispatchEvent('pointermove', { pointerType: 'mouse', clientX: carriedPointer.x, clientY: carriedPointer.y });
-    await status('2', 51, 'doing'); // A stationary pointer remains stationary across a real document change.
+    await status('3', 51, 'doing'); // A stationary pointer remains stationary across a real document change.
     await bodyFocus(); await page.keyboard.press('ArrowDown'); await selected(52);
     await page.keyboard.press('ArrowDown'); await selected(52); // End boundary.
     await page.keyboard.press('ArrowUp'); await selected(51);
     await page.keyboard.press('ArrowUp'); await page.waitForURL(base + '/#feedbackpress=' + items[49].id); await selected(50);
     await page.setViewportSize({ width: 390, height: 844 }); await bodyFocus();
-    await page.keyboard.press('ArrowUp'); await selected(49); await status('3', 49, 'review');
+    await page.keyboard.press('ArrowUp'); await selected(49); await status('4', 49, 'review');
     assert.deepEqual(errors, []);
     console.log('PASS Up/Down start/bounds/pagination/query-page/mobile navigation; all status digits target exactly one last-used mouse/keyboard issue; stationary/redrawn pointers cannot steal it; typing/modifier/repeat/composition guards; hover-only pins and Escape. No real feedback changed.');
   } finally { await browser.close(); }

@@ -3,7 +3,7 @@ namespace FeedbackPress;
 defined('ABSPATH') || exit;
 final class API {
     const MAX_FILE = 5242880;
-    const STATUSES = ['todo', 'doing', 'review', 'done'];
+    const STATUSES = ['todo', 'needs_info', 'doing', 'review', 'done'];
     public static function error(string $message, int $status = 400): \WP_Error { return new \WP_Error('feedbackpress', $message, ['status' => $status]); }
     public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && current_user_can('manage_options')))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
     public static function read($r = null) { if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
@@ -104,11 +104,14 @@ final class API {
     public static function listing($r): array {
         $terms = preg_split('/\s+/u', trim((string) $r->get_param('search')), -1, PREG_SPLIT_NO_EMPTY);
         $issues = array_values(array_filter(Service::snapshot()['issues'], function ($i) use ($r, $terms) {
-            if (($r->get_param('path') && $i['path'] !== $r->get_param('path')) || ($r->has_param('status') && !in_array($i['status'], explode(',', (string) $r->get_param('status')), true))) return false;
+            if (($r->get_param('path') && $i['path'] !== $r->get_param('path'))) return false;
             $text = $i['title'] . "\n" . $i['body']; foreach ($i['activity'] as $e) $text .= "\n" . $e['payload']['body'];
             foreach ($terms as $term) if (!preg_match('/' . preg_quote($term, '/') . '/iu', $text)) return false;
             return true;
         }));
+        $counts = array_fill_keys(self::STATUSES, 0);
+        foreach ($issues as $issue) $counts[$issue['status']]++;
+        if ($r->has_param('status')) $issues = array_values(array_filter($issues, fn($i) => in_array($i['status'], explode(',', (string) $r->get_param('status')), true)));
         $order = in_array($r->get_param('order'), ['page', 'completed', 'updated'], true) ? $r->get_param('order') : 'number';
         usort($issues, function ($a, $b) use ($order) {
             $value = in_array($order, ['completed', 'updated'], true) ? strcmp($b[$order . '_at'] ?? '', $a[$order . '_at'] ?? '') : ($order === 'page' ? strnatcasecmp($a['path'], $b['path']) : 0);
@@ -116,7 +119,7 @@ final class API {
         });
         $page = max(1, min((int) $r->get_param('page'), max(1, (int) ceil(count($issues) / 50))));
         if ($r->get_param('focus')) foreach ($issues as $n => $issue) if ($issue['id'] === $r->get_param('focus')) { $page = (int) floor($n / 50) + 1; break; }
-        return ['issues' => array_slice($issues, ($page - 1) * 50, 50), 'total' => count($issues), 'page' => $page, 'order' => $order];
+        return ['issues' => array_slice($issues, ($page - 1) * 50, 50), 'total' => count($issues), 'page' => $page, 'order' => $order, 'status_counts' => $counts];
     }
     public static function upload($r) {
         $file = $r->get_file_params()['file'] ?? null;

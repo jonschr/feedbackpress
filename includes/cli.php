@@ -19,7 +19,7 @@ if (defined('WP_CLI') && WP_CLI) {
             if (in_array($command, ['projects', 'project'], true)) { if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.'); if ($command === 'project') Service::selectProject($id); \WP_CLI::line(wp_json_encode(Service::manager('GET', '/account')['projects'], JSON_PRETTY_PRINT)); return; }
             if ($command === 'log') { if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.'); \WP_CLI::line(wp_json_encode(Log::entries(), JSON_PRETTY_PRINT)); return; }
             if (!API::can_view()) throw new \RuntimeException('This user does not have review access.');
-            if ($command === 'list') { $path = '/issues'; $body = ['status' => $flags['statuses'] ?? 'todo,review', 'search' => $flags['search'] ?? '', 'page' => (int) ($flags['page'] ?? 1), 'order' => $flags['sort'] ?? 'number']; }
+            if ($command === 'list') { $path = '/issues'; $body = ['status' => $flags['statuses'] ?? 'todo,needs_info,review', 'search' => $flags['search'] ?? '', 'page' => (int) ($flags['page'] ?? 1), 'order' => $flags['sort'] ?? 'number']; }
             elseif ($command === 'get') $path = '/issues/' . $id;
             elseif ($command === 'notes') $path = '/issues/' . $id . '/notes';
             elseif ($command === 'note') { $path = '/issues/' . $id . '/notes'; $method = 'POST'; $body = ['body' => $flags['body'] ?? '', 'agent' => $flags['agent'] ?? 'Agent', 'kind' => 'agent']; }

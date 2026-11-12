@@ -25,11 +25,11 @@
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
     svg.append(path); return svg;
   }
-  const labels = { todo: 'To do', doing: 'Doing', review: 'Review', done: 'Done' };
-  const statusKeys = { todo: '1', doing: '2', review: '3', done: '4' };
+  const labels = { todo: 'To do', needs_info: 'Information needed', doing: 'Doing', review: 'Review', done: 'Done' };
+  const statusKeys = { todo: '1', needs_info: '2', doing: '3', review: '4', done: '5' };
   const submitShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ Enter' : 'Ctrl Enter';
   let name = c.userName || '', email = '', actorId = c.authorId || '', actorRequest = null;
   try { email = decodeURIComponent(document.cookie.split('; ').find(value => value.startsWith('feedbackpress_email='))?.slice('feedbackpress_email='.length) || ''); } catch (_) {}
@@ -39,7 +39,7 @@
       name = saved ? decodeURIComponent(saved.slice('feedbackpress_name='.length)) : localStorage.getItem('feedbackpress-name') || '';
     } catch (_) { /* Identity can still be entered when browser storage is disabled. */ }
   }
-  let issues = [], pageIssues = [], selected = null, sort = 'number', search = '', searchTimer, filter = ['todo', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
+  let issues = [], pageIssues = [], selected = null, sort = 'number', search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
   const editDrafts = new Map();
@@ -47,6 +47,8 @@
   const replyFiles = new Map();
   const replyOperations = new Map();
   const threadScrolls = new Map();
+  let statusCounts = null;
+  const countedStatuses = new Map();
   let draftOperation = null;
   let shortcutIssueId = null, lastPointer = null, steppingPage = false;
   const privateNotes = new Map();
@@ -61,12 +63,13 @@
     if (Array.isArray(view.filter)) filter = Object.keys(labels).filter(status => view.filter.includes(status));
     else if (view.filter === 'all') filter = Object.keys(labels);
     else if (Object.hasOwn(labels, view.filter)) filter = [view.filter];
+    if (view.statusVersion !== 5 && Array.isArray(view.filter) && (view.filter.join(',') === 'todo,review' || view.filter.length === 4)) filter = Object.keys(labels).filter(status => status === 'needs_info' || view.filter.includes(status));
     listPage = Math.max(1, Number(view.page) || 1);
     hasListPosition = Number.isFinite(view.scrollTop) && view.scrollTop >= 0;
     listScroll = hasListPosition ? view.scrollTop : 0;
     resumeOpen = view.open === true;
   } catch (_) { /* Storage is optional. */ }
-  function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ sort, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue) })); } catch (_) {} }
+  function saveView() { try { sessionStorage.setItem(viewKey, JSON.stringify({ statusVersion: 5, sort, search, filter, page: listPage, scrollTop: hasListPosition ? listScroll : undefined, open: open || Boolean(openingIssue) })); } catch (_) {} }
   const homePath = new URL(c.home).pathname.replace(/\/$/, '');
   const pagePath = (location.pathname.slice(homePath.length) || '/') + location.search;
   const issueCache = new Map(), issueReads = new Map();
@@ -80,7 +83,7 @@
     cacheSaveTimer = null;
     if (cacheDenied) return;
     const visible = issues.filter(issue => !issue.pending);
-    const view = listLoaded ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, pointer: lastPointer, threads: [...threadScrolls].slice(-200) } : null;
+    const view = listLoaded ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].slice(-200) } : null;
     const priority = new Set([selected?.id, ...visible.map(issue => issue.id)]);
     const known = knownIssues ? [...knownIssues] : null, at = Date.now();
     const entries = [], saved = new Set(); let size = JSON.stringify({ entries: [], view, known, at }).length;
@@ -103,6 +106,8 @@
     const carried = new Set(view && freshCache(view.at) ? [...view.ids, view.selected] : []);
     for (const entry of (saved.entries || []).slice(0, 200)) if (freshCache(entry.at) || carried.has(entry.issue.id)) issueCache.set(entry.issue.id, entry);
     if (view && freshCache(view.at)) {
+      if (view.counts && Object.keys(labels).every(status => Number.isSafeInteger(view.counts[status]) && view.counts[status] >= 0)) statusCounts = view.counts;
+      for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesSearch(issue) });
       if (Number.isFinite(view.pointer?.x) && Number.isFinite(view.pointer?.y)) lastPointer = view.pointer;
       for (const [id, top] of (view.threads || []).slice(-200)) if (Number.isFinite(top) && top >= 0) threadScrolls.set(id, top);
       if (view.signature === listSignature() && view.ids.every(id => issueCache.has(id))) {
@@ -131,7 +136,7 @@
     if (cacheDenied) return;
     const known = issueCache.get(updated.id)?.issue;
     if (known && Number(known.revision) > Number(updated.revision)) return;
-    cacheIssue(updated); updated = optimisticIssue(updated); keepListOrder = true;
+    cacheIssue(updated); updated = optimisticIssue(updated); updateStatusCount(updated); keepListOrder = true;
     issues = issues.map(existing => existing.id === updated.id ? updated : existing);
     pageIssues = pageIssues.map(existing => existing.id === updated.id ? updated : existing);
     if (selected?.id === updated.id) {
@@ -290,7 +295,7 @@
         issueCache.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
-        issues = []; pageIssues = []; selected = null; knownIssues = null; notesRequest++; privateNotes.clear(); threadScrolls.clear();
+        issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); threadScrolls.clear();
         restoringList = false; listLoaded = false; total = 0; issuePopup.hidden = true; tether.hidden = true;
         if (open) render(); drawPins();
       }
@@ -375,6 +380,11 @@
           const current = new Map(data.issues.map(issue => [issue.id, issue]));
           issues = issues.map(issue => optimisticIssue(current.get(issue.id) || issue));
         } else { issues = data.issues.map(optimisticIssue); total = data.total; listPage = data.page; keepListOrder = false; }
+        if (data.status_counts) {
+          statusCounts = { ...data.status_counts }; countedStatuses.clear();
+          for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesSearch(issue) });
+          for (const { issue } of issueCache.values()) updateStatusCount(optimisticIssue(issue));
+        }
         listLoaded = true; restoringList = false;
       }
       for (const job of sharedJobs.values()) showPendingCreate(job);
@@ -400,8 +410,27 @@
     return el('div', { class: 'status-controls ' + place, 'data-status': issue.status },
       el('div', { class: 'status-actions', role: 'group', 'aria-label': change ? 'New issue status' : `Change status for issue ${issue.number}` }, ...actions));
   }
+  function matchesSearch(issue) {
+    const text = [issue.title || '', issue.body || '', ...(issue.activity || []).map(event => event.payload?.body || '')].join(' ').toLocaleLowerCase();
+    return search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean).every(term => text.includes(term));
+  }
+  function updateStatusCount(issue) {
+    const before = countedStatuses.get(issue.id), matches = matchesSearch(issue);
+    if (statusCounts && before && (before.status !== issue.status || before.matches !== matches)) {
+      if (before.matches) statusCounts[before.status] = Math.max(0, statusCounts[before.status] - 1);
+      if (matches) statusCounts[issue.status]++;
+    }
+    if (statusCounts && !before && matches && [...sharedJobs.values()].some(job => job.kind === 'create' && job.issueId === issue.id)) statusCounts[issue.status]++;
+    countedStatuses.set(issue.id, { status: issue.status, matches });
+    paintStatusCounts();
+  }
+  function paintStatusCounts() {
+    if (!statusCounts) return;
+    panel.querySelectorAll('[data-count-status]').forEach(node => { node.textContent = statusCounts[node.dataset.countStatus]; });
+    panel.querySelectorAll('[data-filter-status]').forEach(node => node.setAttribute('aria-description', `${statusCounts[node.dataset.filterStatus]} matching issues`));
+  }
   function filterSummary() {
-    return filter.length === 4 ? 'All statuses' : filter.length === 0 ? 'No statuses' : filter.length > 2 ? `${filter.length} statuses` : filter.map(status => labels[status]).join(' + ');
+    return filter.length === Object.keys(labels).length ? 'All statuses' : filter.length === 0 ? 'No statuses' : filter.length > 2 ? `${filter.length} statuses` : filter.map(status => labels[status]).join(' + ');
   }
   function closeStatusFilter(restoreFocus = false) {
     filterOpen = false;
@@ -414,7 +443,7 @@
   function statusFilterControl() {
     const options = el('fieldset', { id: 'fp-status-options', class: 'status-filter-options', hidden: !filterOpen }, el('legend', { class: 'visually-hidden' }, 'Visible statuses'));
     for (const [status, label] of Object.entries(labels)) {
-      const input = el('input', { type: 'checkbox', checked: filter.includes(status), 'data-filter-status': status, onchange: event => {
+      const input = el('input', { type: 'checkbox', checked: filter.includes(status), 'data-filter-status': status, 'aria-description': statusCounts ? `${statusCounts[status]} matching issues` : 'Count loading', onchange: event => {
         filter = Object.keys(labels).filter(value => value === status ? event.target.checked : filter.includes(value));
         listPage = 1; resetListScroll(); saveView();
         const summary = filterSummary();
@@ -422,7 +451,7 @@
         panel.querySelector('.status-filter-trigger').dataset.tooltip = summary;
         load();
       } });
-      options.append(el('label', { class: 'filter-option', 'data-status': status }, input, el('span', { class: 'status-dot', 'aria-hidden': 'true' }), label));
+      options.append(el('label', { class: 'filter-option', 'data-status': status }, input, el('span', { class: 'status-dot', 'aria-hidden': 'true' }), label, el('span', { class: 'status-count', 'data-count-status': status, 'aria-hidden': 'true' }, statusCounts ? String(statusCounts[status]) : '…')));
     }
     const trigger = button(el('span', { class: 'filter-summary' }, filterSummary()), () => {
       filterOpen = !filterOpen; options.hidden = !filterOpen; trigger.setAttribute('aria-expanded', String(filterOpen));
@@ -1394,6 +1423,9 @@
         // The gateway offers all snapshot IDs; only an ID absent from the prior snapshot is new.
         for (const id of data.new_issues || []) { const issue = byId.get(id); if (knownIssues && !knownIssues.has(id) && issue && !visible.has(id) && matches(issue)) { issues.push(issue); total++; } }
         knownIssues = new Set(byId.keys());
+        statusCounts = Object.fromEntries(Object.keys(labels).map(status => [status, 0])); countedStatuses.clear();
+        for (const item of data.issues) { const current = optimisticIssue(item), matches = matchesSearch(current); countedStatuses.set(item.id, { status: current.status, matches }); if (matches) statusCounts[current.status]++; }
+        paintStatusCounts();
         keepListOrder = listLoaded;
         pageIssues = data.issues.filter(issue => issue.path === pagePath && matches(issue)).map(optimisticIssue);
         for (const job of sharedJobs.values()) showPendingCreate(job);

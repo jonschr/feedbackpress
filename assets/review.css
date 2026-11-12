@@ -69,7 +69,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .status-filter-trigger { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-height: 38px; padding: 8px 10px; border-color: var(--fp-field); font-size: 12px; font-weight: 400; text-align: left; }
 .filter-summary { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .status-filter-trigger svg { width: 16px; height: 16px; flex-shrink: 0; }
-.status-filter-options { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3; width: 200px; max-width: calc(100vw - 40px); max-height: min(260px, calc(100dvh - 180px)); overflow-y: auto; margin: 0; padding: 6px; border: 0; border-radius: 8px; background: #fff; box-shadow: 0 6px 24px #151c2a30; }
+.status-filter-options { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3; width: 240px; max-width: calc(100vw - 40px); max-height: min(260px, calc(100dvh - 180px)); overflow-y: auto; margin: 0; padding: 6px; border: 0; border-radius: 8px; background: #fff; box-shadow: 0 6px 24px #151c2a30; }
 .filter-option { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 8px; border-radius: 4px; font-size: 13px; font-weight: 400; cursor: pointer; }
 .filter-option:hover { background: var(--issue-hover, var(--fp-soft)); }
 .filter-option input { display: block; flex: 0 0 auto; appearance: auto; width: 15px; height: 15px; min-height: 0; margin: 0; padding: 0; accent-color: var(--fp-action); }
@@ -80,7 +80,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .issue-row.is-selected, .issue-row.is-selected:hover { background: var(--issue-selected, #edf0f4); }
 .issue-open { display: block; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; text-align: left; }
 .issue-open:hover, .issue-open:active { background: transparent; }
-.row-heading { display: flex; align-items: baseline; gap: 6px; padding-inline-end: 126px; min-height: 28px; line-height: 28px; }
+.row-heading { display: flex; align-items: baseline; gap: 6px; padding-inline-end: 157px; min-height: 28px; line-height: 28px; }
 .row-number { flex: none; font-size: 12px; font-weight: 600; color: var(--fp-ink); font-variant-numeric: tabular-nums; }
 .row-author { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--fp-muted); }
 .issue-body { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 3px 0 5px; font-size: 14px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
@@ -101,6 +101,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 
 /* A single semantic palette powers the list, icon actions, filters, and pins. */
 [data-status=todo], .status-todo, .pin.todo { --status-ink: #805b16; --status-fill: #f6ebd0; --issue-accent: #a27c32; --issue-hover: #fdfaf4; --issue-selected: #faf3e3; }
+[data-status=needs_info], .status-needs_info, .pin.needs_info { --status-ink: #15675f; --status-fill: #ddf3ef; --issue-accent: #2e9084; --issue-hover: #f2faf8; --issue-selected: #e5f5f1; }
 [data-status=doing], .status-doing, .pin.doing { --status-ink: #2b5b85; --status-fill: #e4eef8; --issue-accent: #4b7ca8; --issue-hover: #f5f9fd; --issue-selected: #eaf2fa; }
 [data-status=review], .status-review, .pin.review { --status-ink: #6f4396; --status-fill: #eee5f8; --issue-accent: #8d68ae; --issue-hover: #faf7fd; --issue-selected: #f3ecf9; }
 [data-status=done], .status-done, .pin.done { --status-ink: #626a76; --status-fill: #e8ebef; --issue-accent: #a0a6af; --issue-hover: #f2f3f5; --issue-selected: #e8ebef; }
@@ -234,7 +235,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 }
 @media (pointer: coarse) {
   .row-status .status-action { width: 30px; height: 32px; }
-  .row-heading { padding-inline-end: 134px; min-height: 32px; line-height: 32px; }
+  .row-heading { padding-inline-end: 167px; min-height: 32px; line-height: 32px; }
   .fp-icon-button { min-width: 32px; min-height: 32px; }
   input, textarea, select { font-size: 16px; }
   .filters > select, .status-filter-trigger { font-size: 16px; }
@@ -261,3 +262,6 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .work-indicator svg { width: 14px; height: 14px; }
 .work-item:has(input[type=file]) { flex-wrap: wrap; }
 .work-item input[type=file] { flex-basis: 100%; min-width: 0; font-size: 12px; }
+
+.status-count { margin-inline-start: auto; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fp-muted); }
+@media (max-width: 359px) { .popup-header { flex-wrap: wrap; } .popup-navigation { margin-inline-start: auto; } }

@@ -1,15 +1,15 @@
 # FeedbackPress owner test — November 11, 2026
 
-For the current locally verified revision and pending rollout, read UPDATE-REVIEW.md first. The instructions below describe the prior deployed pilot; its private-conversion behavior is superseded by the newly requested shared-conversion behavior, which still awaits rollout.
+The coordinated update is installed: service 7bee102426c9 and QA A/B plugin 12db8317bfda. Refresh each tab once for the new assets. See UPDATE-REVIEW.md for release/checksum/verification receipts.
 
-The central gateway, shared overlay, account project selector and private notes are ready for controlled QA. The current pilot and earlier test-license/webhook evidence are documented in PILOT-OPERATIONS.md. This continuation fixed private-note refresh/privacy and reran the acceptance checks recorded at the end of CENTRAL-SERVICE-PLAN.md. No new commit, push or hosted deployment was made.
+The central gateway, shared overlay, account project selector and private notes are ready for controlled QA. The current pilot and earlier test-license/webhook evidence are documented in PILOT-OPERATIONS.md. This continuation fixed private-note refresh/privacy and reran the acceptance checks recorded at the end of CENTRAL-SERVICE-PLAN.md. The authorized local checkpoints and coordinated pilot/QA installation are complete; no push, tag or public/customer launch occurred.
 
 ## Try the workflow
 
 1. Open https://feedbackpress-qa-a.localhost:8453 and https://feedbackpress-qa-b.localhost:8453. These disposable copies already share the hosted complimentary QA project. Keep real client copies disconnected from this test account.
 2. In A, choose Leave feedback, click an element, enter a short title (description optional), and submit. Confirm its numeric pin and screenshot. In B, open View issues; allow up to 60 seconds of active use for refresh, or reload. Confirm the same number/content.
-3. Add a shared reply, edit your own comment, drag the pin and change status. Try C, V, Escape and status keys 1–4 outside text fields. Scroll the issue list, navigate between pages/issues, and confirm the same list position/order.
-4. Log in to A as the QA administrator using Cove's one-time admin login. With the same owner email logged in on B, use a private note and confirm it appears only for that owner. An agent can create an agent note using the explicit-user command below; Convert to my note must preserve its text/time and keep it private.
+3. Add a shared reply, edit your own comment, drag the pin and change status. Try C, V, Escape, Up/Down and status keys 1–4 outside text fields. Status keys follow the most recent real mouse movement or keyboard selection. Scroll the issue list, navigate between pages/issues, and confirm the same list position/order.
+4. Log in to A as the QA administrator using Cove's one-time admin login. With the same owner email logged in on B, use a private note and confirm it appears only for that owner. An agent can create an agent note using the explicit-user command below; Convert to shared note explicitly publishes it to all project reviewers under your human name, preserving text/time and protected agent audit. Other notes remain private.
 5. Open B logged out/in a private browser window: shared feedback is visible under Everyone review mode, private notes are absent. Other logged-in emails also receive no private notes. An existing open owner tab removes stale private text on its next active private refresh after access changes; access is always rechecked server-side. Refresh remains activity-driven, not instant logout broadcasting.
 6. Settings → FeedbackPress shows the searchable account project selector and connected sites. Switching/removing sites changes membership, so do that only on disposable fixtures. No license key is needed to test the already-connected QA account.
 
