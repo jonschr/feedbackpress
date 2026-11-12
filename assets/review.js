@@ -486,7 +486,10 @@
     }
     let path = null;
     for (const issue of issues) {
-      if (sort === 'page' && path !== issue.path) { path = issue.path; list.append(el('h3', { class: 'page-heading' }, pageLabel(path))); }
+      if (sort === 'page' && path !== issue.path) {
+        path = issue.path;
+        list.append(el('div', { class: 'page-heading' }, el('h3', { class: 'page-title' }, issue.page_title || 'Page'), el('small', { class: 'page-url' }, new URL(path, c.home).href)));
+      }
       list.append(issueRow(issue));
     }
     if (selected && !listLoading && !issues.some(issue => issue.id === selected.id)) list.append(el('small', { class: 'outside-filter' }, 'Selected issue outside this list'), issueRow(selected));

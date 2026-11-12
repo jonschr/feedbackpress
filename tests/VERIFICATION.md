@@ -274,3 +274,9 @@ Feedback toggle/launcher stability: reproduced an 11px upward movement when the 
 ## Verified queued central workflow — November 11, 2026
 
 See docs/UPDATE-REVIEW.md for the post-restart 22-case PostgreSQL, two real gateway and browser receipts. New conversion requires publish:true and produces a shared comment. Cache/queue, query-bearing navigation, layered anchors, media expiry, safe retries and cross-page restoration are covered. Final isolated 200-issue visible timings: 24.9/8.9/7.3/8.4 ms with 900 ms detail requests. Source remains uncommitted; full coordinated rollout has not occurred.
+
+## Page-group hierarchy — November 12, 2026
+
+- `php tests/page-titles.php`: local-only title resolution for home/static front pages, permalinks/query IDs, ports/subdirectories, decoded entities, missing/private/password pages and external URL rejection. No database/network writes.
+- `NODE_PATH=/tmp/feedbackpress-browser/node_modules node tests/page-groups.cjs`: title/full URL hierarchy, repeated query parameters, fallback, group spacing and 390/320px wrapping. Real document navigation retains cached titles/order and exact list scroll while reads are delayed.
+- Existing list-navigation and navigation-continuity fixtures pass. One initial mobile scroll assertion failed during a combined run; the isolated repeat passed. Service code/schema are unchanged.

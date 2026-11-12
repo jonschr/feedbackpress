@@ -131,7 +131,24 @@ final class Service {
         $users = Identity::users();
         return ['author' => $users[$id]['name'] ?? $p['name'], 'author_id' => $id];
     }
+    public static function pageTitle(string $path): string {
+        // Resolve against this installation, never another connected site's host.
+        $home = wp_parse_url(home_url());
+        if (!str_starts_with($path, '/') || str_starts_with($path, '//')) return '';
+        $url = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : '') . $path;
+        $id = url_to_postid($url);
+        if (!$id && untrailingslashit($url) === untrailingslashit(home_url())) {
+            if (get_option('show_on_front') !== 'page') return html_entity_decode(wp_strip_all_tags(get_bloginfo('name')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $id = (int) get_option('page_on_front');
+        }
+        $post = $id ? get_post($id) : null;
+        // Cached shared views must not reveal titles of private/draft/password-protected pages.
+        return $post && is_post_publicly_viewable($post) && !$post->post_password ? html_entity_decode(wp_strip_all_tags(get_the_title($post)), ENT_QUOTES | ENT_HTML5, 'UTF-8') : '';
+    }
     public static function view(array $i): array {
+        static $pageTitles = [];
+        $pageKey = home_url() . '\n' . $i['path'];
+        $pageTitle = $pageTitles[$pageKey] ??= self::pageTitle($i['path']);
         $comments = $i['comments']; $root = null; $activity = [];
         foreach ($comments as $comment) {
             $p = self::person($comment['author']) + ['body' => $comment['body'], 'edit_revision' => (string) $i['revision'], 'edited_at' => $comment['edited_at']];
@@ -140,7 +157,7 @@ final class Service {
         }
         if (!$root) throw new \RuntimeException('The issue response is incomplete.', 503);
         $files = array_map(fn($m) => ['id' => $m['id'], 'comment_id' => $m['comment_id'], 'name' => $m['name'], 'mime' => $m['mime'], 'size' => $m['size'], 'screenshot' => $m['screenshot'], 'available' => $m['state'] === 'ready', 'expired' => $m['state'] === 'expired'], $i['media']);
-        return $root + array_intersect_key($i, array_flip(['id', 'number', 'title', 'path', 'target', 'status', 'created_at', 'updated_at', 'completed_at'])) + ['revision' => (string) $i['revision'], 'target_revision' => (string) $i['revision'], 'author_revision' => (string) $i['revision'], 'activity' => $activity, 'files' => $files, 'conflict' => false, 'author_conflict' => false, 'edit_conflict' => false];
+        return $root + array_intersect_key($i, array_flip(['id', 'number', 'title', 'path', 'target', 'status', 'created_at', 'updated_at', 'completed_at'])) + ['page_title' => $pageTitle, 'revision' => (string) $i['revision'], 'target_revision' => (string) $i['revision'], 'author_revision' => (string) $i['revision'], 'activity' => $activity, 'files' => $files, 'conflict' => false, 'author_conflict' => false, 'edit_conflict' => false];
     }
 }
 
