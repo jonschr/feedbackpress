@@ -24,3 +24,8 @@ Do not enter a Lemon Squeezy merchant API key, a Resend key or a database passwo
 The hosted pilot accepts complimentary account keys and the configured FeedbackPress **test-mode** purchase license. Live billing remains disabled and the live product remains Draft. Paid/customer production use still needs the unresolved paid storage allowance, expired-subscription grace/read/export policy, live checkout/tax acceptance and operational recovery gates. Separate backup storage is explicitly deferred; independent off-server recovery is not claimed. The owner key is pilot access rather than proof of those production gates.
 
 Mention autocomplete and shared image replies are available. Email verification is deferred until the owner participates, and mention delivery remains capture-only.
+
+
+## Choose notification links
+
+Under **Settings → FeedbackPress → Sites in this project**, use **Notification link destination**. Automatic chooses the first connected public HTTPS copy. Choose a staging or production URL to override it, then **Save link destination**. This is shared across all copies of the project. Known local/private addresses are excluded using URL and DNS/IP checks; arbitrary words such as “staging” are not used to guess the preferred environment. If all copies are local, connect a public copy before notification links become available. Email delivery remains deferred/capture-only until verified with the owner.

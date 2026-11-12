@@ -51,13 +51,14 @@
     }
     if (!list.children.length) { const p = document.createElement('p'); p.className = 'description'; p.textContent = 'No sites are connected to this project.'; section.append(p); } else section.append(list);
     const form=document.createElement('form'),label=document.createElement('label'),select=document.createElement('select'),save=document.createElement('button'),help=document.createElement('p');
-    label.textContent='Staging site for mention emails';select.id='fp-review-site';label.htmlFor=select.id;
-    select.append(new Option('Choose a non-local site',''));
+    label.textContent='Notification link destination';select.id='fp-review-site';label.htmlFor=select.id;
+    select.append(new Option('Automatic: first non-local site',''));
     for(const site of state.project.sites||[])if(site.notification_eligible)select.append(new Option(site.url,site.url));
-    select.value=state.project.review_site||'';save.className='button';save.textContent='Save email links';save.type='submit';help.className='description';
-    help.textContent='Mentions link here first, with other non-local sites as alternatives. Local addresses are excluded. '+(state.project.notification_delivery==='capture'?'Email previews are being captured; live delivery is off.':state.project.notification_delivery==='resend'?'Delivery testing is limited to approved recipients.':'Mention emails are off.')+(!(state.project.sites||[]).some(site=>site.notification_eligible)?' Connect your staging WordPress copy to this project to enable email links.':'');
+    if(state.project.review_site&&![...select.options].some(option=>option.value===state.project.review_site)){const unavailable=new Option(state.project.review_site+' (unavailable)',state.project.review_site);unavailable.disabled=true;select.append(unavailable);}
+    select.value=state.project.review_site||'';save.className='button';save.textContent='Save link destination';save.type='submit';help.className='description';help.style.overflowWrap='anywhere';
+    help.textContent='Applies to every copy of this project. '+(state.project.notification_site?'Links open '+state.project.notification_site+'. ':state.project.review_site?'The chosen site is unavailable. Choose another public site or Automatic. ':'No public HTTPS destination is available. Connect a staging or production copy, or reload to retry. ')+'Automatic uses the first connected public HTTPS site. Local and private addresses are excluded. '+(state.project.notification_delivery==='capture'?'Email previews are being captured; live delivery is off.':state.project.notification_delivery==='resend'?'Delivery testing is limited to approved recipients.':'Mention emails are off.');
     form.append(label,document.createElement('br'),select,document.createTextNode(' '),save,help);
-    form.addEventListener('submit',event=>{event.preventDefault();run(form,async()=>{await refresh(await api('notifications',{review_site:select.value||null}));show('Mention email links saved.');});});section.append(form);
+    form.addEventListener('submit',event=>{event.preventDefault();run(form,async()=>{await refresh(await api('notifications',{review_site:select.value||null}));show('Notification link destination saved.');});});section.append(form);
   }
   function choose(id) {
     closePicker(); if (id === state?.project?.id && !state?.disconnected) return;
