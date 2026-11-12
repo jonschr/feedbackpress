@@ -995,11 +995,28 @@
     form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && selected?.visibility !== 'private'), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
     return form;
   }
+  const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const datedTime = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  function friendlyTime(date) {
+    if (date.toDateString() !== new Date().toDateString()) return datedTime.format(date);
+    const seconds = Math.max(0, Math.floor((Date.now() - date.valueOf()) / 1000));
+    const [unit, divisor] = seconds < 60 ? ['second', 1] : seconds < 3600 ? ['minute', 60] : ['hour', 3600];
+    return relativeTime.format(-Math.floor(seconds / divisor), unit);
+  }
+  function commentTime(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? null : el('time', { class: 'comment-date', datetime: value, title: date.toLocaleString() }, friendlyTime(date));
+  }
+  function refreshCommentTimes() {
+    if (document.hidden || issuePopup.hidden) return;
+    for (const time of issuePopup.querySelectorAll('time.comment-date')) time.textContent = friendlyTime(new Date(time.dateTime));
+  }
+  setInterval(refreshCommentTimes, 30000);
+  document.addEventListener('visibilitychange', refreshCommentTimes);
   function commentView(comment, files) {
     const author = comment.id === selected?.id && !comment.pending ? button(comment.author || 'Unknown author', event => editAuthor(event.currentTarget, comment), { class: 'comment-author author-edit', 'aria-label': 'Change author: ' + comment.author, title: 'Change author' }) : el('strong', { class: 'comment-author' }, comment.author || 'Unknown author');
     const byline = el('div', { class: 'comment-byline' }, author);
-    const date = new Date(comment.created_at);
-    if (!Number.isNaN(date.valueOf())) byline.append(el('time', { class: 'comment-date', datetime: comment.created_at, title: date.toLocaleString() }, date.toLocaleDateString()));
+    const time = commentTime(comment.created_at); if (time) byline.append(time);
     if (comment.pending || comment.pending_edit) byline.append(el('span', { class: 'comment-date' }, 'Saving…'));
     if (comment.edited_at) byline.append(el('time', { class: 'comment-edited', datetime: comment.edited_at, title: 'Edited ' + new Date(comment.edited_at).toLocaleString() }, 'Edited'));
     const own = !comment.pending && !comment.pending_edit && actorId && actorId === (comment.owner_id || comment.author_id);
@@ -1013,6 +1030,10 @@
     if (uploads.length) copy.append(el('div', { class: 'attachment-strip comment-uploads', role: 'group', 'aria-label': 'Comment attachments' }, ...uploads.map(attachmentThumbnail)));
     return el('div', { class: 'thread-comment' + (screenshots.length ? ' has-screenshot' : ''), 'data-comment': comment.id }, copy,
       screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null);
+  }
+  function threadEntries(issue) {
+    const entries = [...issue.activity.filter(event => event.kind === 'reply'), ...(c.privateNotes ? privateNotes.get(issue.id) || [] : []).map(note => ({ kind: 'private', id: note.id, created_at: note.created_at, note }))];
+    return entries.sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0) || a.id.localeCompare(b.id));
   }
   async function loadNotes(id) {
     if (!c.privateNotes) return;
@@ -1028,8 +1049,15 @@
       if (selected?.id === id && !issuePopup.hidden) {
         const focused = root.activeElement?.closest('[data-private-edit]');
         const position = focused ? [focused.dataset.privateEdit, root.activeElement.selectionStart, root.activeElement.selectionEnd] : null;
-        issuePopup.querySelectorAll('.private-note').forEach(node => node.remove());
-        issuePopup.querySelector('.issue-thread')?.append(...data.notes.map(privateNoteView));
+        const thread = issuePopup.querySelector('.issue-thread'); if (!thread) return;
+        const scroll = thread.scrollTop;
+        thread.querySelectorAll('.private-note').forEach(node => node.remove());
+        let before = thread.querySelector(':scope > .attachment-strip');
+        for (const entry of threadEntries(selected).reverse()) {
+          if (entry.kind === 'private') { const node = privateNoteView(entry.note); thread.insertBefore(node, before); before = node; }
+          else before = thread.querySelector(`[data-comment="${entry.id}"]`) || before;
+        }
+        thread.scrollTop = scroll;
         if (position) { const field = issuePopup.querySelector(`[data-private-edit="${position[0]}"] textarea`); field?.focus({ preventScroll: true }); field?.setSelectionRange(position[1], position[2]); }
       }
     } catch (error) {
@@ -1096,7 +1124,7 @@
   function privateNoteView(note) {
     const issueId = note.issue_id || selected.id;
     const byline = el('div', { class: 'comment-byline' }, el('strong', { class: 'comment-author' }, note.author_kind === 'agent' ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, 'Private · Only you'));
-    if (note.created_at) byline.append(el('time', { class: 'comment-date', datetime: note.created_at, title: new Date(note.created_at).toLocaleString() }, new Date(note.created_at).toLocaleDateString()));
+    const time = commentTime(note.created_at); if (time) byline.append(time);
     if (note.edited_at) byline.append(el('span', { class: 'comment-edited' }, 'Edited'));
     if (!privateEditDrafts.has(note.id)) byline.append(noteActions('private note', note, issueId));
     const draft = privateEditDrafts.get(note.id);
@@ -1124,8 +1152,7 @@
     const replies = issue.activity.filter(event => event.kind === 'reply');
     const filesFor = id => issue.files.filter(file => (file.comment_id || issue.id) === id);
     const thread = el('div', { class: 'issue-thread', 'aria-label': 'Conversation' }, commentView(issue, filesFor(issue.id)));
-    for (const event of replies) thread.append(commentView({ ...event.payload, id: event.id, created_at: event.created_at }, filesFor(event.id)));
-    for (const note of c.privateNotes ? privateNotes.get(issue.id) || [] : []) thread.append(privateNoteView(note));
+    for (const entry of threadEntries(issue)) thread.append(entry.kind === 'private' ? privateNoteView(entry.note) : commentView({ ...entry.payload, id: entry.id, created_at: entry.created_at }, filesFor(entry.id)));
     const known = new Set([issue.id, ...replies.map(event => event.id)]);
     const unmatched = issue.files.filter(file => !known.has(file.comment_id || issue.id));
     if (unmatched.length) thread.append(el('div', { class: 'attachment-strip', role: 'group', 'aria-label': 'Uploads awaiting comment sync' }, ...unmatched.map(attachmentThumbnail)));
