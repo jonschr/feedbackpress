@@ -14,7 +14,7 @@ $beta = str_contains(FeedbackPress\VERSION, '-');
 if ($headers['Version'] !== FeedbackPress\VERSION || (!$beta && $metadata['version'] !== FeedbackPress\VERSION)
     || ($beta && (str_contains($metadata['version'], '-') || version_compare($metadata['version'], FeedbackPress\VERSION, '>=')))
     || $headers['UpdateURI'] !== 'https://github.com/jonschr/feedbackpress'
-    || $metadata['download_url'] !== 'https://github.com/jonschr/feedbackpress/archive/refs/tags/' . $metadata['version'] . '.zip') {
+    || $metadata['download_url'] !== 'https://github.com/jonschr/feedbackpress/releases/download/' . $metadata['version'] . '/feedbackpress-' . $metadata['version'] . '.zip') {
     throw new RuntimeException('Plugin header/runtime and the stable update channel policy must agree.');
 }
 $url = 'https://raw.githubusercontent.com/jonschr/feedbackpress/main/update.json';
@@ -37,11 +37,21 @@ $mock = static function ($pre, $args, $request_url) use ($url, &$body) {
 add_filter('pre_http_request', $mock, 10, 3);
 $state = $checker->getUpdateState();
 $previous = $state->getUpdate();
+$package = (new ReflectionProperty($checker, 'package'))->getValue($checker);
+$versionCache = new ReflectionProperty($package, 'cachedInstalledVersion');
+$installedVersion = $versionCache->getValue($package);
 try {
     $update = $checker->requestUpdate();
     if (!$update || $update->version !== $metadata['version'] || $update->download_url !== $metadata['download_url']) throw new RuntimeException('Could not parse JSON update metadata.');
     $state->setUpdate($update);
     if ($checker->getUpdate() !== null) throw new RuntimeException('The current version must not offer itself as an update.');
+    foreach (['0.2.2', '0.3.0-beta.7'] as $older) {
+        $versionCache->setValue($package, $older);
+        $offers = $checker->injectUpdate((object) ['response' => [], 'no_update' => []]);
+        $offer = $offers->response[$checker->pluginFile] ?? null;
+        if (!$offer || $offer->new_version !== $metadata['version'] || $offer->package !== $metadata['download_url']) throw new RuntimeException('Legacy and beta copies must receive the normal release from the existing feed.');
+    }
+    $versionCache->setValue($package, $installedVersion);
     $body['version'] = '9999.0.0';
     $body['download_url'] = 'https://example.invalid/feedbackpress-test.zip';
     $state->setUpdate($checker->requestUpdate());
@@ -49,7 +59,8 @@ try {
     $offer = $updates->response[$checker->pluginFile] ?? null;
     if (!$offer || $offer->new_version !== $body['version'] || $offer->package !== $body['download_url'] || $offer->slug !== 'feedbackpress') throw new RuntimeException('A newer JSON release must reach the WordPress updates response.');
 } finally {
+    $versionCache->setValue($package, $installedVersion);
     $state->setUpdate($previous); // Keep synthetic update data in memory; never save it to WordPress.
     remove_filter('pre_http_request', $mock, 10);
 }
-echo 'PASS FeedbackPress JSON updates: stable-channel policy, single checker, plugin basename, current/newer releases, and ' . (wp_doing_ajax() ? 'update AJAX' : 'WP-CLI') . " boot. No update installed.\n";
+echo 'PASS FeedbackPress JSON updates: stable-channel policy, single checker, plugin basename, current/legacy/beta/newer releases, and ' . (wp_doing_ajax() ? 'update AJAX' : 'WP-CLI') . " boot. No update installed.\n";

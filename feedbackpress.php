@@ -4,14 +4,14 @@
  * Plugin URI: https://github.com/jonschr/feedbackpress
  * Update URI: https://github.com/jonschr/feedbackpress
  * Description: On-page client feedback, screenshots, and central project storage.
- * Version: 0.3.0-beta.7
+ * Version: 0.3.0
  * Requires at least: 6.6
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  */
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-const VERSION = '0.3.0-beta.7';
+const VERSION = '0.3.0';
 require_once __DIR__ . '/includes/service.php';
 require_once __DIR__ . '/includes/review-access.php';
 require_once __DIR__ . '/includes/api.php';

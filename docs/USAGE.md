@@ -27,3 +27,11 @@ The × on a failed background notification dismisses that message. Shared unsave
 
 
 New sessions start with the sidebar on the right and Scale page to fit selected. Existing saved preferences take precedence; select the fit icon to change an older Overlay session.
+
+### Responsive review in 0.3.0
+
+Scale page to fit remains the default on the right. Cached shared issues open immediately; replies, edits, status changes and attachments show pending progress while the service saves them. Rapid unsent status changes on the same issue combine into the final choice. Already sent requests retain their revision checks and retry keys. A server cooldown delays queued requests; it does not freeze the interface.
+
+Selecting another issue on the same page scrolls smoothly without reloading the document. Reduced-motion preferences skip the animation. Scrolling the page manually takes over immediately. Cross-page navigation still loads the destination WordPress page.
+
+The existing WordPress update feed offers normal release 0.3.0 to legacy and central copies. A legacy copy needs an account key and a selected/new central project after updating. Old local feedback remains untouched and is not imported.

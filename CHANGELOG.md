@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — November 12, 2026
+
+- Normal release of the central-backed WordPress workflow. The existing update feed offers this normal release to legacy and central installations; legacy copies then connect to the central service through WordPress settings. Existing feedback stays untouched.
+- Remove a page-fit resize feedback loop, batch geometry reads, reuse unchanged fit rules, cache anchor queries per DOM revision, and batch pin measurements. Cached selections keep the existing list DOM; optimistic status changes update controls without rebuilding the conversation.
+- Restore controlled smooth same-page scrolling with reduced-motion support, cancellation on manual input, and bounded recovery from theme resets. Keep scroll protection across issue switches so native scroll snap cannot jump the page between them. Same-page issue selection does not navigate/reload.
+- Serialize and pace background writes, combine only superseded unsent status changes, preserve frozen operation keys/revisions, and honor Retry-After. Private data remains memory-only and gateway actor checks remain authoritative.
+- Strengthen the strict under-100ms benchmark with 200 issues, 600 content sections, fingerprinted anchors, theme-style noise and a paint boundary. Prior slow beta measurements remain historical; final release receipts record the measured scope/results.
+
+This release does not enable live billing or deferred email delivery. Paid storage/grace/recovery decisions remain operational gates.
+
 ## 0.3.0-beta.7 — November 12, 2026
 
 - Default new review sessions to a right sidebar with Scale page to fit. Preserve explicitly saved left/right and overlay/fit choices across navigation and reload.

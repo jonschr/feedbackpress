@@ -173,10 +173,10 @@
     for (const [key,pending] of noteConfirmations) if (pending.issueId === id) noteConfirmations.delete(key);
     if (listed) total = Math.max(0, total - 1);
     if (lightbox.dataset.issue === id) clearAttachments(true);
-    if (selected?.id === id) { selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
+    if (selected?.id === id) { cancelLocate(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
     if (open) render(); drawPins(); scheduleCacheSave();
   }
-  function applyIssue(updated) {
+  function applyIssue(updated, force = false) {
     if (cacheDenied) return;
     const known = issueCache.get(updated.id)?.issue;
     if (known && Number(known.revision) > Number(updated.revision)) return;
@@ -184,8 +184,20 @@
     if (updated.visibility === 'private') for (const job of sharedJobs.values()) if (job.issueId === updated.id) makeJobPrivate(job);
     if (lightbox.dataset.issue === updated.id && !updated.files.some(file => file.id === previewFileId && file.available)) clearAttachments(true);
     cacheIssue(updated); updated = optimisticIssue(updated); updateStatusCount(updated); keepListOrder = true;
+    const displayed = issues.find(issue => issue.id === updated.id) || pageIssues.find(issue => issue.id === updated.id) || (selected?.id === updated.id ? selected : null);
+    if (!force && displayed && JSON.stringify(displayed) === JSON.stringify(updated)) return;
+    const statusOnly = !force && displayed && displayed.revision === updated.revision && JSON.stringify({ ...displayed, status: updated.status }) === JSON.stringify(updated);
     issues = issues.map(existing => existing.id === updated.id ? updated : existing);
     pageIssues = pageIssues.map(existing => existing.id === updated.id ? updated : existing);
+    if (statusOnly) {
+      if (selected?.id === updated.id) selected = updated;
+      for (const row of panel.querySelectorAll(`[data-issue="${updated.id}"]`)) {
+        row.dataset.status = updated.status; row.feedbackpressIssue = updated;
+        row.querySelector('.row-status')?.replaceWith(statusControl(updated, 'row-status'));
+      }
+      if (selected?.id === updated.id) issuePopup.querySelector('.popup-status')?.replaceWith(statusControl(updated, 'popup-status'));
+      drawPins(); return;
+    }
     if (selected?.id === updated.id) {
       const changed = JSON.stringify(selected) !== JSON.stringify(updated); selected = updated;
       if (changed && !issuePopup.hidden && !root.activeElement?.matches('input,textarea,select,[contenteditable]')) renderIssue();
@@ -225,10 +237,10 @@
     return true;
   }
   function fitPage(side) {
-    const sidebarWidth = panel.offsetWidth || 400;
+    const sidebarWidth = 400; // The desktop drawer has a fixed CSS width; avoid forcing layout on every redraw.
     const key = side ? `${side}:${innerWidth}:${innerHeight}:${sidebarWidth}` : null;
     if (key === pageFit?.key && !pageFitDirty || !key && !pageFit) return;
-    const previousScale = pageFit?.scale || 1, x = scrollX, y = scrollY;
+    const previous = pageFit, previousScale = previous?.scale || 1, x = scrollX, y = scrollY;
     pageLayoutStyle.disabled = true;
     for (const [node, state] of pageFit?.fixed || []) {
       if (state.original === null) node.removeAttribute('data-feedbackpress-fixed'); else node.setAttribute('data-feedbackpress-fixed', state.original);
@@ -239,13 +251,18 @@
       const zoom = (parseFloat(getComputedStyle(document.documentElement).zoom) || 1) * scale;
       const offset = side === 'left' ? sidebarWidth / zoom : 0, fixed = new Map(), rules = [];
       // Zoom keeps line wrapping and viewport units; viewport-positioned boxes need their original geometry.
-      for (const node of [document.body, ...document.body.querySelectorAll('*')]) if (viewportPositioned(node)) {
-        const style = getComputedStyle(node), id = String(++fixedSequence);
-        fixed.set(node, { original: node.getAttribute('data-feedbackpress-fixed') });
+      const boxes = [document.body, ...document.body.querySelectorAll('*')].filter(viewportPositioned).map(node => {
+        const style = getComputedStyle(node);
+        return { node, left: style.left, top: style.top, width: style.width, height: style.height, marginLeft: style.marginLeft, marginRight: style.marginRight, position: style.position };
+      });
+      for (const { node, ...style } of boxes) {
+        const id = previous?.fixed.get(node)?.id || String(++fixedSequence);
+        fixed.set(node, { original: node.getAttribute('data-feedbackpress-fixed'), id });
         rules.push(`[data-feedbackpress-fixed="${id}"]{left:calc(${style.left} + ${offset}px)!important;right:auto!important;width:${style.width}!important;height:${style.height}!important;margin-left:${style.marginLeft}!important;margin-right:${style.marginRight}!important;${style.position === 'absolute' ? `top:${style.top}!important;bottom:auto!important` : ''}}`);
         node.setAttribute('data-feedbackpress-fixed', id);
       }
-      pageLayoutStyle.textContent = `html[data-feedbackpress-room]{zoom:${zoom}!important;box-sizing:border-box!important;width:${width * scale / zoom}px!important;min-width:0!important;max-width:none!important;margin-left:${offset}px!important;margin-right:0!important}html[data-feedbackpress-room] #feedbackpress-root{zoom:${1 / zoom}!important}` + rules.join('');
+      const text = `html[data-feedbackpress-room]{zoom:${zoom}!important;box-sizing:border-box!important;width:${width * scale / zoom}px!important;min-width:0!important;max-width:none!important;margin-left:${offset}px!important;margin-right:0!important}html[data-feedbackpress-room] #feedbackpress-root{zoom:${1 / zoom}!important}` + rules.join('');
+      if (text !== pageLayoutStyle.textContent) { pageLayoutStyle.textContent = text; targetEpoch++; }
       pageFit = { key, scale, zoom, fixed };
       document.documentElement.setAttribute('data-feedbackpress-room', side);
     } else {
@@ -256,7 +273,8 @@
     const scale = pageFit?.scale || 1;
     const left = x * scale / previousScale, top = y * scale / previousScale;
     if (Math.abs(scrollX - left) > 1 || Math.abs(scrollY - top) > 1) nativeScrollTo.call(document.scrollingElement, { left, top, behavior: 'instant' });
-    targetEpoch++; requestAnimationFrame(() => { drawPins(); positionDraft(); });
+    if (previous?.key !== key) targetEpoch++;
+    requestAnimationFrame(() => { drawPins(); positionDraft(); });
   }
   const composer = el('section', { class: 'composer', 'aria-label': 'New feedback', hidden: true });
   const issuePopup = el('section', { class: 'composer issue-popup', 'aria-label': 'Issue details', hidden: true });
@@ -283,8 +301,8 @@
     host.dataset.sidebarSide = sidebarSide;
     const visible = !panel.hidden && innerWidth >= 900;
     host.toggleAttribute('data-sidebar-visible', visible);
-    toolbar.style.insetInlineStart = visible && sidebarSide === 'left' ? panel.offsetWidth + 20 + 'px' : '';
-    toolbar.style.insetInlineEnd = visible && sidebarSide === 'right' ? panel.offsetWidth + 20 + 'px' : '';
+    toolbar.style.insetInlineStart = visible && sidebarSide === 'left' ? '420px' : '';
+    toolbar.style.insetInlineEnd = visible && sidebarSide === 'right' ? '420px' : '';
     const room = visible && pageLayout === 'room' && !cacheDenied ? sidebarSide : null;
     fitPage(room);
     saveView();
@@ -314,7 +332,7 @@
   root.append(pins, highlight, toolbar, panel, tether, draftPin, composer, issuePopup, lightbox, identity);
   const interruptLocate = event => {
     // Reading the thread/list stops correction without re-enabling the page's scroll snap.
-    if (event.composedPath().includes(host)) { if (locating?.timer) clearTimeout(locating.timer); if (locating) locating.timer = null; }
+    if (event.composedPath().includes(host)) stopLocate();
     else cancelLocate();
   };
   for (const type of ['wheel', 'touchstart', 'pointerdown']) addEventListener(type, interruptLocate, { capture: true, passive: true });
@@ -398,9 +416,11 @@
   window.visualViewport?.addEventListener('scroll', hideTooltip);
   new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
   const pendingRequests = new Map(), fileIds = new WeakMap();
+  let writeTail = Promise.resolve(), nextWriteAt = 0;
   async function api(path, options = {}) {
     const headers = { 'X-WP-Nonce': c.nonce, ...(c.authorId ? { 'X-FeedbackPress-Expected-Actor': c.authorId } : {}), ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
     const writes = options.method && options.method !== 'GET';
+    const paced = writes && !path.startsWith('sync/');
     let signature;
     if (writes) {
       const body = options.body;
@@ -416,7 +436,22 @@
     const [route, query] = path.split('?');
     const requestUrl = new URL(c.api + route);
     for (const [key, value] of new URLSearchParams(query || '')) requestUrl.searchParams.set(key, value);
-    const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
+    const send = async () => {
+      if (paced) {
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, nextWriteAt - performance.now())));
+        nextWriteAt = performance.now() + (c.userName ? 120 : 550);
+      }
+      const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
+      if (response.status === 429) {
+        const retry = response.headers.get('Retry-After'), seconds = Number(retry);
+        const delay = retry && Number.isFinite(seconds) ? seconds * 1000 : retry ? Date.parse(retry) - Date.now() : 60000;
+        nextWriteAt = Math.max(nextWriteAt, performance.now() + (Number.isFinite(delay) ? Math.max(0, delay) : 60000));
+      }
+      return response;
+    };
+    const pending = paced ? writeTail.catch(() => {}).then(send) : send();
+    if (paced) writeTail = pending.catch(() => {});
+    const response = await pending;
     const currentActor = response.headers.get('X-FeedbackPress-Actor-Id');
     if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
       c.privateNotes = false; ownRevisions.clear(); privateIssueIds.clear(); pendingRequests.clear(); try { sessionStorage.removeItem(revisionsKey); } catch (_) {} for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
@@ -430,7 +465,7 @@
       if (response.status === 404 && !writes) { const gone = route.match(/^issues\/([a-f0-9-]{36})(?:\/notes)?$/)?.[1]; if (gone) forgetIssue(gone); }
       if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
       if ([401, 403].includes(response.status) && !route.includes('/notes')) {
-        issueCache.clear(); clearAttachments(true); cacheDenied = true;
+        cancelLocate(); issueCache.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
         issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); threadScrolls.clear(); issuePopup.replaceChildren();
@@ -705,10 +740,25 @@
     else if (searchSelection) { searchField.focus({ preventScroll: true }); searchField.setSelectionRange(...searchSelection); }
   }
   function pageLabel(path) { return path === '/' ? c.home.replace(/\/$/, '') + '/' : path; }
+  function renderSelection() {
+    if (!panelContents.hasChildNodes() || panelContents.querySelector('.outside-filter') || selected && matchesScope(selected) && !issues.some(issue => issue.id === selected.id)) return render();
+    updateChrome();
+    for (const row of panelContents.querySelectorAll('.issue-row')) {
+      const issue = issues.find(issue => issue.id === row.dataset.issue);
+      if (issue && row.feedbackpressIssue !== issue) {
+        for (const tile of row.querySelectorAll('.row-attachment')) { rowPreviewObserver?.unobserve(tile); rowPreviewQueue.delete(tile); }
+        row.replaceWith(issueRow(issue)); continue;
+      }
+      const active = row.dataset.issue === selected?.id;
+      row.classList.toggle('is-selected', active);
+      if (active) row.querySelector('.issue-open').setAttribute('aria-current', 'true'); else row.querySelector('.issue-open').removeAttribute('aria-current');
+    }
+  }
   function issueRow(issue) {
     const active = selected?.id === issue.id;
-    return el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
+    const row = el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
       el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null), issueSummary(issue), statusControl(issue, 'row-status'));
+    row.feedbackpressIssue = issue; return row;
   }
   function issueSummary(issue) {
     const replies = issue.activity.filter(event => event.kind === 'reply').length;
@@ -766,7 +816,7 @@
       else if (busy) control.setAttribute('data-fp-busy-disabled', '');
     }
   }
-  function closeIssue() { imageDropJob = null; clearImageDrop(); captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
+  function closeIssue() { cancelLocate(); imageDropJob = null; clearImageDrop(); captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
   async function stepIssue(direction) {
     if (busy || steppingPage) return;
     const items = navigationIssues();
@@ -780,6 +830,7 @@
     else if (items[next]) await showIssue(items[next].id);
   }
   async function showIssue(id, scroll = true) {
+    stopLocate();
     if (imageDropJob?.issueId !== id) imageDropJob = null;
     clearImageDrop();
     if (scroll) { closeStatusFilter(); targetIssueShortcuts(id); }
@@ -789,16 +840,22 @@
     const display = issue => {
       if (ticket !== issueRequest || cacheDenied) return false;
       if (issue.path !== pagePath) { captureListScroll(); saveView(); location.assign(c.home + issue.path + '#feedbackpress=' + issue.id); return false; }
+      if (scroll && issue.target.selector) {
+        const scroller = document.scrollingElement, left = scroller.scrollLeft, top = scroller.scrollTop;
+        locating ||= { styles: new Map(), timer: null, frame: null };
+        ownScroll(locating, document.documentElement); ownScroll(locating, document.body); ownScroll(locating, scroller);
+        nativeScrollTo.call(scroller, { left, top, behavior: 'instant' });
+      }
       closeDraft(); cancelPick(); privateNotes.delete(issue.id); selected = issue;
       issues = issues.map(existing => existing.id === issue.id ? issue : existing);
       if (scroll) open = true;
-      panel.hidden = !open || innerWidth < 900; viewButton.setAttribute('aria-expanded', String(open)); render(); renderIssue(); loadNotes(issue.id);
+      panel.hidden = !open || innerWidth < 900; viewButton.setAttribute('aria-expanded', String(open)); renderSelection(); renderIssue(); loadNotes(issue.id);
       if (scroll && issue.target.selector) locate(issue);
       positionDraft();
       if (scroll && !keepPosition && !panel.hidden) { panel.querySelector(`[data-issue="${issue.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'instant' }); captureListScroll(); saveView(); }
       return true;
     };
-    if (cached && !display(cached)) { openingIssue = 0; return; }
+    if (cached && !display(optimisticIssue(cached))) { openingIssue = 0; return; }
     try {
       if (cached?.pending) return;
       const issue = await readIssue(id);
@@ -841,7 +898,7 @@
     }
   }
   function clearAttachments(all = false) {
-    cancelLocate(); closeLightbox(); previewIssueId = null; pruneAttachments(null, all);
+    closeLightbox(); previewIssueId = null; pruneAttachments(null, all);
   }
   function attachmentData(file) {
     const cached = attachmentCache.get(file.id);
@@ -910,7 +967,7 @@
   lightbox.addEventListener('cancel', event => { event.preventDefault(); closeLightbox(); });
   lightbox.addEventListener('click', event => { if (event.target === lightbox) { const rect = lightbox.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLightbox(); } });
   addEventListener('pageshow', () => { pageLeaving = false; });
-  addEventListener('pagehide', () => { pageLeaving = true; captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
+  addEventListener('pagehide', () => { pageLeaving = true; cancelLocate(); captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
   async function editAuthor(trigger, issue) {
     try {
       const people = await (await api('authors')).json();
@@ -1171,7 +1228,7 @@
           if (result.deleted) {
             for (const job of sharedJobs.values()) if (job.issueId === issueId) makeJobPrivate(job);
             issueCache.delete(issueId); issues = issues.filter(issue => issue.id !== issueId); pageIssues = pageIssues.filter(issue => issue.id !== issueId); privateNotes.delete(issueId); total = Math.max(0, total - 1);
-            if (selected?.id === issueId) { selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; }
+            if (selected?.id === issueId) { cancelLocate(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; }
             render(); drawPins(); scheduleCacheSave();
           } else applyIssue(result);
         }
@@ -1262,6 +1319,11 @@
   function setStatus(issue, status) {
     if (selected?.id === issue.id) issue = selected;
     if (issue.pending) return;
+    const tail = [...sharedJobs.values()].at(-1);
+    if (tail?.phase === 'text' && !tail.error && tail.kind === 'status' && tail.issueId === issue.id && !tail.sentBody) {
+      tail.body.status = status; storeJob(tail).catch(error => { tail.error = error.message; renderJobs(); });
+      applyIssue(issueCache.get(issue.id)?.issue || issue); renderJobs(); return;
+    }
     enqueueShared('status', `issues/${issue.id}/status`, { author: name, status, revision: issue.revision });
   }
   function submitReply(event, id) {
@@ -1318,6 +1380,7 @@
   }
   function closeDraft() { closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
   function newDraft(target) {
+    cancelLocate();
     if (busy) return;
     imageDropJob = null; clearImageDrop();
     cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); panel.hidden = !open || innerWidth < 900; updateChrome(); viewButton.setAttribute('aria-expanded', String(open));
@@ -1404,7 +1467,7 @@
     }
     return parts.join(' > ') || 'body';
   }
-  function startPick() { if (busy) return; captureListScroll(); closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message('Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
+  function startPick() { if (busy) return; cancelLocate(); captureListScroll(); closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message('Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
   function stopPlacement() {
     uiSession++; issueRequest++; openingIssue = 0; cancelPick(); closeDraft(); identity.hidden = true; notice.hidden = true;
     prepareListReveal(); panel.hidden = !open; updateChrome(); if (open) render(); drawPins();
@@ -1420,6 +1483,7 @@
     const anchor = makeTarget(target, event.clientX, event.clientY); if (anchor) newDraft(anchor);
   }, true);
   function dismissInterface() {
+    cancelLocate();
     closeStatusFilter(); captureThreadScroll(); uiSession++; issueRequest++; openingIssue = 0;
     selected = null; targetIssueShortcuts(null); open = false; cancelPick(); closeDraft(); clearAttachments();
     identity.hidden = true; panel.hidden = true; issuePopup.hidden = true; notice.hidden = true;
@@ -1506,6 +1570,8 @@
   }
   const targetResolutions = new WeakMap();
   let targetEpoch = 0;
+  let queryEpoch = -1;
+  const targetQueries = new Map(), targetTexts = new WeakMap();
   function resolveTarget(issue) {
     const saved = issue.target, cached = targetResolutions.get(saved);
     if (cached?.epoch === targetEpoch && (!cached.value?.node || cached.value.node.isConnected)) return cached.value;
@@ -1514,7 +1580,19 @@
   function resolveTargetUncached(issue) {
     const saved = issue.target;
     if (!saved.selector) return null;
-    const find = value => { try { return [...document.querySelectorAll(value)].filter(node => node !== host && !host.contains(node) && !node.closest('#wpadminbar,[data-feedbackpress-private]')); } catch (_) { return []; } };
+    if (queryEpoch !== targetEpoch) { targetQueries.clear(); queryEpoch = targetEpoch; }
+    const find = value => {
+      if (!targetQueries.has(value)) {
+        if (targetQueries.size >= 2048) targetQueries.clear();
+        try { targetQueries.set(value, [...document.querySelectorAll(value)].filter(node => node !== host && !host.contains(node) && !node.closest('#wpadminbar,[data-feedbackpress-private]'))); } catch (_) { targetQueries.set(value, []); }
+      }
+      return targetQueries.get(value);
+    };
+    const textOf = node => {
+      let cached = targetTexts.get(node);
+      if (cached?.epoch !== targetEpoch) { cached = { epoch: targetEpoch, text: targetText(node) }; targetTexts.set(node, cached); }
+      return cached.text;
+    };
     const f = saved.fingerprint;
     if (f?.version === 1) {
       const bySelector = new Set((f.selectors || []).flatMap(find));
@@ -1529,7 +1607,7 @@
         const inLandmark = landmarks.some(parent => parent === node || parent.contains(node));
         const sameId = f.id && node.id === f.id;
         if (f.landmark && !inLandmark && !sameId) continue;
-        const currentText = targetText(node);
+        const currentText = textOf(node);
         const sameText = meaningfulText && text && text === currentText;
         const relatedText = meaningfulText && text.length >= 20 && currentText.length >= 20 && (text.includes(currentText) || currentText.includes(text));
         const sameResource = (f.href && resourcePath(node.getAttribute('href')) === f.href) || (f.src && resourcePath(node.getAttribute('src')) === f.src);
@@ -1548,7 +1626,7 @@
     const parts = saved.selector.split(' > '), text = normalizeTargetText(saved.text);
     const landmark = parts.findIndex(part => /^(main|header|footer)(?:[.#:]|$)/.test(part));
     for (let start = 1; start <= (landmark < 0 ? parts.length - 1 : landmark); start++) {
-      const candidates = find(parts.slice(start).join(' > ')).filter(node => !text || targetText(node) === text);
+      const candidates = find(parts.slice(start).join(' > ')).filter(node => !text || textOf(node) === text);
       if (candidates.length === 1) return { node: candidates[0], approximate: false };
     }
     if (saved.page) return { node: null, approximate: true };
@@ -1571,10 +1649,12 @@
     return { x: dimensions.left + Math.max(15, Math.min(dimensions.width - 15, saved.x / saved.width * dimensions.width)) - scrollX,
       y: Math.max(15, Math.min(dimensions.height - 15, saved.y / saved.height * dimensions.height)) - scrollY };
   }
+  function stopLocate() { if (locating) { clearTimeout(locating.timer); cancelAnimationFrame(locating.frame); locating.timer = locating.frame = null; } }
   function cancelLocate() {
-    const job = locating; locating = null;
+    const job = locating; stopLocate(); locating = null;
     if (!job) return;
     clearTimeout(job.timer);
+    cancelAnimationFrame(job.frame);
     for (const [node, state] of job.styles) {
       if (node.getAttribute('style') === state.owned) {
         if (state.original === null) node.removeAttribute('style'); else node.setAttribute('style', state.original);
@@ -1614,22 +1694,32 @@
     return { top, bottom };
   }
   function locate(issue) {
-    cancelLocate();
-    const initial = resolveTarget(issue); if (!initial) return;
+    stopLocate();
+    const initial = resolveTarget(issue); if (!initial) { cancelLocate(); return; }
     if (initial.approximate) message('Showing an approximate pin location. Use the screenshot for context, or drag the pin to refine it.');
-    const job = { id: issue.id, styles: new Map(), timer: null, until: performance.now() + (document.readyState === 'complete' ? 2500 : 5000) }; locating = job;
+    const job = { id: issue.id, styles: locating?.styles || new Map(), positions: new Map(), timer: null, frame: null, until: performance.now() + (document.readyState === 'complete' ? 2500 : 5000) }; locating = job;
+    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280;
+    let animating = false, initialFrames = 2;
     const rootScroller = document.scrollingElement || document.documentElement;
     ownScroll(job, document.documentElement); ownScroll(job, document.body); ownScroll(job, rootScroller);
     const move = (node, left, top) => {
       const horizontal = Math.max(0, node.scrollWidth - node.clientWidth), rtl = getComputedStyle(node).direction === 'rtl';
       left = Math.max(rtl ? -horizontal : 0, Math.min(rtl ? 0 : horizontal, left));
       top = Math.max(0, Math.min(node.scrollHeight - node.clientHeight, top));
-      if (Math.abs(node.scrollTop - top) > 1 || Math.abs(node.scrollLeft - left) > 1) nativeScrollTo.call(node, { left, top, behavior: 'instant' });
+      if (Math.abs(node.scrollTop - top) <= 1 && Math.abs(node.scrollLeft - left) <= 1) return;
+      const now = performance.now();
+      let start = job.positions.get(node);
+      if (!start || start.finished || Math.abs(node.scrollLeft - start.lastLeft) > 2 || Math.abs(node.scrollTop - start.lastTop) > 2) { start = { at: now, left: node.scrollLeft, top: node.scrollTop }; job.positions.set(node, start); }
+      const progress = !duration || now >= job.until ? 1 : Math.min(1, (now - start.at) / duration);
+      const fraction = 1 - (1 - progress) ** 3;
+      animating ||= progress < 1;
+      nativeScrollTo.call(node, { left: start.left + (left - start.left) * fraction, top: start.top + (top - start.top) * fraction, behavior: 'instant' });
+      start.lastLeft = node.scrollLeft; start.lastTop = node.scrollTop; start.finished = progress >= 1;
     };
     const settle = () => {
       if (locating !== job) return;
       if (selected?.id !== job.id || issuePopup.hidden || document.hidden) { cancelLocate(); return; }
-      job.timer = performance.now() < job.until ? setTimeout(settle, 80) : null;
+      animating = false;
       // Settle late layout/theme resets briefly; retain CSS ownership until manual page input or dismissal.
       const current = selected, resolved = resolveTarget(current), target = resolved?.node;
       if (!resolved) return;
@@ -1656,7 +1746,13 @@
       const dx = point.x < left ? point.x - left : point.x > right ? point.x - right : 0;
       move(rootScroller, rootScroller.scrollLeft + dx, rootScroller.scrollTop + point.y - (viewport.top + viewport.bottom) / 2);
     };
-    settle();
+    const step = () => {
+      if (locating !== job) return;
+      settle();
+      if (locating !== job || performance.now() >= job.until) return;
+      if (animating || initialFrames-- > 0) job.frame = requestAnimationFrame(step); else job.timer = setTimeout(step, 80);
+    };
+    step();
   }
   function dropTarget(x, y) {
     const node = document.elementFromPoint(x, y);
@@ -1717,9 +1813,12 @@
     const existing = new Map([...pins.children].map(pin => [pin.dataset.pinIssue, pin])), retained = new Set();
     const visible = pageIssues.filter(issue => filter.includes(issue.status));
     if (selected && !visible.some(issue => issue.id === selected.id)) visible.push(selected);
-    visible.filter(issue => issue.path === pagePath && issue.target.selector).forEach(issue => {
-      const resolved = resolveTarget(issue); if (!resolved) return;
-      const point = targetPoint(issue, resolved); if (!point) return;
+    const positions = visible.filter(issue => issue.path === pagePath && issue.target.selector).map(issue => {
+      const resolved = resolveTarget(issue), point = resolved && targetPoint(issue, resolved);
+      return { issue, resolved, point };
+    });
+    positions.forEach(({ issue, resolved, point }) => {
+      if (!point) return;
       let pin = existing.get(issue.id);
       if (!pin) {
         pin = button(String(issue.number), () => withIdentity(() => showIssue(issue.id)));
@@ -1745,9 +1844,17 @@
   new ResizeObserver(() => positionDraft()).observe(toolbar);
   addEventListener('scroll', redraw, { passive: true }); addEventListener('resize', redraw);
   addEventListener('load', refreshPageFit);
+  function scrollStyleOnly(record) {
+    if (record.attributeName !== 'style') return false;
+    const before = document.createElement('span').style, after = document.createElement('span').style;
+    before.cssText = record.oldValue || ''; after.cssText = record.target.getAttribute('style') || '';
+    for (const property of ['scroll-behavior', 'scroll-snap-type', 'overflow-anchor']) { before.removeProperty(property); after.removeProperty(property); }
+    return before.cssText === after.cssText;
+  }
   // Page builders can reveal the saved element after the initial page/API load.
-  new MutationObserver(records => { const changed = records.filter(record => record.target !== host && !host.contains(record.target)); if (changed.length) { if (changed.some(record => record.attributeName !== 'style')) targetEpoch++; if (pageFit && changed.some(record => record.type === 'childList' || record.target instanceof Element && (['fixed', 'absolute'].includes(getComputedStyle(record.target).position) || [...pageFit.fixed.keys()].some(node => record.target.contains(node))))) pageFitDirty = true; redraw(); } }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'id', 'href', 'src', 'alt', 'role'], characterData: true });
-  new ResizeObserver(redraw).observe(document.body);
+  new MutationObserver(records => { const changed = records.filter(record => record.target !== host && !host.contains(record.target) && (record.type !== 'attributes' || record.oldValue !== record.target.getAttribute(record.attributeName)) && !scrollStyleOnly(record)); if (changed.length) { if (changed.some(record => record.attributeName !== 'style')) targetEpoch++; if (pageFit && changed.some(record => record.type === 'childList' || record.target instanceof Element && (['fixed', 'absolute'].includes(getComputedStyle(record.target).position) || [...pageFit.fixed.keys()].some(node => record.target.contains(node))))) pageFitDirty = true; redraw(); } }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['class', 'style', 'hidden', 'id', 'href', 'src', 'alt', 'role'], characterData: true });
+  let bodySize = '';
+  new ResizeObserver(() => { const rect = document.body.getBoundingClientRect(), size = `${rect.width}:${rect.height}`; if (size !== bodySize) { bodySize = size; redraw(); } }).observe(document.body);
   document.addEventListener('load', event => { if (!host.contains(event.target)) refreshPageFit(); }, true);
   document.addEventListener('toggle', event => { if (!host.contains(event.target)) refreshPageFit(); }, true);
   if (window.FontFace && document.fonts) {
@@ -1857,6 +1964,7 @@
       await storeJob(job);
       if (job.phase === 'text') {
         const send = textTail.catch(() => {}).then(async () => {
+          if (job.kind === 'status') { await new Promise(resolve => setTimeout(resolve, 120)); if (pageLeaving) return; }
           if (!job.sentBody) {
             job.sentBody = { ...job.body };
             if (job.sentBody.revision) {
@@ -1881,9 +1989,9 @@
             if (matchesView(saved)) { issues.push(saved); if (saved.path === pagePath) pageIssues.push(saved); }
             if (selected?.id === temporary) selected = saved;
           }
-          applyIssue(saved); await storeJob(job);
+          applyIssue(saved, job.kind === 'create'); await storeJob(job);
         });
-        textTail = send; await send;
+        textTail = send; await send; if (pageLeaving) return;
       }
       if (job.capturePending) {
         const image = capturePromise ? await capturePromise : null;
@@ -1981,7 +2089,7 @@
         const byId = new Map(data.issues.map(issue => [issue.id, issue]));
         if (lightbox.dataset.issue && !byId.get(lightbox.dataset.issue)?.files.some(file => file.id === previewFileId && file.available)) clearAttachments(true);
         for (const id of issueCache.keys()) if (!byId.has(id)) issueCache.delete(id);
-        if (selected && !byId.has(selected.id) && !selected.pending) { privateNotes.delete(selected.id); privateEditDrafts.clear(); noteConfirmations.clear(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
+        if (selected && !byId.has(selected.id) && !selected.pending) { cancelLocate(); privateNotes.delete(selected.id); privateEditDrafts.clear(); noteConfirmations.clear(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
         const matches = matchesView;
         const visible = new Set(issues.map(issue => issue.id));
         // Keep each visible row in place, including status changes received from another site.
