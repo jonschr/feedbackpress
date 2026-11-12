@@ -93,7 +93,7 @@
   $('fp-review-links')?.addEventListener('toggle', event => { if (event.currentTarget.open) loadReviewLinks().catch(error => show(error.message, true)); });
   $('fp-review-link-create')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => {
     const link = await api('review-links', { label: $('fp-review-link-label').value, days: Number($('fp-review-link-days').value) });
-    $('fp-review-link-url').value = link.url; $('fp-review-link-result').hidden = false; await loadReviewLinks(); $('fp-review-link-url').focus(); $('fp-review-link-url').select(); show('Review link created. Copy it and share it with your client.');
+    $('fp-review-link-url').value = link.url; $('fp-review-link-result').hidden = false; await loadReviewLinks(); requestAnimationFrame(() => { $('fp-review-link-url').focus(); $('fp-review-link-url').select(); }); show('Review link created. Copy it and share it with your client.');
   }); });
   $('fp-review-link-copy')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText($('fp-review-link-url').value); show('Review link copied.'); } catch (_) { $('fp-review-link-url').focus(); $('fp-review-link-url').select(); show('Select and copy the new review link.'); } });
   $('fp-disconnect')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { const result = await api('disconnect', {}); const url = new URL(location.href); url.searchParams.set('disconnected', result.remote_removed ? '1' : 'unconfirmed'); location.assign(url); }));

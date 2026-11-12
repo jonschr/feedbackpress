@@ -85,6 +85,7 @@ final class Admin {
                 <p class="description">Everyone with review access lets existing reviewers invite others with their own links. Administrators can revoke any link.</p>
             </details>
             <details class="fp-section" id="fp-review-links"><summary>Client review links</summary>
+                <p class="description">Create links on the live or staging copy your client can reach. Each link unlocks only this site.</p>
                 <p class="description">Give a client access to shared feedback without a WordPress login. Links work with administrator-only review access; Nobody (disabled) also disables links. Anyone holding a link can use it until it expires or you revoke it. Private notes and WordPress administration stay protected.</p>
                 <form id="fp-review-link-create"><label for="fp-review-link-label">Link label</label><input id="fp-review-link-label" required maxlength="120" placeholder="Client review"><label for="fp-review-link-days">Expires after</label><select id="fp-review-link-days"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option></select><button type="submit" class="button">Create review link</button></form>
                 <div id="fp-review-link-result" hidden><label for="fp-review-link-url">New review link — copy before closing this page</label><input id="fp-review-link-url" readonly autocomplete="off" data-1p-ignore><button class="button" type="button" id="fp-review-link-copy">Copy link</button></div>

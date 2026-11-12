@@ -10,6 +10,7 @@ $cfg = ['mode' => 'admins', 'link_sharing' => 'admins'];
 $connection = ['project' => wp_generate_uuid4(), 'token' => 'fixture', 'credential_id' => wp_generate_uuid4(), 'service' => 'https://service.example.test', 'site_url' => home_url()];
 add_filter('pre_option_feedbackpress_settings', function () use (&$cfg) { return $cfg; });
 add_filter('pre_option_' . Service::OPTION, function () use (&$connection) { return Service::pack($connection); });
+add_filter('pre_http_request', function () { throw new RuntimeException('Unexpected fixture HTTP request.', 599); });
 $ok = function ($condition, $message) { if (!$condition) throw new RuntimeException($message); };
 $request = function ($body = []) { $r = new WP_REST_Request('POST'); $r->set_body_params($body); return $r; };
 $denied = function (callable $work, int $code) use ($ok) { try { $work(); } catch (Throwable $e) { $ok($e->getCode() === $code, 'Unexpected rejection code'); return; } throw new RuntimeException('Expected rejection'); };
@@ -29,6 +30,8 @@ try {
     $denied(fn() => Access::create($request()), 403);
     $cfg['link_sharing'] = 'everyone'; $ok(Access::can_share(), 'Explicit reviewer sharing policy was ignored'); Access::create($request(['label' => 'Delegated review']));
     $r = new WP_REST_Request('GET'); $r->set_header('Origin', 'https://other.example.test'); $ok(is_wp_error(API::read($r)), 'Cross-origin cookie read was admitted');
+    $foreign = $connection; $foreign['project'] = wp_generate_uuid4(); $foreign['credential_id'] = wp_generate_uuid4();
+    $denied(fn() => Service::request('GET', '/issues', null, '', false, $foreign), 403);
     $cfg['mode'] = 'disabled'; $ok(!API::can_view() && !Access::grant($token), 'Disabled mode admitted link access');
     $cfg['mode'] = 'admins'; $cfg['link_sharing'] = 'admins';
     $saved = $connection; $connection['project'] = wp_generate_uuid4(); $ok(!API::can_view(), 'Cross-project link was accepted');

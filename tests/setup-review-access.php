@@ -9,7 +9,7 @@ $file = $directory . '/' . wp_parse_url(home_url(), PHP_URL_HOST) . '-fixture.js
 if (file_exists($file) || Service::connection()) throw new RuntimeException('Refusing to overwrite an existing fixture/connection.');
 $before = ['connection' => get_option(Service::OPTION, null), 'settings' => get_option('feedbackpress_settings', null), 'review_links' => get_option(ReviewAccess::OPTION, null)];
 file_put_contents($file . '.before', wp_json_encode($before)); chmod($file . '.before', 0600);
-$state = ['home' => home_url()];
+$state = ['home' => home_url(), 'api' => rest_url('feedbackpress/v1/')];
 $save = function () use (&$state, $file) { file_put_contents($file, wp_json_encode($state)); chmod($file, 0600); };
 $account = json_decode(file_get_contents($accountFile), true);
 Service::connectAccount('https://feedbackpress.elod.in', $account['token']);

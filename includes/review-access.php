@@ -6,8 +6,8 @@ final class ReviewAccess {
     const OPTION = 'feedbackpress_review_links';
     const COOKIE = '__Secure-feedbackpress-review';
     const FLAG = 'feedbackpress_review_active';
-    private static function scope(): string {
-        $c = Service::connection();
+    private static function scope(?array $c = null): string {
+        $c = $c ?? Service::connection();
         return hash_hmac('sha256', implode("\n", [Service::home(), $c['service'] ?? '', $c['project'] ?? '', $c['credential_id'] ?? '']), wp_salt('auth'));
     }
     private static function available(): bool {
@@ -15,11 +15,11 @@ final class ReviewAccess {
         try { Service::ensureConnection(); } catch (\Throwable $e) { return false; }
         return bound();
     }
-    public static function grant(?string $token = null): ?array {
+    public static function grant(?string $token = null, ?array $connection = null): ?array {
         $token = $token ?? (string) ($_COOKIE[self::COOKIE] ?? '');
         if (!self::available() || !preg_match('/^([a-f0-9-]{36})\.([A-Za-z0-9_-]{43})$/D', $token, $match)) return null;
         $grant = ((array) get_option(self::OPTION, []))[$match[1]] ?? null;
-        return $grant && $grant['expires_at'] > time() && hash_equals($grant['scope'], self::scope()) && hash_equals($grant['hash'], hash('sha256', $match[2])) ? $grant : null;
+        return $grant && $grant['expires_at'] > time() && hash_equals($grant['scope'], self::scope($connection)) && hash_equals($grant['hash'], hash('sha256', $match[2])) ? $grant : null;
     }
     public static function can_share(): bool {
         return self::available() && (current_user_can('manage_options') || (settings()['link_sharing'] === 'everyone' && API::can_view()));
@@ -47,14 +47,16 @@ final class ReviewAccess {
         $path = (string) ($r->get_param('path') ?? '/');
         $pathname = rawurldecode(explode('?', explode('#', $path, 2)[0], 2)[0]);
         if (strlen($path) > 4096 || !str_starts_with($path, '/') || str_starts_with($path, '//') || preg_match('/[\\\\\x00-\x20]/', $path) || preg_match('~(^|/)\.{1,2}(/|$)~', $pathname)) throw new \InvalidArgumentException('Choose a page on this site.');
-        return self::locked(function () use ($days, $label, $path) {
-            $links = array_filter((array) get_option(self::OPTION, []), fn($g) => $g['expires_at'] > time() && hash_equals($g['scope'], self::scope()));
+        $scope = self::scope(); $home = Service::home();
+        return self::locked(function () use ($days, $label, $path, $scope, $home) {
+            if (!hash_equals($scope, self::scope())) throw new \RuntimeException('The project connection changed. Reload before creating a link.', 409);
+            $links = array_filter((array) get_option(self::OPTION, []), fn($g) => $g['expires_at'] > time() && hash_equals($g['scope'], $scope));
             if (count($links) >= 100) throw new \RuntimeException('Revoke an existing review link before creating another.', 409);
             $id = wp_generate_uuid4(); $secret = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-            $grant = ['id' => $id, 'label' => $label, 'created_at' => time(), 'expires_at' => time() + $days * DAY_IN_SECONDS, 'scope' => self::scope(), 'hash' => hash('sha256', $secret)];
+            $grant = ['id' => $id, 'label' => $label, 'created_at' => time(), 'expires_at' => time() + $days * DAY_IN_SECONDS, 'scope' => $scope, 'hash' => hash('sha256', $secret)];
             $links[$id] = $grant;
             if (!update_option(self::OPTION, $links, false)) throw new \RuntimeException('The review link could not be saved. Try again.', 503);
-            $target = explode('#', Service::home() . $path, 2);
+            $target = explode('#', $home . $path, 2);
             return ['id' => $id, 'url' => $target[0] . '#fp-review=' . $id . '.' . $secret . (isset($target[1]) ? '&fp-return=' . rawurlencode($target[1]) : ''), 'expires_at' => $grant['expires_at']];
         });
     }

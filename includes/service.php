@@ -90,6 +90,8 @@ final class Service {
     public static function uuid($id): bool { return is_string($id) && (bool) preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/Di', $id); }
     public static function request(string $method, string $path, $body = null, string $key = '', bool $actor = false, ?array $connection = null, bool $raw = false) {
         $c = $connection ?? self::ensureConnection();
+        // Validate the exact credential being forwarded if a project switch races this request.
+        if (class_exists(ReviewAccess::class, false) && !current_user_can('manage_options') && (settings()['mode'] === 'disabled' || (settings()['mode'] === 'admins' && !ReviewAccess::grant(null, $c)))) throw new \RuntimeException('Feedback is unavailable.', 403);
         if (empty($c['token']) || empty($c['project']) || !empty($c['disconnected'])) throw new \RuntimeException('Choose a project in Settings → FeedbackPress.', 503);
         $url = self::origin($c['service']) . '/v1/projects/' . $c['project'] . $path;
         try { return self::http($method, $url, $c['token'], $body, $key, $actor, $raw, self::home()); }
