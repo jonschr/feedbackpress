@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0-beta.3 — November 12, 2026
+
+- Reveal issue pins with native element scrolling, bypassing theme window-scroll wrappers and temporarily controlling smooth scrolling, scroll snap and scroll anchoring.
+- Correct delayed theme resets and layout shifts for a bounded 2.5–5 seconds. Account for fixed/sticky headers, scaled nested scroll panes, horizontal/RTL scrolling and saved-location fallback.
+- Give manual page scrolling immediate control; sidebar/thread interaction stops correction while retaining snap protection. Restore prior styles on dismissal, navigation, hidden tabs or manual page input, preserving concurrent theme style edits.
+- Tested on Secure AI Now with a controlled delayed scroll reset, plus intercepted navigation/layout/target/keyboard regressions. Fully virtual transform-driven scrolling engines may require a dedicated adapter; this beta does not claim universal control over arbitrary theme JavaScript.
+
+Stable automatic updates remain 0.2.2; existing latency and production gates below are unchanged.
+
 ## 0.3.0-beta.2 — November 12, 2026
 
 - Replace the shared 100-per-ten-minute write limit with fixed one-minute, per-project budgets: 600 changes per native WordPress user or 120 per guest IP. Background activity snapshots use read permission and consume no edit budget. Rejections return remaining seconds and Retry-After instead of extending a ten-minute lockout.

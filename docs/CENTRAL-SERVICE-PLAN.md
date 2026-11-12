@@ -1,5 +1,8 @@
 # FeedbackPress central service implementation plan
 
+Latest update: plugin 0.3.0-beta.3 hardens issue reveal scrolling against delayed resets/layout shifts, nested panes and fixed headers. Manual page input takes control. Stable updater stays 0.2.2; hosted API unchanged.
+
+
 Latest release: plugin 0.3.0-beta.2 published; rapid-review limiter repaired per native user/project, background refresh uncharged. Historical delete investigation still awaits issue number. Stable updater stays 0.2.2; hosted API d9799c69187c unchanged.
 
 Current update: owner issue/reply/private-note Edit / Make private/public / Delete is installed. Service d9799c69187c; all six physical plugin copies 6fcea9d829c7. All 37 service checks, both disposable WordPress gateways and real installed two-site owner/other/guest/media/identity acceptance pass. Cove is running. See the final receipt below. Email and paid/customer production gates remain deferred.
@@ -638,3 +641,14 @@ Affected-site HTTP origin/nonce/rate permission was checked with one intentional
 The historical reported delete remains unconfirmed pending issue number/site confirmation. The inspected project had ten active original issues and no committed delete audit. Existing bounded logs do not reconstruct the failed attempt. No customer issue was deleted to reproduce it. New contextual errors and bounded method/category/status/code diagnostics support the next occurrence. Failed work cards retain a deliberate Retry; no automatic replay was introduced.
 
 Private state backup/read-only receipts, source/ZIP/manifests/full six-copy rollback backups and verification: /Users/jonschroeder/Library/Application Support/FeedbackPress/private/rate-delete-20261112T162109Z. Restore source only for rollback, leaving feedback/options intact; earlier limits may return with older code. Canonical plan/handoff and Harrison mirrors are current; Laurel's legacy/pending source was preserved and not integrated.
+
+
+## Issue reveal scrolling hardened — November 12, 2026
+
+Owner reported issue selection being overridden on Secure AI Now. The previous reveal performed one window.scrollTo call and skipped fixed ancestors. Its HTML uses smooth scrolling; Elementor/Dynamic Content scrolling libraries are loaded, but sampling did not prove an active virtual scroller. Do not attribute the original failure to a specific active library without further evidence.
+
+The plugin captures native Element.scrollTo, reveals nested scaled XY/RTL panes (including fixed panels), and centers the saved pin within the visible region below fixed/sticky chrome. Temporary owned scroll-behavior/snap/anchoring styles prevent browser interference. Corrections run for 2.5 seconds on loaded pages or 5 seconds during loading; manual page input cancels and restores styles. Thread/sidebar input stops corrections while retaining snap protection until dismissal/page interaction. Cleanup preserves concurrent theme style changes. No page content, theme/framework configuration, feedback target data, connection or service schema is changed. Fully virtual transform-driven scrollers or arbitrary resets beyond the bounded reveal are not universally controlled; an observed engine-specific failure would need its own integration.
+
+Final focused checks: scroll-focus, target-recovery, issue-keyboard, sidebar-layout and navigation-continuity; syntax/whitespace checks. The real Secure AI Now homepage issue #1 recovered after a controlled reset to page top at 220ms: at 1200ms scrollY 3615 and pin center 416.04 in an 800px viewport with 32px admin bar. Manual wheel input restored original root/body inline styles (null) and computed smooth behavior. Other sampled fixed-header targets remained visible. Original user-selected failing issue was not identified, so this proves the general failure recovery, not a reproduction of that exact click. A first RAF-based candidate failed to recover in a throttled hidden preview; timer-based bounded settling replaced it and passed. No real feedback mutation or provider request.
+
+Prepare plugin 0.3.0-beta.3 from reviewed committed source, private backups and manifests. Stable updater remains 0.2.2; hosted API d9799c69187c unchanged. Private receipts: /Users/jonschroeder/Library/Application Support/FeedbackPress/private/scroll-focus-20261112T165840Z. Laurel's legacy checkout/pending changes remain untouched due to incoming central-main commits. No new PostgreSQL/service test run for this frontend-only fix; prior 37/37 baseline remains historical. Existing latency/email/paid-production/recovery gates are unchanged.

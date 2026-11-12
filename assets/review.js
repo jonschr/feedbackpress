@@ -66,6 +66,8 @@
   const rowPreviewQueue = new Set();
   let rowPreviewObserver = null, rowPreviewActive = 0;
   let previewIssueId = null, previewFileId = null, viewerRequest = 0, returnFocus = null;
+  let locating = null;
+  const nativeScrollTo = Element.prototype.scrollTo;
   try {
     const view = JSON.parse(sessionStorage.getItem(viewKey) || '{}');
     if (Object.hasOwn(sortLabels, view.sort)) sort = view.sort;
@@ -261,6 +263,14 @@
     const list = panel.querySelector('.issue-list'); if (list) list.scrollTop = 0;
   }
   root.append(pins, highlight, toolbar, panel, tether, draftPin, composer, issuePopup, lightbox, identity);
+  const interruptLocate = event => {
+    // Reading the thread/list stops correction without re-enabling the page's scroll snap.
+    if (event.composedPath().includes(host)) { if (locating?.timer) clearTimeout(locating.timer); if (locating) locating.timer = null; }
+    else cancelLocate();
+  };
+  for (const type of ['wheel', 'touchstart', 'pointerdown']) addEventListener(type, interruptLocate, { capture: true, passive: true });
+  addEventListener('keydown', event => { if (event.key === 'Escape') cancelLocate(); else if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Tab'].includes(event.key)) interruptLocate(event); }, true);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelLocate(); });
   root.addEventListener('scroll', event => { if (event.target.matches?.('.issue-list') && !panel.hidden && !listLoading) { captureListScroll(); saveView(); } }, { capture: true, passive: true });
   root.addEventListener('scroll', event => { if (event.target === issuePopup.querySelector('.issue-thread')) captureThreadScroll(); }, { capture: true, passive: true });
   const tooltip = el('div', { id: 'fp-tooltip', class: 'fp-tooltip', role: 'tooltip', popover: 'manual', hidden: true });
@@ -782,7 +792,7 @@
     }
   }
   function clearAttachments(all = false) {
-    closeLightbox(); previewIssueId = null; pruneAttachments(null, all);
+    cancelLocate(); closeLightbox(); previewIssueId = null; pruneAttachments(null, all);
   }
   function attachmentData(file) {
     const cached = attachmentCache.get(file.id);
@@ -1511,32 +1521,92 @@
     return { x: dimensions.left + Math.max(15, Math.min(dimensions.width - 15, saved.x / saved.width * dimensions.width)) - scrollX,
       y: Math.max(15, Math.min(dimensions.height - 15, saved.y / saved.height * dimensions.height)) - scrollY };
   }
+  function cancelLocate() {
+    const job = locating; locating = null;
+    if (!job) return;
+    clearTimeout(job.timer);
+    for (const [node, state] of job.styles) {
+      if (node.getAttribute('style') === state.owned) {
+        if (state.original === null) node.removeAttribute('style'); else node.setAttribute('style', state.original);
+      } else for (const [property, value, priority, applied] of state.properties) {
+        if (node.style.getPropertyValue(property) !== applied || node.style.getPropertyPriority(property) !== 'important') continue;
+        if (value) node.style.setProperty(property, value, priority); else node.style.removeProperty(property);
+      }
+    }
+  }
+  function ownScroll(job, node) {
+    if (job.styles.has(node)) return;
+    const properties = [['scroll-behavior', 'auto'], ['scroll-snap-type', 'none'], ['overflow-anchor', 'none']];
+    const state = { original: node.getAttribute('style'), properties: properties.map(([property, value]) => [property, node.style.getPropertyValue(property), node.style.getPropertyPriority(property), value]) };
+    for (const [property, value] of properties) node.style.setProperty(property, value, 'important');
+    state.owned = node.getAttribute('style'); job.styles.set(node, state);
+  }
+  function locateViewport(target, x) {
+    const viewport = window.visualViewport;
+    const topEdge = viewport?.offsetTop || 0, bottomEdge = topEdge + (viewport?.height || innerHeight);
+    let top = topEdge + 12, bottom = bottomEdge - 12;
+    x = Math.max(12, Math.min(innerWidth - 12, x));
+    // Only edge-covering fixed/sticky chrome counts; page wrappers and the review UI do not.
+    for (const edge of ['top', 'bottom']) for (let pass = 0; pass < 3; pass++) {
+      const y = edge === 'top' ? top - 11 : bottom + 11;
+      let next = edge === 'top' ? top : bottom;
+      for (const hit of document.elementsFromPoint(x, y)) for (let node = hit; node && node !== document.body; node = node.parentElement) {
+        if (node === host || host.contains(node) || node.contains(target)) continue;
+        if (!['fixed', 'sticky'].includes(getComputedStyle(node).position)) continue;
+        const rect = node.getBoundingClientRect();
+        if (rect.height >= (bottomEdge - topEdge) / 2 || rect.left > x || rect.right < x) continue;
+        if (edge === 'top' && rect.top <= y && rect.bottom > y) next = Math.max(next, rect.bottom + 12);
+        if (edge === 'bottom' && rect.top < y && rect.bottom >= y) next = Math.min(next, rect.top - 12);
+      }
+      if (next === (edge === 'top' ? top : bottom)) break;
+      if (edge === 'top') top = Math.min(next, bottom - 48); else bottom = Math.max(next, top + 48);
+    }
+    return { top, bottom };
+  }
   function locate(issue) {
-    const resolved = resolveTarget(issue);
-    if (!resolved) return;
-    const target = resolved.node;
-    if (resolved.approximate) message('Showing an approximate pin location. Use the screenshot for context, or drag the pin to refine it.');
-    if (!target) {
-      const point = targetPoint(issue, resolved);
-      if (point) window.scrollTo({ top: scrollY + point.y - innerHeight / 2, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-      return;
-    }
-    let rect = target.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const y = Number.isFinite(Number(issue.target.y)) ? Math.max(0, Math.min(1, Number(issue.target.y))) : .5;
-    const ancestors = [];
-    for (let node = target; node; node = node.parentElement) {
-      if (getComputedStyle(node).position === 'fixed') return;
-      if (node !== target && node !== document.body && node !== document.documentElement) ancestors.push(node);
-    }
-    // Reveal the saved point inside nested scrollers before positioning the document.
-    for (const node of ancestors) {
-      if (!/^(auto|scroll)$/.test(getComputedStyle(node).overflowY) || node.scrollHeight <= node.clientHeight) continue;
-      rect = target.getBoundingClientRect();
-      node.scrollTo({ top: node.scrollTop + rect.top + rect.height * y - node.getBoundingClientRect().top - node.clientTop - node.clientHeight / 2, behavior: 'instant' });
-    }
-    rect = target.getBoundingClientRect();
-    window.scrollTo({ top: scrollY + rect.top + rect.height * y - innerHeight / 2, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    cancelLocate();
+    const initial = resolveTarget(issue); if (!initial) return;
+    if (initial.approximate) message('Showing an approximate pin location. Use the screenshot for context, or drag the pin to refine it.');
+    const job = { id: issue.id, styles: new Map(), timer: null, until: performance.now() + (document.readyState === 'complete' ? 2500 : 5000) }; locating = job;
+    const rootScroller = document.scrollingElement || document.documentElement;
+    ownScroll(job, document.documentElement); ownScroll(job, document.body); ownScroll(job, rootScroller);
+    const move = (node, left, top) => {
+      const horizontal = Math.max(0, node.scrollWidth - node.clientWidth), rtl = getComputedStyle(node).direction === 'rtl';
+      left = Math.max(rtl ? -horizontal : 0, Math.min(rtl ? 0 : horizontal, left));
+      top = Math.max(0, Math.min(node.scrollHeight - node.clientHeight, top));
+      if (Math.abs(node.scrollTop - top) > 1 || Math.abs(node.scrollLeft - left) > 1) nativeScrollTo.call(node, { left, top, behavior: 'instant' });
+    };
+    const settle = () => {
+      if (locating !== job) return;
+      if (selected?.id !== job.id || issuePopup.hidden || document.hidden) { cancelLocate(); return; }
+      job.timer = performance.now() < job.until ? setTimeout(settle, 80) : null;
+      // Settle late layout/theme resets briefly; retain CSS ownership until manual page input or dismissal.
+      const current = selected, resolved = resolveTarget(current), target = resolved?.node;
+      if (!resolved) return;
+      let fixed = false, stuck = false;
+      if (target) for (let node = target; node; node = node.parentElement) {
+        const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+        if (style.position === 'fixed') fixed = true;
+        if (style.position === 'sticky' && Number.isFinite(parseFloat(style.top)) && rect.top <= (window.visualViewport?.offsetTop || 0) + parseFloat(style.top) + 1) stuck = true;
+        if (node === target || node === document.body || node === document.documentElement) continue;
+        const vertical = /^(auto|scroll|overlay)$/.test(style.overflowY) && node.scrollHeight > node.clientHeight;
+        const horizontal = /^(auto|scroll|overlay)$/.test(style.overflowX) && node.scrollWidth > node.clientWidth;
+        if (!vertical && !horizontal) continue;
+        ownScroll(job, node);
+        const point = targetPoint(current, resolved); if (!point) continue;
+        const scaleX = rect.width / node.offsetWidth || 1, scaleY = rect.height / node.offsetHeight || 1;
+        const left = rect.left + node.clientLeft * scaleX, top = rect.top + node.clientTop * scaleY;
+        move(node, horizontal ? node.scrollLeft + (point.x - left - node.clientWidth * scaleX / 2) / scaleX : node.scrollLeft,
+          vertical ? node.scrollTop + (point.y - top - node.clientHeight * scaleY / 2) / scaleY : node.scrollTop);
+      }
+      const point = targetPoint(current, resolved); if (!point || fixed) return;
+      const viewport = locateViewport(target, point.x);
+      if (stuck && point.y >= viewport.top && point.y <= viewport.bottom) return;
+      const left = (window.visualViewport?.offsetLeft || 0) + 12, right = left + (window.visualViewport?.width || innerWidth) - 24;
+      const dx = point.x < left ? point.x - left : point.x > right ? point.x - right : 0;
+      move(rootScroller, rootScroller.scrollLeft + dx, rootScroller.scrollTop + point.y - (viewport.top + viewport.bottom) / 2);
+    };
+    settle();
   }
   function dropTarget(x, y) {
     const node = document.elementFromPoint(x, y);

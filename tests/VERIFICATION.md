@@ -298,3 +298,6 @@ See docs/UPDATE-REVIEW.md for the post-restart 22-case PostgreSQL, two real gate
 - Images use original shared file bytes through the existing memory-only media cache; no derivative thumbnail service or persistent image cache was added. Original images can be 5MB, so row previews load only when visible, two transfers at a time, and never block opening/saving issues.
 
 Private-note refresh/access-loss and tooltip/lightbox regressions also pass for the row-summary update. PHP/service schemas are unchanged; the prior 23-case real PostgreSQL verification remains applicable.
+
+
+Issue reveal: `NODE_PATH="<private test-tools>/node_modules" node tests/scroll-focus.cjs` intercepts all HTTP and uses actual Chrome. Covers overridden window scrolling, mandatory snap/smooth/anchoring, delayed reset/layout shift, scaled nested XY/RTL and fixed panes, fixed-header clearance, latest selection, manual/thread handoff, bounded correction, saved fallback and exact style cleanup preserving theme edits. Companion navigation-continuity, target-recovery, issue-keyboard and sidebar-layout fixtures pass. No real feedback/provider requests.
