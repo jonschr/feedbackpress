@@ -61,7 +61,11 @@ const path = require('node:path');
     };
     await page.goto(base); await bodyFocus(); await page.keyboard.press('ArrowDown'); assert.equal(await popup.isVisible(), false);
     await page.keyboard.press('v'); await row(1).waitFor(); await bodyFocus();
+    await page.keyboard.press('n'); await page.keyboard.press('p'); assert.equal(await popup.isVisible(), false);
     await page.keyboard.press('ArrowDown'); await selected(1);
+    assert.match(await popup.getByRole('button', { name: 'Next issue', exact: true }).getAttribute('aria-keyshortcuts'), /N/);
+    assert.match(await popup.getByRole('button', { name: 'Previous issue', exact: true }).getAttribute('aria-keyshortcuts'), /P/);
+    await page.keyboard.press('n'); await selected(2); await page.keyboard.press('p'); await selected(1);
     await page.keyboard.press('ArrowUp'); await selected(1); // Start boundary.
     await row(3).hover(); await status('3', 3, 'doing'); await selected(1); // Hover does not open it.
     await page.keyboard.press('ArrowDown'); await selected(2);
@@ -85,7 +89,7 @@ const path = require('node:path');
     await page.keyboard.press('ArrowUp'); await selected(2);
     await panel.getByLabel('Order issues').selectOption('number');
     for (const field of [page.locator('#native'), page.locator('#editable'), page.locator('#custom'), popup.getByRole('textbox', { name: 'Reply', exact: true })]) {
-      await field.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('1'); await selected(2);
+      await field.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('1'); await page.keyboard.press('n'); await page.keyboard.press('p'); await selected(2);
     }
     assert.equal(writes.length, count + 1, 'Typing and native/custom navigation must not write');
     await bodyFocus();
@@ -103,14 +107,14 @@ const path = require('node:path');
     // Up from an unselected list starts at its last issue. Arrows cross list and real query-page boundaries.
     await bodyFocus(); await page.keyboard.press('v'); await row(50).waitFor({ state: 'attached' });
     await page.keyboard.press('ArrowUp'); await selected(50);
-    await page.keyboard.press('ArrowDown'); await page.waitForURL(base + queryPath + '#feedbackpress=' + items[50].id); await selected(51);
+    await page.keyboard.press('n'); await page.waitForURL(base + queryPath + '#feedbackpress=' + items[50].id); await selected(51);
     const carriedPointer = await page.evaluate(base => JSON.parse(sessionStorage.getItem('feedbackpress-shared-cache:' + base + '::Reviewer')).view.pointer, base);
     await row(52).dispatchEvent('pointermove', { pointerType: 'mouse', clientX: carriedPointer.x, clientY: carriedPointer.y });
     await status('3', 51, 'doing'); // A stationary pointer remains stationary across a real document change.
-    await bodyFocus(); await page.keyboard.press('ArrowDown'); await selected(52);
+    await bodyFocus(); await page.keyboard.press('n'); await selected(52);
     await page.keyboard.press('ArrowDown'); await selected(52); // End boundary.
-    await page.keyboard.press('ArrowUp'); await selected(51);
-    await page.keyboard.press('ArrowUp'); await page.waitForURL(base + '/#feedbackpress=' + items[49].id); await selected(50);
+    await page.keyboard.press('p'); await selected(51);
+    await page.keyboard.press('p'); await page.waitForURL(base + '/#feedbackpress=' + items[49].id); await selected(50);
     await page.setViewportSize({ width: 390, height: 844 }); await bodyFocus();
     await page.keyboard.press('ArrowUp'); await selected(49); await status('4', 49, 'review');
     assert.deepEqual(errors, []);

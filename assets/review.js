@@ -751,8 +751,8 @@
     const items = navigationIssues();
     const index = items.findIndex(item => item.id === issue.id);
     issuePopup.replaceChildren(el('header', { class: 'popup-header' }, el('strong', {}, '#' + issue.number), statusControl(issue, 'popup-status'), el('div', { class: 'popup-navigation' },
-      button(icon('previous'), () => stepIssue(-1), { class: 'fp-icon-button', 'aria-label': 'Previous issue', title: 'Previous issue', 'data-tooltip-shortcut': '↑', 'aria-keyshortcuts': 'ArrowUp', disabled: index <= 0 && listPage <= 1 }),
-      button(icon('next'), () => stepIssue(1), { class: 'fp-icon-button', 'aria-label': 'Next issue', title: 'Next issue', 'data-tooltip-shortcut': '↓', 'aria-keyshortcuts': 'ArrowDown', disabled: index >= items.length - 1 && listPage * 50 >= total }),
+      button(icon('previous'), () => stepIssue(-1), { class: 'fp-icon-button', 'aria-label': 'Previous issue', title: 'Previous issue', 'data-tooltip-shortcut': 'P / ↑', 'aria-keyshortcuts': 'P ArrowUp', disabled: index <= 0 && listPage <= 1 }),
+      button(icon('next'), () => stepIssue(1), { class: 'fp-icon-button', 'aria-label': 'Next issue', title: 'Next issue', 'data-tooltip-shortcut': 'N / ↓', 'aria-keyshortcuts': 'N ArrowDown', disabled: index >= items.length - 1 && listPage * 50 >= total }),
       button(icon('close'), () => { if (!busy) { closeIssue(); (panel.hidden ? viewButton : panel.querySelector('[aria-label="Dismiss issues"]')).focus(); } }, { class: 'fp-icon-button', 'aria-label': 'Dismiss issue' }))));
     if (issue.author_conflict) issuePopup.append(el('p', { class: 'warning' }, 'The author changed on more than one site. Choose the author again to resolve.'));
     if (issue.conflict) issuePopup.append(el('p', { class: 'warning' }, 'Conflicting status changes: ' + issue.status_choices.map(choice => `${labels[choice.status]} (${choice.author})`).join('; ') + '. Choose a status to resolve.'));
@@ -989,6 +989,9 @@
     if (key === 'v') { consume(); viewButton.click(); return; }
     if (picking && event.key.toLowerCase() === 'p') { consume(); newDraft({ selector: '', text: 'Page feedback', x: .5, y: .5 }); return; }
     if (draft || picking || pinDrag || !identity.hidden) return;
+    if ((key === 'n' || key === 'p') && selected && !issuePopup.hidden) {
+      consume(); targetIssueShortcuts(selected.id); stepIssue(key === 'n' ? 1 : -1); return;
+    }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       if (!open && issuePopup.hidden) return;
       consume(); targetIssueShortcuts(selected?.id || null); stepIssue(event.key === 'ArrowDown' ? 1 : -1); return;
