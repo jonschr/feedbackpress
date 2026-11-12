@@ -1326,6 +1326,7 @@
   window.addEventListener('keydown', event => {
     if (event.isComposing) return;
     if ((event.key === 'Escape' || event.key === 'Esc') && root.querySelector('.note-actions:popover-open')) { event.preventDefault(); event.stopPropagation(); const menu = root.querySelector('.note-actions:popover-open'); menu.hidePopover(); root.querySelector(`[popovertarget="${menu.id}"]`)?.focus(); return; }
+    if (root.querySelector('.note-actions:popover-open')) return;
     if (mentionKey(event)) return;
     const consume = () => { event.preventDefault(); event.stopPropagation(); };
     if (event.key === 'Escape' || event.key === 'Esc') {
