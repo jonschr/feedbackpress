@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0-beta.2 — November 12, 2026
+
+- Replace the shared 100-per-ten-minute write limit with fixed one-minute, per-project budgets: 600 changes per native WordPress user or 120 per guest IP. Background activity snapshots use read permission and consume no edit budget. Rejections return remaining seconds and Retry-After instead of extending a ten-minute lockout.
+- Keep origin, nonce, native actor, ownership and project checks. Browser actor/forwarded-IP overrides cannot change the limiter identity.
+- Preserve service error codes and distinguish missing issues/notes from missing files. Bounded lifecycle diagnostics record operation/status/code without feedback text, identities, tokens or IDs.
+- Exercise issue deletion/retry/missing-item errors through the actual WordPress REST route on two isolated gateways. A reported historical delete failure has not been reproduced; no customer feedback/delete action was replayed.
+- Limit dark page-header titles to one line with an ellipsis.
+
+Known beta latency, email-verification and production gates below remain unchanged. Stable automatic updates remain 0.2.2.
+
 ## 0.3.0-beta.1 — November 12, 2026
 
 This is a breaking beta of the central-backed FeedbackPress workflow. It requires a compatible FeedbackPress service and an account key. Existing peer-sync feedback stays untouched; this version does not import it or synchronize through the old peer protocol. The stable automatic-update channel remains at 0.2.2.

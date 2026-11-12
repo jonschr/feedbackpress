@@ -30,7 +30,12 @@ $denied(fn()=>Service::request('POST',$path.'/notes/'.$n['id'].'/convert',['revi
 $i=Service::request('GET',$path);$i=Service::request('POST',$path.'/manage',['revision'=>$i['revision'],'action'=>'public'],wp_generate_uuid4(),true);
 $published=Service::request('POST',$path.'/notes/'.$n['id'].'/convert',['revision'=>$n['revision'],'publish'=>true],wp_generate_uuid4(),true);$assert($published['visibility']==='shared','Human publication failed');$i=$published['issue'];
 wp_set_current_user(0);$assert(str_contains(wp_json_encode(Service::request('GET',$path)),'Private human edited'),'Published human reply absent');$assert(!str_contains(wp_json_encode(Service::request('GET',$path)),'PRIVATE REPLY SENTINEL'),'Publishing issue published private reply');
-$GLOBALS['current_user']=$owner;$deleted=Service::request('POST',$path.'/manage',['revision'=>$i['revision'],'action'=>'delete'],wp_generate_uuid4(),true);$assert($deleted['deleted'],'Whole issue deletion failed');$denied(fn()=>Service::request('GET',$path),404);
+$GLOBALS['current_user']=$owner;
+$delete=new WP_REST_Request('POST','/feedbackpress/v1'.$path.'/manage');$delete->set_header('Origin',home_url());$delete->set_header('X-WP-Nonce',wp_create_nonce('wp_rest'));$delete->set_header('Idempotency-Key',wp_generate_uuid4());$delete->set_header('X-FeedbackPress-Expected-Actor',Identity::id($owner->user_email));$delete->set_body_params(['revision'=>$i['revision'],'action'=>'delete']);
+$response=rest_do_request($delete);$assert($response->get_status()===200&&($response->get_data()['deleted']??false),'Native WordPress whole-issue delete route failed');
+$repeat=rest_do_request($delete);$assert($repeat->get_status()===200&&($repeat->get_data()['deleted']??false),'Native delete retry lost its acknowledgment');
+$delete->set_header('Idempotency-Key',wp_generate_uuid4());$missing=rest_do_request($delete);$assert($missing->get_status()===404&&($missing->get_data()['code']??'')==='not_found'&&!str_contains($missing->get_data()['message'],'file'),'Missing issue error was mislabeled or lost its code');
+$denied(fn()=>Service::request('GET',$path),404);
 $export=dirname(getenv('FEEDBACKPRESS_REVIEW_FIXTURE')).'/owner-private-export.json';
 if(file_exists($export)){
  $first=json_decode(file_get_contents($export),true);
