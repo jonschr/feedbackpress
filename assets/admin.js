@@ -14,6 +14,30 @@
     controls.forEach(node => node.disabled = true); form?.setAttribute('aria-busy', 'true');
     try { await action(); } catch (error) { show(error.message, true); } finally { controls.forEach(node => { if (node.isConnected) node.disabled = false; }); form?.removeAttribute('aria-busy'); busy = false; }
   }
+  let capabilities = {free_signup:false,upgrade:false};
+  async function refreshPlan() {
+    if (!$('fp-plan')) return;
+    const plan = await api('plan'); if (!plan.plan_kind) return;
+    $('fp-plan').hidden = false;
+    $('fp-plan-summary').textContent = plan.project_limit === 1 ? 'Free · 1 project · 100 MB attachments' : 'Unlimited projects';
+    $('fp-upgrade').hidden = plan.project_limit !== 1 || !capabilities.upgrade;
+  }
+  api('capabilities').then(async next => {
+    capabilities = next;
+    if ($('fp-start-free')) { $('fp-start-free').hidden = !next.free_signup; $('fp-free-state').hidden = next.free_signup; $('fp-free-state').textContent = 'Free signup is not available on this service yet. You can connect an existing account below.'; }
+    await refreshPlan();
+  }).catch(() => {});
+  $('fp-start-free')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { const result=await api('free',{}); $('fp-start-free').hidden=true; $('fp-account').hidden=true; $('fp-free-key-result').hidden=false; $('fp-issued-key').value=result.key; }));
+  $('fp-copy-issued-key')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText($('fp-issued-key').value); show('Account access key copied. Keep it private.'); } catch (_) { $('fp-issued-key').focus(); $('fp-issued-key').select(); } });
+  $('fp-key-saved')?.addEventListener('click', () => { $('fp-issued-key').value=''; location.reload(); });
+  $('fp-check-plan')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { await refreshPlan(); show('Plan refreshed. Your account key is unchanged.'); }));
+  $('fp-upgrade')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => {
+    const checkout = await api('checkout',{}), url = new URL(checkout.url);
+    if (url.protocol !== 'https:' || !url.hostname.endsWith('.lemonsqueezy.com')) throw Error('Invalid checkout address.');
+    const link = document.createElement('a'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = checkout.test_mode ? 'Open test checkout' : 'Open checkout';
+    $('fp-checkout-link').replaceChildren(link); $('fp-checkout-link').hidden = false;
+    show(checkout.test_mode ? 'Test checkout ready. No real payment is required. Refresh the plan after completing the test.' : 'Checkout ready. Your existing account key will continue working.');
+  }));
   const search = $('fp-project-search'), options = $('fp-project-options');
   function closePicker() { if (!options) return; options.hidden = true; search.setAttribute('aria-expanded', 'false'); search.removeAttribute('aria-activedescendant'); search.value = state?.project?.name || ''; }
   function highlight(index) {

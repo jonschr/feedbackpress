@@ -56,6 +56,27 @@ final class Service {
             self::save($c); return ['connected' => true];
         });
     }
+    public static function capabilities(): array {
+        $origin = self::origin(self::connection()['service'] ?? 'https://feedbackpress.elod.in');
+        try { return self::http('GET', $origin . '/v1/capabilities', ''); }
+        catch (RemoteError $e) { if ($e->getCode() === 404) return ['free_signup' => false, 'upgrade' => false]; throw $e; }
+    }
+    public static function startFree(): array {
+        $pending = self::locked(function () {
+            if (!empty(self::connection()['manager'])) throw new \RuntimeException('This site already has an account connection.');
+            $origin = self::origin(self::connection()['service'] ?? 'https://feedbackpress.elod.in');
+            $pending = get_option('feedbackpress_signup_pending', []);
+            if (!$pending || ($pending['origin'] ?? '') !== $origin) {
+                $pending = ['origin' => $origin, 'id' => wp_generate_uuid4(), 'key' => 'fp_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=')];
+                update_option('feedbackpress_signup_pending', $pending, false);
+            }
+            return $pending;
+        });
+        self::http('POST', $pending['origin'] . '/v1/accounts/free', '', ['id' => $pending['id'], 'key' => $pending['key']]);
+        if (!empty(self::connection()['manager'])) throw new \RuntimeException('The account connection changed. Reload before continuing.');
+        $result = self::connectAccount($pending['origin'], $pending['key']);
+        delete_option('feedbackpress_signup_pending'); return $result + ['key' => $pending['key']];
+    }
     private static function applySite(array $c, array $site): array {
         $c['project'] = $site['project']; $c['token'] = $site['token']; $c['credential_id'] = $site['credential_id'];
         $c['site_url'] = $site['url']; $c['name'] = $site['name']; $c['disconnected'] = false;
@@ -116,7 +137,7 @@ final class Service {
         $bytes = wp_remote_retrieve_body($r);
         if ($status < 200 || $status >= 300) {
             $data = json_decode($bytes, true); $code = $data['error'] ?? 'service_error';
-            $messages = ['author_mismatch' => 'You can change only your own notes.', 'private_issue' => 'Make this issue public before sharing a note.', 'feedback_unavailable' => 'This feedback is no longer available.', 'note_already_converted' => 'This note has already been converted. Reopen its current comment.', 'site_disconnected' => 'This site was removed from the project. An administrator can reconnect it in Settings → FeedbackPress.', 'site_mismatch' => 'The site connection changed. Reload this page.', 'license_invalid' => 'This license is invalid or inactive. Check the key from your FeedbackPress receipt.', 'license_product_mismatch' => 'This key is not for the configured FeedbackPress test product.', 'billing_unavailable' => 'License validation is temporarily unavailable. Try again shortly.', 'idempotency_conflict' => 'This request was already saved with different content. Check the issue list before submitting another change.', 'stale_revision' => 'This issue changed elsewhere. Reopen it before saving.', 'account_inactive' => 'This FeedbackPress account is inactive.', 'quota_exceeded' => 'The account storage allowance is full. Your text is saved.', 'unauthorized' => 'The project connection is no longer authorized. Reconnect in Settings → FeedbackPress.', 'not_found' => $raw ? 'This screenshot or attachment was not found.' : 'This issue or note was not found. Refresh the issue list before trying again.', 'media_missing' => 'The screenshot or attachment is temporarily unavailable. Try again.', 'wordpress_login_required' => 'Log in to WordPress to access private notes.', 'non_local_site_required' => 'Choose a connected HTTPS site with a public address for notification links.', 'connected_site_required' => 'Choose a site connected to this project.'];
+            $messages = ['project_limit_reached' => 'Your free account includes one project. Upgrade to unlimited projects for $30/month; your account key stays the same.', 'signup_rate_limit' => 'Free signup is temporarily busy. Try again in a minute.', 'author_mismatch' => 'You can change only your own notes.', 'private_issue' => 'Make this issue public before sharing a note.', 'feedback_unavailable' => 'This feedback is no longer available.', 'note_already_converted' => 'This note has already been converted. Reopen its current comment.', 'site_disconnected' => 'This site was removed from the project. An administrator can reconnect it in Settings → FeedbackPress.', 'site_mismatch' => 'The site connection changed. Reload this page.', 'license_invalid' => 'This license is invalid or inactive. Check the key from your FeedbackPress receipt.', 'license_product_mismatch' => 'This key is not for the configured FeedbackPress test product.', 'billing_unavailable' => 'License validation is temporarily unavailable. Try again shortly.', 'idempotency_conflict' => 'This request was already saved with different content. Check the issue list before submitting another change.', 'stale_revision' => 'This issue changed elsewhere. Reopen it before saving.', 'account_inactive' => 'This FeedbackPress account is inactive.', 'quota_exceeded' => 'The account storage allowance is full. Your text is saved.', 'unauthorized' => 'The project connection is no longer authorized. Reconnect in Settings → FeedbackPress.', 'not_found' => $raw ? 'This screenshot or attachment was not found.' : 'This issue or note was not found. Refresh the issue list before trying again.', 'media_missing' => 'The screenshot or attachment is temporarily unavailable. Try again.', 'wordpress_login_required' => 'Log in to WordPress to access private notes.', 'non_local_site_required' => 'Choose a connected HTTPS site with a public address for notification links.', 'connected_site_required' => 'Choose a site connected to this project.'];
             throw new RemoteError($messages[$code] ?? ('FeedbackPress request failed (' . $status . ', ' . sanitize_key($code) . ').'), $status, $code);
         }
         if ($raw) return ['body' => $bytes, 'mime' => wp_remote_retrieve_header($r, 'content-type'), 'disposition' => wp_remote_retrieve_header($r, 'content-disposition')];

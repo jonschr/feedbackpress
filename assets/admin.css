@@ -56,3 +56,9 @@
 .fp-section input::placeholder { color:#646970; opacity:1; }
 .fp-inline-actions { flex-wrap:wrap; }
 @media(max-width:782px) { .fp-section input:not([type=checkbox]):not([type=hidden]), .fp-section select, .fp-section .button { font-size:16px; } }
+
+#fp-start-free { margin:16px 0 8px; }
+#fp-plan { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #dcdcde; }
+#fp-plan .fp-inline-actions { margin-top:8px; }
+#fp-free-key-result { max-width:480px; margin-top:16px; }
+#fp-free-key-result .fp-inline-actions { margin-top:8px; }

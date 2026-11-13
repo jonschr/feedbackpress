@@ -46,6 +46,7 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     const ready = () => page.waitForFunction(() => document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list')?.getAttribute('aria-busy') === 'false');
     const paint = () => page.waitForFunction(() => window.fixturePaint);
     await page.goto(base); await page.getByRole('button', { name: 'View issues', exact: true }).click(); await ready();
+    await panel.getByRole('combobox',{name:'Issue page view'}).selectOption('list'); await ready();
     await list.locator('.issue-row').nth(49).waitFor();
     await page.evaluate(() => { document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list').scrollTop = 700; });
     await page.waitForFunction(() => JSON.parse(sessionStorage.getItem('feedbackpress-view:https://feedbackpress.test')).scrollTop === 700);

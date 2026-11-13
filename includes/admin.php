@@ -15,6 +15,10 @@ final class Admin {
     }
     public static function routes($route): void {
         $admin = fn() => current_user_can('manage_options') ? true : API::error('Administrator access required.', 403);
+        $route('/admin/capabilities', 'GET', fn() => Service::capabilities(), $admin);
+        $route('/admin/free', 'POST', fn() => Service::startFree(), $admin);
+        $route('/admin/plan', 'GET', fn() => array_intersect_key(Service::manager('GET', '/account'), array_flip(['plan_kind','project_limit','storage_limit','allocated_bytes'])), $admin);
+        $route('/admin/checkout', 'POST', fn() => Service::manager('POST', '/account/checkout', new \stdClass()), $admin);
         $route('/admin/connection', 'GET', fn() => self::state(), $admin);
         $route('/admin/account', 'POST', fn($r) => Service::connectAccount((string) $r->get_param('service'), (string) $r->get_param('key')), $admin);
         $route('/admin/projects', 'GET', fn() => Service::manager('GET', '/account')['projects'], $admin);
@@ -64,6 +68,7 @@ final class Admin {
             <section class="fp-section fp-main" id="fp-main">
             <?php if (!empty($c['manager'])): ?>
                 <h2 id="fp-project-heading">Project</h2>
+                <div id="fp-plan" hidden><p class="description" id="fp-plan-summary"></p><div class="fp-inline-actions"><button type="button" class="button" id="fp-upgrade" hidden>Upgrade — $30/month</button><button type="button" class="button-link" id="fp-check-plan">Refresh plan</button></div><p id="fp-checkout-link" hidden></p></div>
                 <div id="fp-project-select">
                 <div class="fp-project-choice">
                 <div class="fp-project-picker" id="fp-project-picker" aria-busy="true">
@@ -79,6 +84,9 @@ final class Admin {
                 <form id="fp-create-project" method="post" hidden><label for="fp-project-name">Project name</label><input id="fp-project-name" type="text" placeholder="e.g. Website review" required maxlength="120" data-1p-ignore><div class="fp-inline-actions"><button class="button button-primary" type="submit">Create and connect</button><button class="button-link" type="button" id="fp-cancel-project">Cancel</button></div></form>
                 <div id="fp-connected-sites" class="fp-subsection" hidden><h3>Connected sites</h3><p class="description">Choose a project to connect this site.</p></div>
             <?php else: ?>
+                <h2>Start with one free project</h2><p class="description">100 MB of attachments. No time limit.</p>
+                <button type="button" class="button button-primary" id="fp-start-free" hidden>Start free</button><p id="fp-free-state" class="description" hidden></p>
+                <div id="fp-free-key-result" hidden><label for="fp-issued-key">Account access key</label><input type="text" id="fp-issued-key" readonly data-1p-ignore><div class="fp-inline-actions"><button type="button" class="button" id="fp-copy-issued-key">Copy key</button><button type="button" class="button button-primary" id="fp-key-saved">I've saved my key</button></div></div>
                 <?php self::accountForm(); ?>
             <?php endif; ?>
             </section>

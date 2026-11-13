@@ -15,3 +15,10 @@ ob_start(); FeedbackPress\Admin::page(); $disconnected = ob_get_clean();
 $disconnected = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' . $styles . file_get_contents(dirname(__DIR__) . '/assets/admin.css') . '</style><body class="wp-admin wp-core-ui"><div id="wpcontent"><div id="wpbody-content">' . $disconnected . '</div></div><script>window.FeedbackPressAdmin={api:"https://feedbackpress.test/adminapi/",nonce:"fixture"};</script><script src="https://feedbackpress.test/admin.js"></script>';
 $path = '/tmp/feedbackpress-disconnected-admin.html'; file_put_contents($path, $disconnected); chmod($path, 0600);
 echo "Rendered connected/first-use WordPress settings privately for intercepted browser checks; no settings saved.\n";
+
+// A synthetic free-account connection exercises secret-copy controls without exposing a real key.
+add_filter('pre_option_' . FeedbackPress\Service::OPTION, fn() => FeedbackPress\Service::pack(['v'=>3,'service'=>'https://feedbackpress.test','manager'=>'fixture','access_key'=>'fp_fixture_key_never_emit']), 1000);
+ob_start(); FeedbackPress\Admin::page(); $free = ob_get_clean();
+$free = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' . $styles . file_get_contents(dirname(__DIR__) . '/assets/admin.css') . '</style><body class="wp-admin wp-core-ui"><div id="wpcontent"><div id="wpbody-content">' . $free . '</div></div><script>window.FeedbackPressAdmin={api:"https://feedbackpress.test/adminapi/",nonce:"fixture"};</script><script src="https://feedbackpress.test/admin.js"></script>';
+if (str_contains($free, 'fp_fixture_key_never_emit')) throw new RuntimeException('An account key leaked into rendered markup');
+file_put_contents('/tmp/feedbackpress-free-admin.html', $free); chmod('/tmp/feedbackpress-free-admin.html', 0600);

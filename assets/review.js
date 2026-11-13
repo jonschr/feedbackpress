@@ -5,6 +5,17 @@
   const host = document.createElement('div'); host.id = 'feedbackpress-root'; host.style.visibility = 'hidden';
   host.setAttribute('data-html2canvas-ignore', 'true'); document.body.append(host);
   const root = host.attachShadow({ mode: 'open' });
+  const appearanceMedia = matchMedia('(prefers-color-scheme: dark)');
+  let appearance = 'system';
+  try { const saved = localStorage.getItem('feedbackpress-appearance'); if (['system','light','dark'].includes(saved)) appearance = saved; } catch (_) {}
+  function applyAppearance() {
+    host.dataset.appearance = appearance === 'system' ? (appearanceMedia.matches ? 'dark' : 'light') : appearance;
+    if (stylesReady) updatePlacementCursor();
+  }
+  host.dataset.appearance = appearance === 'system' ? (appearanceMedia.matches ? 'dark' : 'light') : appearance;
+  appearanceMedia.addEventListener('change', () => { if (appearance === 'system') applyAppearance(); });
+  addEventListener('storage', event => { if (event.key === 'feedbackpress-appearance') { appearance = ['light','dark'].includes(event.newValue) ? event.newValue : 'system'; applyAppearance(); updateAppearanceControl(); } });
+
   let stylesReady = false;
   const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = c.css; root.append(css);
   css.addEventListener('load', () => { stylesReady = true; updatePlacementCursor(); if (open) render(); restoreThreadScroll(); positionDraft(); host.style.visibility = ''; });
@@ -26,6 +37,7 @@
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12.5l4.5 4.5L19 7' : kind === 'todo' ? 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M10 3h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 11h6M9 15h6' : kind === 'needs_info' ? 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6ZM9 3v15M15 6v15' : kind === 'doing' ? 'M8.5 5.5v13L19 12 8.5 5.5Z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18s-9.5-6-9.5-6ZM14.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0Z' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    if (kind === 'copy') path.setAttribute('d', 'M8 8h12v13H8zM16 8V3H3v13h5');
     if (kind === 'download') path.setAttribute('d', 'M12 3v12M7 10l5 5 5-5M5 17v4h14v-4');
     if (kind === 'more') { path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01'); svg.setAttribute('stroke-width', '3'); }
     if (kind === 'issues') path.setAttribute('d', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01');
@@ -35,6 +47,9 @@
     if (kind === 'overlay') path.setAttribute('d', 'M3 4h14v16H3zM12 8h9v12h-9z');
     if (kind === 'room') path.setAttribute('d', 'M3 4h10v16H3zM17 4h4v16h-4z');
     if (kind === 'history') path.setAttribute('d', 'M3 11a9 9 0 119 10M3 4v7h7M12 7v5l3 2');
+    if (kind === 'sun') path.setAttribute('d', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5');
+    if (kind === 'moon') path.setAttribute('d', 'M20 14a8 8 0 0 1-10-10A8.5 8.5 0 1 0 20 14Z');
+    if (kind === 'system') path.setAttribute('d', 'M3 4h18v13H3zM8 21h8M12 17v4');
     if (kind === 'logout') path.setAttribute('d', 'M10 4H4v16h6M14 8l4 4-4 4M8 12h12');
     if (['todo', 'needs_info', 'doing', 'review', 'check'].includes(kind)) { svg.classList.add('fp-status-icon'); svg.setAttribute('stroke-width', '1.9'); }
     svg.append(path); return svg;
@@ -241,6 +256,18 @@
     sidebarSettings.append(group);
   }
   const sidebarUtilities = el('div', { class: 'sidebar-utilities' }); sidebarSettings.append(sidebarUtilities);
+  const appearanceControl = button('', () => {
+    appearance = ['system','light','dark'][(['system','light','dark'].indexOf(appearance) + 1) % 3];
+    try { localStorage.setItem('feedbackpress-appearance', appearance); } catch (_) {}
+    applyAppearance(); updateAppearanceControl();
+  }, { class: 'fp-icon-button' });
+  function updateAppearanceControl() {
+    appearanceControl.replaceChildren(icon(appearance === 'light' ? 'sun' : appearance === 'dark' ? 'moon' : 'system'));
+    const label = 'Appearance: ' + appearance + ' — switch to ' + ({system:'light',light:'dark',dark:'system'}[appearance]);
+    appearanceControl.setAttribute('aria-label', label); appearanceControl.dataset.tooltip = label;
+  }
+  updateAppearanceControl(); sidebarUtilities.append(appearanceControl);
+
   if (c.reviewSession) sidebarUtilities.append(button(icon('logout'), event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-icon-button', 'aria-label': 'End review session' }));
   panel.append(panelContents, sidebarSettings);
   const placementCursorStyle = document.createElement('style');
@@ -712,7 +739,7 @@
       el('div', { class: 'status-actions', role: 'group', 'aria-label': change ? 'New issue status' : `Change status for issue ${issue.number}` }, ...actions));
   }
   function matchesSearch(issue) {
-    const text = [issue.title || '', issue.body || '', ...(issue.activity || []).map(event => event.payload?.body || '')].join(' ').toLocaleLowerCase();
+    const text = [issue.title || '', issue.body || '', issue.target?.text_change?.original || '', issue.target?.text_change?.proposed || '', ...(issue.activity || []).map(event => event.payload?.body || '')].join(' ').toLocaleLowerCase();
     return search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean).every(term => text.includes(term));
   }
   function matchesScope(issue) { return scope === 'all' || issue.path === pagePath; }
@@ -877,7 +904,7 @@
     const row = el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status, onclick: event => { if (!event.target.closest('button, a, form, input, textarea, select, label')) showIssue(issue.id); } }, rail,
       el('div', { class: 'row-content' },
         el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null),
-        el('div', { class: 'row-footer' }, el('div', { class: 'row-meta' }, el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null)), issueSummary(issue), statusControl(issue, 'row-status')));
+        el('div', { class: 'row-footer' }, el('div', { class: 'row-meta' }, el('span', { class: 'row-author' }, issue.author), issue.target?.text_change ? el('span',{class:'subtle'},'Text change') : null, issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null)), issueSummary(issue), statusControl(issue, 'row-status')));
     if (ownsComment(issue) && !editDrafts.has(issue.id)) { const actions = noteActions('issue', issue, issue.id, true); actions.classList.add('row-issue-actions'); row.querySelector('.row-content').append(actions); row.classList.add('has-issue-actions'); }
     const editor = editDrafts.get(issue.id);
     const management = el('div', { class: 'row-management' }, editor?.sidebar ? commentEditor(issue, editor) : null, confirmationView(issue.id, issue.id, true));
@@ -936,7 +963,7 @@
       else if (busy) control.setAttribute('data-fp-busy-disabled', '');
     }
   }
-  function closeIssue() { cancelLocate(); imageDropJob = null; clearImageDrop(); captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
+  function closeIssue() { stopTextSession(); cancelLocate(); imageDropJob = null; clearImageDrop(); captureThreadScroll(); clearAttachments(); selected = null; targetIssueShortcuts(null); issuePopup.hidden = true; tether.hidden = true; if (open) { prepareListReveal(); panel.hidden = false; } render(); drawPins(); }
   async function stepIssue(direction) {
     if (busy || steppingPage) return;
     const items = navigationIssues();
@@ -1131,7 +1158,7 @@
   function editComment(comment, issueId = selected?.id, sidebar = false) {
     if (!issueId || actorId !== (comment.owner_id || comment.author_id)) return;
     mentionDrafts.delete('edit:' + comment.id);
-    editDrafts.set(comment.id, { issue: issueId, sidebar, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
+    editDrafts.set(comment.id, { issue: issueId, sidebar, proposed: comment.target?.text_change?.proposed, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
     renderNoteSurfaces(issueId, sidebar);
     (sidebar ? panel : issuePopup).querySelector(`[data-edit-comment="${comment.id}"] textarea`)?.focus({ preventScroll: true });
   }
@@ -1257,12 +1284,14 @@
     const form = el('form', { class: 'comment-editor', 'data-edit-comment': comment.id, onsubmit: event => {
       event.preventDefault();
       editDrafts.delete(comment.id);
-      const content = readMentionField(form.querySelector('textarea')); mentionDrafts.delete('edit:' + comment.id);
-      enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}` + (c.privateNotes ? '/manage' : ''), { ...(c.privateNotes ? { action: 'edit' } : {}), author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
+      if (draft.proposed !== undefined) stopTextSession();
+      const content = readMentionField(form.querySelector('textarea[aria-label="Edit comment"]')); mentionDrafts.delete('edit:' + comment.id);
+      enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}` + (c.privateNotes ? '/manage' : ''), { ...(c.privateNotes ? { action: 'edit' } : {}), author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title, ...(draft.proposed !== undefined ? {proposed_text:draft.proposed} : {}) } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
       if (selected?.id === draft.issue) renderIssue();
     } });
     if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (!draft.sidebar && selected?.id !== draft.issue) return; if (draft.sidebar) applyIssue(current); else selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && (latest.owner_id || latest.author_id) === actorId) editComment({ ...latest, id: comment.id }, draft.issue, draft.sidebar); else { editDrafts.delete(comment.id); if (draft.sidebar) render(); else renderIssue(); } }), { class: 'fp-quiet' }));
     if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
+    if (draft.proposed !== undefined) form.append(el('label',{},'Suggested wording',el('textarea',{name:'proposed_text',required:true,maxlength:10000,'aria-label':'Edit suggested wording',oninput:event=>{draft.proposed=event.target.value;}},draft.proposed)));
     form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && (draft.sidebar || selected?.visibility !== 'private')), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderNoteSurfaces(draft.issue, draft.sidebar); if (draft.sidebar) panel.querySelector(`[data-issue="${draft.issue}"] .note-actions-trigger`)?.focus({ preventScroll: true }); }, { class: 'fp-quiet', 'aria-keyshortcuts': 'Escape', 'data-cancel-edit': true })));
     return form;
   }
@@ -1464,7 +1493,7 @@
     if (issue.conflict) issuePopup.append(el('p', { class: 'warning' }, 'Conflicting status changes: ' + issue.status_choices.map(choice => `${labels[choice.status]} (${choice.author})`).join('; ') + '. Choose a status to resolve.'));
     const replies = issue.activity.filter(event => event.kind === 'reply');
     const filesFor = id => issue.files.filter(file => (file.comment_id || issue.id) === id);
-    const thread = el('div', { class: 'issue-thread', 'aria-label': 'Conversation' }, commentView(issue, filesFor(issue.id)));
+    const thread = el('div', { class: 'issue-thread', 'aria-label': 'Conversation' }, textChangeView(issue), commentView(issue, filesFor(issue.id)));
     for (const entry of threadEntries(issue)) thread.append(entry.kind === 'private' ? privateNoteView(entry.note) : commentView({ ...entry.payload, id: entry.id, created_at: entry.created_at }, filesFor(entry.id)));
     const known = new Set([issue.id, ...replies.map(event => event.id)]);
     const unmatched = issue.files.filter(file => !known.has(file.comment_id || issue.id));
@@ -1540,6 +1569,49 @@
     if (comment) data.append('comment_id', comment);
     await api(`issues/${id}/files`, { method: 'POST', body: data, ...(requestId ? { requestId } : {}) });
   }
+  let textSession = null;
+  function stopTextSession() {
+    const session = textSession; textSession = null; if (!session) return;
+    const { node } = session;
+    if (node.textContent === session.last) node.textContent = session.original;
+    if (session.editing && node.getAttribute('contenteditable') === 'plaintext-only') {
+      if (session.editable === null) node.removeAttribute('contenteditable'); else node.setAttribute('contenteditable', session.editable);
+    }
+    for (const [key, value, priority] of session.styles) if (node.style.getPropertyValue(key) === session.applied[key]) { if (value) node.style.setProperty(key, value, priority); else node.style.removeProperty(key); }
+    for (const [type, listener, capture] of session.listeners) node.removeEventListener(type, listener, capture);
+  }
+  function editableTextNode(target) {
+    const node = resolveTarget({ target })?.node;
+    if (!node || node.childElementCount || !node.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,span,li,strong,em') || node.closest('form,#wpadminbar,[data-feedbackpress-private]') || node.isContentEditable || !node.textContent.trim() || node.textContent.length > 10000) return null;
+    return node;
+  }
+  function startTextSession(node, value, editing, changed = () => {}) {
+    stopTextSession();
+    const session = { node, original: node.textContent, last: value, editable: node.getAttribute('contenteditable'), editing, styles: ['outline','outline-offset'].map(key => [key,node.style.getPropertyValue(key),node.style.getPropertyPriority(key)]), applied: {}, listeners: [] };
+    textSession = session; node.textContent = value;
+    const listen = (type, callback, capture = false) => { node.addEventListener(type, callback, capture); session.listeners.push([type, callback, capture]); };
+    for (const [key,value] of [['outline','1px solid ' + getComputedStyle(host).getPropertyValue('--fp-todo-ink').trim()],['outline-offset','3px']]) { node.style.setProperty(key,value,'important'); session.applied[key] = node.style.getPropertyValue(key); }
+    listen('click', event => { event.preventDefault(); event.stopImmediatePropagation(); }, true);
+    if (editing) {
+      node.setAttribute('contenteditable','plaintext-only');
+      listen('input', () => { session.last = node.textContent; changed(session.last); positionDraft(); });
+      listen('beforeinput', event => { if (event.inputType.startsWith('format')) event.preventDefault(); });
+      listen('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); composer.querySelector('form')?.requestSubmit(); } });
+    }
+    return session;
+  }
+  function textChangeView(issue) {
+    const change = issue.target?.text_change; if (!change) return null;
+    const preview = el('input', { type:'checkbox', disabled:issue.path!==pagePath, onchange: event => {
+      if (!event.target.checked) { stopTextSession(); return; }
+      stopTextSession(); const node = editableTextNode(issue.target);
+      if (!node || node.textContent !== change.original) { event.target.checked = false; message('The original text changed or is unavailable. Review the current page before applying this suggestion.'); return; }
+      startTextSession(node, change.proposed, false);
+    } });
+    preview.checked = textSession?.last === change.proposed && !textSession?.editing;
+    return el('div', {class:'text-change-view'}, el('strong', {class:'text-change-label'}, 'Text change'), el('small',{},'Original'),el('p',{class:'text-change-original'},change.original),el('small',{},'Suggested'),el('p',{class:'text-change-proposed'},change.proposed),
+      el('label',{class:'text-change-preview'},preview,'Preview on page'), button([icon('copy'), 'Copy replacement'], () => navigator.clipboard.writeText(change.proposed).then(()=>message('Replacement copied. Apply it separately in WordPress.')).catch(()=>message('Select and copy the suggested wording above.')), {class:'fp-quiet'}));
+  }
   function renderDraft() {
     const files = [];
     const input = el('input', { type: 'file', name: 'files', 'aria-label': 'Images or PDFs', class: 'visually-hidden', tabindex: '-1', accept: 'image/png,image/jpeg,image/webp,application/pdf', multiple: true });
@@ -1570,11 +1642,35 @@
         button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files', title: 'Attach images or PDFs (5 MB each)' })),
       input, attached,
       el('div', { class: 'composer-footer' }, el('button', { type: 'submit', class: 'fp-primary', title: 'Submit feedback', 'data-tooltip-shortcut': submitShortcut, 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }, 'Submit feedback')));
+    let mode = 'note', proposed = '', original = '';
+    const textNode = editableTextNode(draft);
+    if (textNode) { original = textNode.textContent; proposed = original; }
+    const summary = el('p', {class:'text-change-hint', hidden:true}, 'Edit the selected text directly on the page.');
+    const originalCopy = el('div', {class:'text-change-draft', hidden:true},el('small',{},'Original wording'),el('p',{},original));
+    const modes = el('div', {class:'feedback-types',role:'group','aria-label':'Feedback type'});
+    const submit = form.querySelector('[type=submit]');
+    for (const [value,label] of [['note','Note'],['text','Text change']]) modes.append(button(label, () => {
+      if (mode === 'text') proposed = textSession?.last ?? proposed;
+      stopTextSession(); mode = value;
+      modes.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.kind===mode)));
+      originalCopy.hidden = summary.hidden = mode !== 'text';
+      form.elements.title.hidden = mode === 'text'; form.elements.title.required = mode !== 'text';
+      submit.textContent = mode === 'text' ? 'Save suggestion' : 'Submit feedback';
+      form.feedbackpressTextChange = mode === 'text' ? {original,proposed} : null;
+      if (mode === 'text') {
+        if (!textNode.isConnected || textNode.textContent !== original) { message('The selected text changed. Place a new pin to review it.'); return; }
+        startTextSession(textNode,proposed,true,value=>{ proposed=value; form.feedbackpressTextChange={original,proposed}; });
+        textNode.focus({preventScroll:true});
+      }
+      positionDraft();
+    }, {class:'fp-quiet', 'data-kind':value,'aria-pressed':String(value==='note'), disabled:value==='text'&&!textNode, title:value==='text'&&!textNode?'Select a heading, paragraph or plain-text label':label}));
+    form.prepend(originalCopy); form.append(summary);
+    form.feedbackpressModes = modes;
     form.feedbackpressFiles = files;
-    composer.replaceChildren(el('div', { class: 'composer-top' }, statusPicker, button(icon('close'), () => { if (!busy) startPick(); }, { class: 'fp-icon-button', 'aria-label': 'Close feedback', 'aria-keyshortcuts': 'Escape', title: 'Discard this pin' })), form);
+    composer.replaceChildren(modes, el('div', { class: 'composer-top' }, statusPicker, button(icon('close'), () => { if (!busy) startPick(); }, { class: 'fp-icon-button', 'aria-label': 'Close feedback', 'aria-keyshortcuts': 'Escape', title: 'Discard this pin' })), form);
     composer.hidden = false; draftPin.hidden = !draft.selector; positionDraft(); form.elements.title.focus();
   }
-  function closeDraft() { closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
+  function closeDraft() { stopTextSession(); closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
   function newDraft(target) {
     cancelLocate();
     if (busy) return;
@@ -1616,8 +1712,10 @@
   function submitDraft(e) {
     e.preventDefault(); const form = e.target, data = new FormData(form), files = [...form.feedbackpressFiles];
     if (files.some(file => file.size > c.maxBytes)) return message('Each attachment must be 5 MB or smaller.');
-    const target = draft, capturePromise = screenshot;
-    enqueueShared('create', 'issues', { author: name, author_email: email, title: data.get('title'), status: data.get('status'), ...readMentionField(form.elements.body), path: pagePath, target }, files, capturePromise, draftOperation);
+    const change = form.feedbackpressTextChange;
+    if (change && (!change.proposed.trim() || change.proposed.length > 10000 || change.original === change.proposed || !textSession?.node.isConnected || textSession.node.textContent !== textSession.last)) return message('Enter a changed replacement in the selected text, then save the suggestion.');
+    const target = change ? {...draft, text_change:change} : draft, capturePromise = screenshot;
+    enqueueShared('create', 'issues', { author: name, author_email: email, title: change ? 'Text change: ' + change.original.trim().slice(0,105) : data.get('title'), status: data.get('status'), ...readMentionField(form.elements.body), path: pagePath, target }, files, capturePromise, draftOperation);
     closeDraft(); picking = true; updatePlacementCursor(); drawPins();
     message('Click to drop another pin. Press C or Escape to exit.');
   }
@@ -2036,7 +2134,7 @@
     if (!drop) { cancelPinDrag(); return; }
     try {
       await perform(drag.pin, async () => {
-        const updated = await (await api(`issues/${drag.issue.id}/target`, { method: 'POST', body: { author: name, target: drop.target, revision: drag.issue.target_revision } })).json();
+        const updated = await (await api(`issues/${drag.issue.id}/target`, { method: 'POST', body: { author: name, target: { ...drop.target, ...(drag.issue.target.text_change ? {text_change:drag.issue.target.text_change} : {}) }, revision: drag.issue.target_revision } })).json();
         keepListOrder = true;
         issues = issues.map(item => item.id === updated.id ? updated : item);
         pageIssues = pageIssues.map(item => item.id === updated.id ? updated : item);
@@ -2157,7 +2255,7 @@
       if (job.issueId !== issue.id || job.phase !== 'text' || job.error) continue;
       if (job.kind === 'edit') {
         const comment = job.path.split('/')[3];
-        result = comment === issue.id ? { ...result, body: job.body.body, mentions: job.body.mentions || [], ...(job.body.title !== undefined ? { title: job.body.title } : {}), pending_edit: true } : { ...result, activity: result.activity.map(event => event.id === comment ? { ...event, payload: { ...event.payload, body: job.body.body, mentions: job.body.mentions || [], pending_edit: true } } : event) };
+        result = comment === issue.id ? { ...result, body: job.body.body, mentions: job.body.mentions || [], ...(job.body.title !== undefined ? { title: job.body.title } : {}), ...(job.body.proposed_text !== undefined ? {target:{...result.target,text_change:{...result.target.text_change,proposed:job.body.proposed_text}}} : {}), pending_edit: true } : { ...result, activity: result.activity.map(event => event.id === comment ? { ...event, payload: { ...event.payload, body: job.body.body, mentions: job.body.mentions || [], pending_edit: true } } : event) };
       }
       if (job.kind === 'status') result = { ...result, status: job.body.status };
       if (job.kind === 'reply' && !result.activity.some(event => event.id === job.id)) result = { ...result, activity: [...result.activity, { id: job.id, kind: 'reply', created_at: job.createdAt, payload: { body: job.body.body, mentions: job.body.mentions || [], author: job.body.author || c.userName, author_id: actorId, pending: true } }] };

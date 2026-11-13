@@ -55,12 +55,13 @@ final class API {
         $route($id . '/comments/(?P<comment_id>[a-f0-9-]{36})', 'POST', function ($r) {
             $body = ['revision' => (int) $r->get_param('revision'), 'body' => $r->get_param('body'), 'author' => Identity::request($r)];
             if ($r->has_param('title')) $body['title'] = $r->get_param('title');
+            if ($r->has_param('proposed_text')) $body['proposed_text'] = $r->get_param('proposed_text');
             if ($r->has_param('mentions')) $body['mentions'] = $r->get_param('mentions');
             return Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/comments/' . $r['comment_id'], $body, self::key($r)));
         });
         foreach ([$id . '/manage', $id . '/comments/(?P<comment_id>[a-f0-9-]{36})/manage'] as $path) $route($path, 'POST', function ($r) {
             $body = ['revision' => (int) $r->get_param('revision'), 'action' => $r->get_param('action')];
-            foreach (['body','title','mentions'] as $key) if ($r->has_param($key)) $body[$key] = $r->get_param($key);
+            foreach (['body','title','mentions','proposed_text'] as $key) if ($r->has_param($key)) $body[$key] = $r->get_param($key);
             $path = '/issues/' . $r['id'] . ($r->get_param('comment_id') ? '/comments/' . $r['comment_id'] : '') . '/manage';
             $result = Service::request('POST', $path, $body, self::key($r), true);
             return !empty($result['deleted']) ? $result : Service::view($result);
@@ -136,7 +137,7 @@ final class API {
         }
         $issues = array_values(array_filter($snapshot, function ($i) use ($r, $terms) {
             if (($r->get_param('path') && $i['path'] !== $r->get_param('path'))) return false;
-            $text = $i['title'] . "\n" . $i['body']; foreach ($i['activity'] as $e) $text .= "\n" . $e['payload']['body'];
+            $text = $i['title'] . "\n" . $i['body'] . "\n" . ($i['target']['text_change']['original'] ?? '') . "\n" . ($i['target']['text_change']['proposed'] ?? ''); foreach ($i['activity'] as $e) $text .= "\n" . $e['payload']['body'];
             foreach ($terms as $term) if (!preg_match('/' . preg_quote($term, '/') . '/iu', $text)) return false;
             return true;
         }));
