@@ -2,7 +2,7 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
-**0.3.0 is a breaking central-service release.** Download it from [GitHub Releases](https://github.com/jonschr/feedbackpress/releases/tag/0.3.0). It requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
+**0.3.1 is the current central-service release.** Download it from [GitHub Releases](https://github.com/jonschr/feedbackpress/releases/tag/0.3.1). It requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
 
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.

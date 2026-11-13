@@ -42,7 +42,9 @@ final class Admin {
         $c = Service::connection();
         ?>
         <form id="fp-account" method="post" autocomplete="off">
-            <label for="fp-account-key">License or account access key</label><input id="fp-account-key" name="feedbackpress_access_key" data-1p-ignore type="password" required autocomplete="off" spellcheck="false">
+            <label for="fp-account-key">License or account access key</label>
+            <input id="fp-account-key" name="feedbackpress_access_key" data-1p-ignore type="text" required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="fp-key-help">
+            <p id="fp-key-help" class="description">Visible while entering. Cleared after connecting.</p>
             <button class="button button-primary" type="submit">Connect account</button>
             <details class="fp-service-details"><summary>Service address</summary><label for="fp-service" class="screen-reader-text">FeedbackPress service</label><input id="fp-service" type="url" required value="<?php echo esc_attr($c['service'] ?? 'https://feedbackpress.elod.in'); ?>"></details>
         </form>
@@ -59,36 +61,39 @@ final class Admin {
             <section class="fp-section fp-main" id="fp-main">
             <?php if (!empty($c['manager'])): ?>
                 <h2>Project</h2>
-                <p class="description">Choose which project this site belongs to. Feedback stays with its project when you switch.</p>
+                <p class="description">Feedback stays with its project when you switch.</p>
                 <div class="fp-project-picker" id="fp-project-picker" aria-busy="true">
-                    <label for="fp-project-search">Project</label>
+                    <label for="fp-project-search" class="screen-reader-text">Project</label>
                     <div class="fp-select-wrap"><input id="fp-project-search" type="text" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="fp-project-options" autocomplete="off" data-1p-ignore placeholder="Search your projects…" disabled><span class="fp-select-chevron" aria-hidden="true"></span></div>
                     <ul id="fp-project-options" role="listbox" aria-label="Account projects" hidden></ul>
                 </div>
                 <p id="fp-project-state" class="description" aria-live="polite">Loading your projects…</p>
                 <button type="button" class="button-link" id="fp-new-project">Create a project</button>
                 <form id="fp-create-project" method="post" hidden><label for="fp-project-name">Project name</label><input id="fp-project-name" required maxlength="120" data-1p-ignore><div class="fp-inline-actions"><button class="button" type="submit">Create project</button><button class="button-link" type="button" id="fp-cancel-project">Cancel</button></div></form>
-                <div id="fp-connected-sites"><h3>Sites in this project</h3><p class="description">Choose a project to connect this site.</p></div>
+                <div id="fp-connected-sites" class="fp-subsection" hidden><h3>Connected sites</h3><p class="description">Choose a project to connect this site.</p></div>
             <?php else: ?>
                 <h2>Connect your account</h2>
-                <p>Enter your FeedbackPress license to choose a project. Complimentary accounts can use an access key.</p>
+                <p class="description">Enter a license or access key to choose your project.</p>
                 <?php self::accountForm(); ?>
-                <p class="description">Your license key is never saved in WordPress. A private account connection stays on the server so you can manage projects here.</p>
+                <p class="description">Your license or access key is not saved in WordPress.</p>
             <?php endif; ?>
             </section>
-            <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Account connection</summary><p class="description">Connected to <?php echo esc_html($c['service']); ?>. WordPress administrators on this installation can manage projects in this account.</p><p class="description">Use a license or account key to reconnect or choose another account. Neither key is saved in WordPress.</p><?php self::accountForm(); ?></details><?php endif; ?>
-            <details class="fp-section"><summary>Review access</summary>
-                <form id="fp-access" method="post"><label for="fp-mode">Who can view pins and leave feedback without a review link?</label><select id="fp-mode"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></form>
-                <p class="description">Private agent notes are available only to logged-in WordPress users with the matching email address.</p>
-            </details>
-            <details class="fp-section" id="fp-review-links"><summary>Client review link</summary>
-                <p class="description">Copy the reusable link from FeedbackPress to let your client review this site without a WordPress login, even with administrator-only review access. Create it on the live or staging copy your client can reach.</p>
-                <p class="description">Anyone with the link can use shared feedback. Private notes and WordPress administration stay protected. Nobody (disabled) also disables link access.</p>
-                <button type="button" class="button" id="fp-review-link-copy">Copy review link</button>
-                <div id="fp-review-link-result" hidden><label for="fp-review-link-url">Review link</label><input id="fp-review-link-url" readonly autocomplete="off" data-1p-ignore></div>
-            </details>
-            <details class="fp-section" id="fp-diagnostics"><summary>Connection diagnostics</summary><p class="description">The latest 100 requests, retained for up to 3 days. No credentials or comment text are logged.</p><pre id="fp-log">Open this section to load diagnostics.</pre></details>
-            <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Disconnect this installation</summary><p>This removes this copy from its project and disconnects its account. Other copies and all feedback remain in the service.</p><button class="button" id="fp-disconnect" type="button">Disconnect account</button></details><?php endif; ?>
+            <section class="fp-section">
+                <h2>Review access</h2>
+                <form id="fp-access" method="post"><label for="fp-mode">Access without a review link</label><div class="fp-field-actions"><select id="fp-mode" aria-describedby="fp-access-help"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></div><p class="description" id="fp-access-help">Private notes require the owner’s WordPress login. Nobody also disables review links.</p></form>
+                <?php if (!empty($c['manager'])): ?><div id="fp-review-links" class="fp-subsection" hidden>
+                    <h3>Client review link</h3>
+                    <p class="description">Anyone with this link can use shared feedback without a WordPress login. Copy it from the live or staging site your client will review.</p>
+                    <button type="button" class="button" id="fp-review-link-copy">Copy review link</button>
+                    <div id="fp-review-link-result" hidden><label for="fp-review-link-url">Review link</label><input id="fp-review-link-url" readonly autocomplete="off" data-1p-ignore></div>
+                </div><?php endif; ?>
+            </section>
+            <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Account connection</summary>
+                <p class="description">Connected to <?php echo esc_html($c['service']); ?>. Enter another key to reconnect or switch accounts.</p>
+                <?php self::accountForm(); ?>
+                <div class="fp-subsection"><p class="description">Disconnecting removes this installation from its project. All feedback stays in the service.</p><button class="button-link button-link-delete" id="fp-disconnect" type="button">Disconnect account</button></div>
+            </details><?php endif; ?>
+            <details class="fp-section" id="fp-diagnostics"><summary>Connection diagnostics</summary><p class="description">Latest 100 requests, kept for 3 days. Credentials and comment text are excluded.</p><pre id="fp-log">Open this section to load diagnostics.</pre></details>
         </div>
         <?php
     }

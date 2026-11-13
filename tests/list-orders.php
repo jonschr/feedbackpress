@@ -29,18 +29,28 @@ namespace {
         if ($actual !== $expected) throw new RuntimeException('Wrong order: ' . $group . '/' . $order);
         $scoped = listing(['order' => $order, 'group' => $group, 'path' => '/?page_id=2&view=full']);
         if (array_column($scoped['issues'], 'number') !== array_values(array_filter($expected, fn($n) => $n % 2 === 0))) throw new RuntimeException('Page scope ignored.');
+        if ($scoped['project_counts'] !== ['open' => 1, 'closed' => 3, 'contains_private' => false]) throw new RuntimeException('Project totals changed with page scope.');
         if ($scoped['total'] !== 2 || $scoped['status_counts']['todo'] !== 1 || $scoped['status_counts']['done'] !== 1) throw new RuntimeException('Page counts failed.');
     }
     if (array_column(listing(['order' => 'invalid', 'group' => 'invalid'])['issues'], 'number') !== [1, 2, 3, 4]) throw new RuntimeException('Safe default failed.');
     $filtered = listing(['path' => '/?page_id=2&view=full', 'status' => 'todo', 'search' => 'Issue']);
     if ($filtered['total'] !== 1 || $filtered['status_counts']['done'] !== 1) throw new RuntimeException('Scope/search/status counts failed.');
+    if ($filtered['project_counts'] !== ['open' => 1, 'closed' => 3, 'contains_private' => false]) throw new RuntimeException('Project totals changed with search/status.');
+    FeedbackPress\Service::$items[0]['visibility'] = 'private';
+    if (!listing(['search' => 'not found'])['project_counts']['contains_private']) throw new RuntimeException('Private aggregate must not be browser-cached.');
+    FeedbackPress\Service::$items[0]['visibility'] = 'shared';
     $tied = $fixture['items'][0]; $tied['number'] = 5; $tied['id'] = 'tie'; FeedbackPress\Service::$items[] = $tied;
     if (array_column(listing(['order' => 'created_desc'])['issues'], 'number') !== [4, 3, 2, 5, 1]) throw new RuntimeException('Creation tie unstable.');
     FeedbackPress\Service::$items = [];
     for ($n = 1; $n <= 125; $n++) { $i = $fixture['items'][0]; $i['number'] = $n; $i['id'] = (string) $n; FeedbackPress\Service::$items[] = $i; }
+    if (listing([])['project_counts'] !== ['open' => 0, 'closed' => 125, 'contains_private' => false]) throw new RuntimeException('Project totals truncated by pagination.');
     $page = listing(['order' => 'created_desc', 'page' => 2]);
     if ($page['total'] !== 125 || count($page['issues']) !== 50 || $page['issues'][0]['number'] !== 75 || end($page['issues'])['number'] !== 26) throw new RuntimeException('Reverse pagination failed.');
     $focus = listing(['order' => 'created_desc', 'focus' => '1']);
     if ($focus['page'] !== 3 || end($focus['issues'])['number'] !== 1) throw new RuntimeException('Focus pagination failed.');
-    echo "PASS Six real gateway sort orders, both groupings, exact-query page scope, null dates last, defaults/ties, scoped counts/search/status, reverse/focus pagination.\n";
+    FeedbackPress\Service::$items = [];
+    if (listing([])['project_counts'] !== ['open' => 0, 'closed' => 0, 'contains_private' => false]) throw new RuntimeException('Empty project totals failed.');
+    foreach (['todo', 'needs_info', 'doing', 'review', 'done'] as $status) { $item = $fixture['items'][0]; $item['status'] = $status; FeedbackPress\Service::$items[] = $item; }
+    if (listing([])['project_counts'] !== ['open' => 4, 'closed' => 1, 'contains_private' => false]) throw new RuntimeException('Open status membership failed.');
+    echo "PASS Six real gateway sort orders, both groupings, exact-query page scope, null dates last, defaults/ties, scoped counts/search/status, reverse/focus pagination, overall authorized open/closed totals independent of filters/pagination and private-cache guard.\n";
 }

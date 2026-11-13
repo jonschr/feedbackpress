@@ -14,7 +14,7 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
       activity: Array.from({ length: 20 }, (_, i) => ({ id: 'reply-' + i, kind: 'reply', created_at: '2026-11-11T12:00:00Z', payload: { body: 'Shared reply ' + i, author: 'Reviewer' } }))
     }));
     const observe = `<script>{const r=document.querySelector('#feedbackpress-root').shadowRoot;
-      const state=()=>({rows:r.querySelectorAll('.issue-row').length,placeholder:r.querySelectorAll('.list-placeholder').length,selected:r.querySelector('.popup-header strong')?.textContent});
+      const state=()=>({rows:r.querySelectorAll('.issue-row').length,placeholder:r.querySelectorAll('.list-placeholder').length,selected:r.querySelector('.issue-reference')?.textContent});
       window.fixtureBoot={...state(),at:performance.now()};window.fixturePaint=null;
       function paint(){const p=r.querySelector('.panel');if(p&&!p.hidden&&p.getBoundingClientRect().width===Math.min(innerWidth,400)&&getComputedStyle(document.querySelector('#feedbackpress-root')).visibility!=='hidden'){
         window.fixturePaint={...state(),at:performance.now(),scroll:r.querySelector('.issue-list').scrollTop,animation:getComputedStyle(p).animationName,thread:r.querySelector('.issue-thread')?.scrollTop};
@@ -80,10 +80,16 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     // Let the resize handler switch the drawer/popup before choosing the mobile action.
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     if (!await panel.isVisible()) await page.keyboard.press('v');
-    const mobileId = await list.evaluate((node, home) => [...node.querySelectorAll('.issue-row')].find(row => {
-      const rect = row.getBoundingClientRect(), bounds = node.getBoundingClientRect();
-      return row.querySelector('.page-reference').textContent === home && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
-    })?.dataset.issue, base + '/');
+    // Visibility and row choice must share a layout snapshot: hidden rows have matching zero bounds.
+    const mobileId = await (await page.waitForFunction(home => {
+      const node = document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list');
+      if (!node?.clientHeight || node.scrollTop !== 700) return false;
+      const bounds = node.getBoundingClientRect();
+      return [...node.querySelectorAll('.issue-row')].find(row => {
+        const rect = row.getBoundingClientRect();
+        return rect.height > 0 && row.querySelector('.page-reference').textContent === home && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+      })?.dataset.issue;
+    }, base + '/')).jsonValue();
     assert.ok(mobileId, 'A current-view homepage row is visible without scrolling.');
     await list.locator(`[data-issue="${mobileId}"] .issue-open`).click();
     await page.waitForURL(base + '/#feedbackpress=' + mobileId); await popup.waitFor();

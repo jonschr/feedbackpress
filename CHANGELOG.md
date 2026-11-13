@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- Refine the sidebar, conversation cards and WordPress connection screen with shared typography, controls and status colors.
+- Add inline sidebar issue editing, visibility and deletion actions using existing owner permissions.
+- Reveal newly posted replies/private notes and show subtle overflow cues in conversations and issue lists.
+- Make thread URLs clickable, improve attachment previews/downloads and display lightweight privacy switches and shortcut badges.
+- Preserve unchanged issue rows during selection and soften brief hover exits to avoid restarting control animations.
+- Keep open menus stable during background refresh and store queued upload bytes reliably in Safari/WebKit, preserving navigation cancellation/resumption.
+- Preserve all existing central feedback, attachments, connection settings and queued work. No data migration is required.
+- Known limitation: the strict Chrome headless under-100ms benchmark remains slow on the release Mac, including the prior 0.3.0 code; the complete WebKit workflow passes at 23–31ms. Paid billing and notification delivery remain disabled pending the separately documented decisions/owner verification.
+
 ## 0.3.0 — November 12, 2026
 
 - Normal release of the central-backed WordPress workflow. The existing update feed offers this normal release to legacy and central installations; legacy copies then connect to the central service through WordPress settings. Existing feedback stays untouched.

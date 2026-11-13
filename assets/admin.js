@@ -39,27 +39,34 @@
     if (state?.project?.id !== nextState.project?.id) { if ($('fp-review-link-result')) $('fp-review-link-result').hidden = true; if ($('fp-review-link-url')) $('fp-review-link-url').value = ''; }
     state = nextState; projects = nextProjects;
     search.disabled = false; $('fp-project-picker').setAttribute('aria-busy', 'false'); closePicker();
-    $('fp-project-state').textContent = state.disconnected ? 'This site is disconnected. Choose a project to reconnect.' : state.project ? 'Switching projects moves this site’s connection, not its feedback.' : 'Choose a project to connect this site.';
-    const section = $('fp-connected-sites'); section.replaceChildren(); const heading = document.createElement('h3'); heading.textContent = 'Sites in this project'; section.append(heading);
-    if (!state.project) { const p = document.createElement('p'); p.className = 'description'; p.textContent = 'Choose a project above to see its sites.'; section.append(p); return; }
+    $('fp-project-state').textContent = state.disconnected ? 'This site is disconnected. Choose a project to reconnect.' : state.project ? '' : 'Choose a project to connect this site.';
+    $('fp-project-state').hidden = Boolean(state.project && !state.disconnected);
+    if ($('fp-review-links')) $('fp-review-links').hidden = !state.project || Boolean(state.disconnected);
+    const section = $('fp-connected-sites'), notificationOpen = section.querySelector('.fp-notifications')?.open; section.replaceChildren(); const heading = document.createElement('h3'); heading.textContent = 'Connected sites'; section.append(heading);
+    section.hidden = !state.project;
+    if (!state.project) return;
     const list = document.createElement('ul'); list.className = 'fp-site-list';
     for (const site of state.project.sites || []) {
       const row = document.createElement('li'), copy = document.createElement('div'), url = document.createElement('a'); url.href = site.url; url.target = '_blank'; url.rel = 'noopener'; url.textContent = site.url; copy.append(url);
       if (site.url === state.current_url) { const tag = document.createElement('small'); tag.textContent = 'This site'; copy.append(tag); }
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button-link button-link-delete'; remove.textContent = 'Remove'; remove.setAttribute('aria-label', 'Remove ' + site.url);
-      remove.addEventListener('click', () => run(section, async () => { const next = await api('site/remove', { url: site.url }); await refresh(next); show('Site removed from this project. An administrator can reconnect it through project selection.'); }));
+      remove.addEventListener('click', () => run(section, async () => { const next = await api('site/remove', { url: site.url }); await refresh(next); show('Site removed. Its feedback remains in this project.'); }));
       row.append(copy, remove); list.append(row);
     }
     if (!list.children.length) { const p = document.createElement('p'); p.className = 'description'; p.textContent = 'No sites are connected to this project.'; section.append(p); } else section.append(list);
+    const details=document.createElement('details'),summary=document.createElement('summary');details.className='fp-notifications';details.open=Boolean(notificationOpen || (state.project.review_site && !state.project.notification_site));summary.textContent='Notification links';details.append(summary);
     const form=document.createElement('form'),label=document.createElement('label'),select=document.createElement('select'),save=document.createElement('button'),help=document.createElement('p');
     label.textContent='Notification link destination';select.id='fp-review-site';label.htmlFor=select.id;
     select.append(new Option('Automatic: first non-local site',''));
     for(const site of state.project.sites||[])if(site.notification_eligible)select.append(new Option(site.url,site.url));
     if(state.project.review_site&&![...select.options].some(option=>option.value===state.project.review_site)){const unavailable=new Option(state.project.review_site+' (unavailable)',state.project.review_site);unavailable.disabled=true;select.append(unavailable);}
     select.value=state.project.review_site||'';save.className='button';save.textContent='Save link destination';save.type='submit';help.className='description';help.style.overflowWrap='anywhere';
-    help.textContent='Applies to every copy of this project. '+(state.project.notification_site?'Links open '+state.project.notification_site+'. ':state.project.review_site?'The chosen site is unavailable. Choose another public site or Automatic. ':'No public HTTPS destination is available. Connect a staging or production copy, or reload to retry. ')+'Automatic uses the first connected public HTTPS site. Local and private addresses are excluded. '+(state.project.notification_delivery==='capture'?'Email previews are being captured; live delivery is off.':state.project.notification_delivery==='resend'?'Delivery testing is limited to approved recipients.':'Mention emails are off.');
-    form.append(label,document.createElement('br'),select,document.createTextNode(' '),save,help);
-    form.addEventListener('submit',event=>{event.preventDefault();run(form,async()=>{await refresh(await api('notifications',{review_site:select.value||null}));show('Notification link destination saved.');});});section.append(form);
+    select.setAttribute('aria-describedby','fp-notification-help');help.id='fp-notification-help';
+    help.textContent=(state.project.notification_site?'Links open '+state.project.notification_site+'.':state.project.review_site?'The chosen site is unavailable. Choose another public site or Automatic.':'Connect a public HTTPS site to use notification links.');
+    const actions=document.createElement('div');actions.className='fp-field-actions';actions.append(select,save);
+    const delivery=document.createElement('p');delivery.className='description';delivery.textContent='Applies to all sites in this project. '+(state.project.notification_delivery==='capture'?'Email previews are being captured; live delivery is off.':state.project.notification_delivery==='resend'?'Delivery testing is limited to approved recipients.':'Mention emails are off.');
+    form.append(label,actions,help,delivery);
+    form.addEventListener('submit',event=>{event.preventDefault();run(form,async()=>{await refresh(await api('notifications',{review_site:select.value||null}));show('Notification link destination saved.');});});details.append(form);section.append(details);
   }
   function choose(id) {
     closePicker(); if (id === state?.project?.id && !state?.disconnected) return;
@@ -74,10 +81,10 @@
     else if (event.key === 'Escape' || event.key === 'Tab') closePicker();
   });
   document.addEventListener('pointerdown', event => { if (search && !event.target.closest('.fp-project-picker')) closePicker(); });
-  $('fp-account')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('account', { service: $('fp-service').value, key: $('fp-account-key').value }); $('fp-account-key').value = ''; location.reload(); }); });
-  $('fp-new-project')?.addEventListener('click', () => { closePicker(); projectDraftId = crypto.randomUUID(); $('fp-create-project').hidden = false; $('fp-project-name').focus(); });
-  $('fp-cancel-project')?.addEventListener('click', () => { $('fp-create-project').hidden = true; $('fp-project-name').value = ''; });
-  $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); $('fp-create-project').hidden = true; $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
+  $('fp-account')?.addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; run(form, async () => { await api('account', { service: $('fp-service').value, key: $('fp-account-key').value }); $('fp-account-key').value = ''; form.hidden = true; show('Account connected. Loading your projects…'); location.reload(); }); });
+  $('fp-new-project')?.addEventListener('click', () => { closePicker(); projectDraftId = crypto.randomUUID(); $('fp-new-project').hidden = true; $('fp-create-project').hidden = false; $('fp-project-name').focus(); });
+  $('fp-cancel-project')?.addEventListener('click', () => { $('fp-create-project').hidden = true; $('fp-new-project').hidden = false; $('fp-project-name').value = ''; });
+  $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); $('fp-create-project').hidden = true; $('fp-new-project').hidden = false; $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
   $('fp-access')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('settings', { mode: $('fp-mode').value }); show('Review access saved.'); }); });
   $('fp-review-link-copy')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => {
     const link = await api('review-link');

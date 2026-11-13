@@ -1,8 +1,8 @@
 # FeedbackPress pilot operations
 
-Latest release: plugin 0.3.0-beta.2 published; rapid-review limiter repaired per native user/project, background refresh uncharged. Historical delete investigation still awaits issue number. Stable updater stays 0.2.2; hosted API d9799c69187c unchanged.
+Release in preparation: normal plugin 0.3.1 and service 0.1.0. Current hosted runtime remains d9799c69187c pending guarded activation; current public plugin is 0.3.0. Read the final release receipt before using historical rollout instructions.
 
-Verified November 12, 2026. This is a controlled beta; live paid billing remains disabled.
+Verified November 12, 2026. The normal central workflow supports explicit complimentary owner access; live paid billing remains disabled.
 
 ## Running deployment
 
@@ -39,7 +39,7 @@ Fetch/compare before development or deployment. Package tracked, tested source i
 
 Previous API release is retained at `/opt/feedbackpress/releases/e2895d7`. For code-only rollback, atomically point current there and restart only FeedbackPress. Restore matching QA plugin files from the private rollout backups. No schema rollback is needed. Preserve central writes, already published comments and private audit; never restore a stale database to undo code deployment. Do not clear pending browser jobs. The older fd6ddf6 release is historical and is not the immediate rollback target.
 
-Before paid launch: approve the real storage cap and inactive-account read/export/grace policy, confirm live checkout/tax presentation, and decide the ongoing independent backup destination. Notifications and stronger independent email identity remain outside this pilot.
+Before paid launch: approve the real storage cap and inactive-account read/export/grace policy, confirm live checkout/tax presentation, and decide the ongoing independent backup destination. Notification delivery remains deferred until owner verification; private identity continues to use the accepted WordPress gateway trust boundary.
 
 
 ## Installed rollout receipt — November 11, 2026 (America/Chicago)

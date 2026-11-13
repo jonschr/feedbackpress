@@ -10,7 +10,7 @@
   css.addEventListener('load', () => { stylesReady = true; if (open) render(); restoreThreadScroll(); positionDraft(); host.style.visibility = ''; });
   const el = (tag, attrs = {}, ...children) => {
     const node = document.createElement(tag);
-    if (tag === 'button' && attrs.type === 'submit') attrs = { ...attrs, 'data-fp-submit': true };
+    if (tag === 'button' && attrs.type === 'submit') attrs = { 'aria-keyshortcuts': 'Meta+Enter Control+Enter', ...attrs, 'data-fp-submit': true };
     if (busy && ['button', 'input', 'textarea', 'select'].includes(tag) && !attrs.disabled) attrs = { ...attrs, disabled: true, 'data-fp-busy-disabled': true };
     for (const [k, v] of Object.entries(attrs)) {
       if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
@@ -25,9 +25,10 @@
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12l4 4L19 6' : kind === 'todo' ? 'M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h6' : kind === 'needs_info' ? 'M21 12a9 9 0 11-18 0 9 9 0 0118 0M9.1 9a3 3 0 015.8 1c0 2-3 2-3 4M12 17h.01' : kind === 'doing' ? 'M8 5l11 7-11 7z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    path.setAttribute('d', kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12.5l4.5 4.5L19 7' : kind === 'todo' ? 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M10 3h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 11h6M9 15h6' : kind === 'needs_info' ? 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6ZM9 3v15M15 6v15' : kind === 'doing' ? 'M8.5 5.5v13L19 12 8.5 5.5Z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18s-9.5-6-9.5-6ZM14.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0Z' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
     if (kind === 'download') path.setAttribute('d', 'M12 3v12M7 10l5 5 5-5M5 17v4h14v-4');
-    if (kind === 'more') path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01');
+    if (kind === 'more') { path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01'); svg.setAttribute('stroke-width', '3'); }
+    if (kind === 'issues') path.setAttribute('d', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01');
     if (kind === 'sort') path.setAttribute('d', 'M8 4v16M5 7l3-3 3 3M16 20V4M13 17l3 3 3-3');
     if (kind === 'sidebar-left') path.setAttribute('d', 'M3 4h18v16H3zM9 4v16M16 9l-3 3 3 3');
     if (kind === 'sidebar-right') path.setAttribute('d', 'M3 4h18v16H3zM15 4v16M8 9l3 3-3 3');
@@ -35,6 +36,7 @@
     if (kind === 'room') path.setAttribute('d', 'M3 4h10v16H3zM17 4h4v16h-4z');
     if (kind === 'history') path.setAttribute('d', 'M3 11a9 9 0 119 10M3 4v7h7M12 7v5l3 2');
     if (kind === 'logout') path.setAttribute('d', 'M10 4H4v16h6M14 8l4 4-4 4M8 12h12');
+    if (['todo', 'needs_info', 'doing', 'review', 'check'].includes(kind)) { svg.classList.add('fp-status-icon'); svg.setAttribute('stroke-width', '1.9'); }
     svg.append(path); return svg;
   }
   const labels = { todo: 'To do', needs_info: 'Information needed', doing: 'Doing', review: 'Review', done: 'Done' };
@@ -52,7 +54,7 @@
   let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'none', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
   let sidebarSide = 'right', pageLayout = 'room';
-  let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false;
+  let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false, deferredIssueRender = false, deferredListRender = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
   let imageDropJob = null, imageDropTarget = null, imageDropTimer = null;
@@ -61,7 +63,7 @@
   const replyFiles = new Map();
   const replyOperations = new Map();
   const threadScrolls = new Map();
-  let statusCounts = null;
+  let statusCounts = null, projectCounts = null;
   const countedStatuses = new Map();
   let draftOperation = null;
   let shortcutIssueId = null, lastPointer = null, steppingPage = false;
@@ -113,7 +115,7 @@
     cacheSaveTimer = null;
     if (cacheDenied) return;
     const visible = issues.filter(issue => !issue.pending);
-    const view = listLoaded && selected?.visibility !== 'private' && !visible.some(issue => issue.visibility === 'private' || issue.activity.some(event => event.payload?.visibility === 'private')) && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, pointer: lastPointer, threads: [...threadScrolls].filter(([id]) => !privateIssueIds.has(id)).slice(-200) } : null;
+    const view = listLoaded && selected?.visibility !== 'private' && !visible.some(issue => issue.visibility === 'private' || issue.activity.some(event => event.payload?.visibility === 'private')) && loadedListSignature === listSignature() ? { at: Date.now(), signature: listSignature(), ids: visible.map(issue => issue.id), total: total - (issues.length - visible.length), selected: selected?.id, detailOpen: !issuePopup.hidden, counts: statusCounts, projectCounts: projectCounts && !projectCounts.contains_private && ![...sharedJobs.values()].some(job => job.phase === 'text') ? projectCounts : null, pointer: lastPointer, threads: [...threadScrolls].filter(([id]) => !privateIssueIds.has(id)).slice(-200) } : null;
     const priority = new Set([selected?.id, ...visible.map(issue => issue.id)]);
     const known = knownIssues ? [...knownIssues].filter(id => !privateIssueIds.has(id)) : null, at = Date.now();
     const entries = [], saved = new Set(); let size = JSON.stringify({ entries: [], view, known, at }).length;
@@ -138,6 +140,7 @@
     const carried = new Set(view && freshCache(view.at) ? [...view.ids, view.selected] : []);
     for (const entry of (saved.entries || []).slice(0, 200)) if (freshCache(entry.at) || carried.has(entry.issue.id)) issueCache.set(entry.issue.id, entry);
     if (view && freshCache(view.at)) {
+      if (validProjectCounts(view.projectCounts) && !view.projectCounts.contains_private) projectCounts = { ...view.projectCounts };
       if (view.signature === listSignature() && view.counts && Object.keys(labels).every(status => Number.isSafeInteger(view.counts[status]) && view.counts[status] >= 0)) statusCounts = view.counts;
       for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
       if (Number.isFinite(view.pointer?.x) && Number.isFinite(view.pointer?.y)) lastPointer = view.pointer;
@@ -167,7 +170,7 @@
   }
   function forgetIssue(id) {
     const listed = issues.some(issue => issue.id === id);
-    issueCache.delete(id); issues = issues.filter(issue => issue.id !== id); pageIssues = pageIssues.filter(issue => issue.id !== id); privateNotes.delete(id);
+    removeStatusCount(id); issueCache.delete(id); issues = issues.filter(issue => issue.id !== id); pageIssues = pageIssues.filter(issue => issue.id !== id); privateNotes.delete(id);
     for (const [key,draft] of privateEditDrafts) if (draft.issue === id) privateEditDrafts.delete(key);
     for (const [key,draft] of editDrafts) if (draft.issue === id) editDrafts.delete(key);
     for (const [key,pending] of noteConfirmations) if (pending.issueId === id) noteConfirmations.delete(key);
@@ -176,8 +179,11 @@
     if (selected?.id === id) { cancelLocate(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; clearAttachments(true); }
     if (open) render(); drawPins(); scheduleCacheSave();
   }
-  function applyIssue(updated, force = false) {
+  function applyIssue(updated, force = false, localReply = null) {
     if (cacheDenied) return;
+    const follow = localReply && threadEntryVisible(updated.id, localReply.from);
+    const previousThread = localReply && selected?.id === updated.id && !issuePopup.hidden ? issuePopup.querySelector('.issue-thread') : null;
+    const followBottom = previousThread && previousThread.scrollHeight - previousThread.clientHeight - previousThread.scrollTop <= 2;
     const known = issueCache.get(updated.id)?.issue;
     if (known && Number(known.revision) > Number(updated.revision)) return;
     if (updated.visibility === 'private') privateReply.delete(updated.id);
@@ -193,6 +199,7 @@
       if (selected?.id === updated.id) selected = updated;
       for (const row of panel.querySelectorAll(`[data-issue="${updated.id}"]`)) {
         row.dataset.status = updated.status; row.feedbackpressIssue = updated;
+        row.querySelector('.row-number')?.setAttribute('aria-description', labels[updated.status]);
         row.querySelector('.row-status')?.replaceWith(statusControl(updated, 'row-status'));
       }
       if (selected?.id === updated.id) issuePopup.querySelector('.popup-status')?.replaceWith(statusControl(updated, 'popup-status'));
@@ -200,9 +207,18 @@
     }
     if (selected?.id === updated.id) {
       const changed = JSON.stringify(selected) !== JSON.stringify(updated); selected = updated;
-      if (changed && !issuePopup.hidden && !root.activeElement?.matches('input,textarea,select,[contenteditable]')) renderIssue();
+      const menuOpen = issuePopup.querySelector('.note-actions:popover-open');
+      if (changed && menuOpen) deferredIssueRender = true;
+      const replyField = localReply && root.activeElement?.matches('.reply-form textarea, .reply-form [role=switch]') ? root.activeElement : null;
+      if (changed && !menuOpen && !issuePopup.hidden && (replyField || !root.activeElement?.matches('input,textarea,select,[contenteditable]'))) {
+        const caret = replyField && typeof replyField.selectionStart === 'number' ? [replyField.selectionStart, replyField.selectionEnd] : null;
+        renderIssue();
+        if (replyField) { const field = issuePopup.querySelector(replyField.matches('textarea') ? '.reply-form textarea' : '.reply-form [role=switch]'); field?.focus({ preventScroll: true }); if (caret) field?.setSelectionRange(...caret); }
+      }
     }
     if (open) render(); updateNavigation(); drawPins();
+    if (followBottom) { const thread = issuePopup.querySelector('.issue-thread'); if (thread) { thread.scrollTop = thread.scrollHeight; captureThreadScroll(); queueScrollCues(); } }
+    else if (follow) revealThreadEntry(updated.id, localReply.to);
   }
   function readIssue(id) {
     if (!issueReads.has(id)) issueReads.set(id, api('issues/' + id).then(response => response.json()).finally(() => issueReads.delete(id)));
@@ -285,8 +301,8 @@
   const pins = el('div', { class: 'pins' });
   const highlight = el('div', { class: 'highlight', hidden: true });
   const notice = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite', hidden: true });
-  const launcher = button('Leave feedback', () => withIdentity(startPick), { class: 'fp-primary', title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' });
-  const viewButton = button('View issues', () => withIdentity(() => { if (selected && innerWidth < 900 && panel.hidden) { prepareListReveal(); open = true; viewButton.setAttribute('aria-expanded', 'true'); issuePopup.hidden = true; tether.hidden = true; panel.hidden = false; render(); } else toggle(!open); }), { 'aria-expanded': 'false', title: 'Toggle issues panel', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' });
+  const launcher = button([icon('plus'), el('span', {}, 'Leave feedback')], () => withIdentity(startPick), { title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' });
+  const viewButton = button([icon('issues'), el('span', {}, 'View issues')], () => withIdentity(() => { if (selected && innerWidth < 900 && panel.hidden) { prepareListReveal(); open = true; viewButton.setAttribute('aria-expanded', 'true'); issuePopup.hidden = true; tether.hidden = true; panel.hidden = false; render(); } else toggle(!open); }), { 'aria-expanded': 'false', title: 'Toggle issues panel', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' });
   const launchers = el('div', { class: 'launcher' }, viewButton, launcher);
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
@@ -324,6 +340,37 @@
     const thread = issuePopup.querySelector('.issue-thread');
     if (stylesReady && selected && thread) thread.scrollTop = threadScrolls.get(selected.id) || 0;
   }
+  function threadEntryVisible(issueId, entryId) {
+    if (selected?.id !== issueId || issuePopup.hidden || !stylesReady) return false;
+    const thread = issuePopup.querySelector('.issue-thread'), entry = thread?.querySelector(`[data-comment="${entryId}"]`);
+    if (!entry) return false;
+    const viewport = thread.getBoundingClientRect(), row = entry.getBoundingClientRect();
+    return row.top >= viewport.top - 1 && (row.bottom <= viewport.bottom + 1 || row.height > thread.clientHeight && row.top <= viewport.top + 1);
+  }
+  function revealThreadEntry(issueId, entryId) {
+    if (selected?.id !== issueId || issuePopup.hidden || !stylesReady) return;
+    const thread = issuePopup.querySelector('.issue-thread');
+    const entry = thread?.querySelector(`[data-comment="${entryId}"], [data-note="${entryId}"]`);
+    if (!entry) return;
+    const viewport = thread.getBoundingClientRect(), row = entry.getBoundingClientRect();
+    if (row.height > thread.clientHeight || row.top < viewport.top) thread.scrollTop += row.top - viewport.top;
+    else if (row.bottom > viewport.bottom) thread.scrollTop += row.bottom - viewport.bottom;
+    captureThreadScroll(); queueScrollCues();
+  }
+  let scrollCueFrame = 0;
+  const scrollCueNodes = new Set();
+  const scrollCueResize = new ResizeObserver(() => queueScrollCues());
+  function queueScrollCues() {
+    if (scrollCueFrame) return;
+    scrollCueFrame = requestAnimationFrame(() => {
+      scrollCueFrame = 0;
+      const nodes = [panel.querySelector('.issue-list'), issuePopup.querySelector('.issue-thread')].filter(Boolean);
+      for (const old of scrollCueNodes) if (!nodes.includes(old)) { scrollCueResize.unobserve(old); scrollCueNodes.delete(old); }
+      for (const node of nodes) if (!scrollCueNodes.has(node)) { scrollCueResize.observe(node); scrollCueNodes.add(node); }
+      const below = nodes.map(node => node.clientHeight > 0 && node.scrollHeight - node.clientHeight - node.scrollTop > 2);
+      nodes.forEach((node, index) => node.toggleAttribute('data-more-below', below[index]));
+    });
+  }
   function resetListScroll() {
     restoringList = false; keepListOrder = false;
     listScroll = 0; hasListPosition = true;
@@ -340,8 +387,11 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) cancelLocate(); });
   root.addEventListener('scroll', event => { if (event.target.matches?.('.issue-list') && !panel.hidden && !listLoading) { captureListScroll(); saveView(); } }, { capture: true, passive: true });
   root.addEventListener('scroll', event => { if (event.target === issuePopup.querySelector('.issue-thread')) captureThreadScroll(); }, { capture: true, passive: true });
+  root.addEventListener('scroll', queueScrollCues, { capture: true, passive: true });
+  root.addEventListener('load', queueScrollCues, true);
   const tooltip = el('div', { id: 'fp-tooltip', class: 'fp-tooltip', role: 'tooltip', popover: 'manual', hidden: true });
   root.append(tooltip);
+  const tooltipTargets = '[data-tooltip], [data-tooltip-shortcut], button[aria-keyshortcuts], button[type=submit]';
   let tooltipTarget = null, tooltipHideTimer;
   function hideTooltip() {
     clearTimeout(tooltipHideTimer);
@@ -356,24 +406,39 @@
   }
   function showTooltip(target) {
     clearTimeout(tooltipHideTimer);
-    if (!target?.dataset.tooltip || target.disabled) return;
+    if (!target || target.disabled) return;
+    const label = target.dataset.tooltip || target.getAttribute('aria-label') || target.textContent.trim();
+    if (!label) return;
+    const shortcut = target.dataset.tooltipShortcut || (target.type === 'submit' ? submitShortcut : (target.getAttribute('aria-keyshortcuts') || '').split(/\s+/).filter(Boolean).map(binding => binding.split('+').map(key => ({ Meta: '⌘', Control: 'Ctrl', Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓' }[key] || key)).join(' ')).join(' / '));
     hideTooltip(); tooltipTarget = target;
     (target.closest('dialog') || root).append(tooltip);
-    const row = el('div', { class: 'tooltip-line' }, el('span', {}, target.dataset.tooltip));
-    if (target.dataset.tooltipShortcut) row.append(el('kbd', {}, target.dataset.tooltipShortcut));
+    const row = el('div', { class: 'tooltip-line' }, el('span', {}, label));
+    if (shortcut) row.append(el('kbd', {}, shortcut));
     tooltip.replaceChildren(row);
     if (target.dataset.tooltipNote) tooltip.append(el('small', {}, target.dataset.tooltipNote));
     target.setAttribute('aria-describedby', [target.getAttribute('aria-describedby'), tooltip.id].filter(Boolean).join(' '));
     tooltip.hidden = false;
     // The top layer avoids clipping inside scrolling panels and attachment dialogs.
     tooltip.showPopover?.();
-    const rect = target.getBoundingClientRect(), width = tooltip.offsetWidth, height = tooltip.offsetHeight;
+    const rect = target.getBoundingClientRect();
     const viewport = window.visualViewport;
     const left = (viewport?.offsetLeft || 0) + 8, top = (viewport?.offsetTop || 0) + 8;
     const right = left + (viewport?.width || innerWidth) - 16, bottom = top + (viewport?.height || innerHeight) - 16;
-    const above = rect.top - height - 9 >= top;
+    const launcherGroup = target.closest('.launcher'), tools = target.closest('.panel-tools'), drawer = tools?.closest('.panel').getBoundingClientRect();
+    const edge = drawer || rect, beside = (launcherGroup || tools) && edge.left - left - 9 >= 80, besideRight = tools && !beside && right - edge.right - 9 >= 80;
+    tooltip.style.maxWidth = beside ? Math.min(280, edge.left - left - 9) + 'px' : besideRight ? Math.min(280, right - edge.right - 9) + 'px' : '';
+    const width = tooltip.offsetWidth, height = tooltip.offsetHeight;
+    if (beside || besideRight) {
+      const y = Math.max(top, Math.min(rect.top + rect.height / 2 - height / 2, bottom - height));
+      tooltip.dataset.side = beside ? 'left' : 'right';
+      Object.assign(tooltip.style, { left: (beside ? edge.left - width - 9 : edge.right + 9) + 'px', top: y + 'px' });
+      tooltip.style.setProperty('--tooltip-arrow', Math.max(12, Math.min(height - 12, rect.top + rect.height / 2 - y)) + 'px');
+      return;
+    }
+    const anchor = launcherGroup?.getBoundingClientRect() || tools?.getBoundingClientRect() || rect;
+    const above = anchor.top - height - 9 >= top;
     const x = Math.max(left, Math.min(rect.left + rect.width / 2 - width / 2, right - width));
-    const y = Math.max(top, Math.min(above ? rect.top - height - 9 : rect.bottom + 9, bottom - height));
+    const y = Math.max(top, Math.min(above ? anchor.top - height - 9 : anchor.bottom + 9, bottom - height));
     tooltip.dataset.side = above ? 'above' : 'below';
     Object.assign(tooltip.style, { left: x + 'px', top: y + 'px' });
     tooltip.style.setProperty('--tooltip-arrow', Math.max(12, Math.min(width - 12, rect.left + rect.width / 2 - x)) + 'px');
@@ -381,12 +446,14 @@
   root.addEventListener('pointerover', event => {
     if (event.pointerType === 'touch') return;
     if (tooltip.contains(event.target)) { clearTimeout(tooltipHideTimer); return; }
-    const target = event.target.closest?.('[data-tooltip]');
+    const target = event.target.closest?.(tooltipTargets);
     if (target && !target.contains(event.relatedTarget)) showTooltip(target);
   });
   root.addEventListener('pointerout', event => {
-    if (!tooltipTarget || tooltipTarget.contains(event.relatedTarget) || tooltip.contains(event.relatedTarget)) return;
-    tooltipHideTimer = setTimeout(hideTooltip, 100);
+    if (!tooltipTarget || !(tooltipTarget.contains(event.target) || tooltip.contains(event.target)) || tooltipTarget.contains(event.relatedTarget) || tooltip.contains(event.relatedTarget)) return;
+    const target = tooltipTarget;
+    clearTimeout(tooltipHideTimer);
+    tooltipHideTimer = setTimeout(() => { if (tooltipTarget === target && !target.matches(':hover') && !tooltip.matches(':hover')) hideTooltip(); }, 100);
   });
   function targetIssueShortcuts(id) {
     if (shortcutIssueId === id) return;
@@ -406,7 +473,7 @@
     const issue = node?.getRootNode() === root && node.closest('[data-issue], [data-pin-issue], .issue-popup');
     targetIssueShortcuts(issue ? issue.dataset.issue || issue.dataset.pinIssue || selected?.id : null);
   }, { capture: true, passive: true });
-  root.addEventListener('focusin', event => { const target = event.target.closest?.('[data-tooltip]'); if (target) showTooltip(target); else hideTooltip(); });
+  root.addEventListener('focusin', event => { const target = event.target.closest?.(tooltipTargets); if (target) showTooltip(target); else hideTooltip(); });
   root.addEventListener('focusout', hideTooltip);
   root.addEventListener('click', hideTooltip, true);
   root.addEventListener('scroll', hideTooltip, true);
@@ -414,7 +481,7 @@
   addEventListener('resize', () => { hideTooltip(); root.querySelectorAll('.note-actions:popover-open').forEach(menu => menu.hidePopover()); });
   window.visualViewport?.addEventListener('resize', hideTooltip);
   window.visualViewport?.addEventListener('scroll', hideTooltip);
-  new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
+  new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); queueScrollCues(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
   const pendingRequests = new Map(), fileIds = new WeakMap();
   let writeTail = Promise.resolve(), nextWriteAt = 0;
   async function api(path, options = {}) {
@@ -441,7 +508,9 @@
         await new Promise(resolve => setTimeout(resolve, Math.max(0, nextWriteAt - performance.now())));
         nextWriteAt = performance.now() + (c.userName ? 120 : 550);
       }
-      const response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers });
+      let response;
+      try { response = await fetch(requestUrl, { credentials: 'same-origin', ...options, headers }); }
+      catch (error) { error.feedbackpressTransport = true; throw error; }
       if (response.status === 429) {
         const retry = response.headers.get('Retry-After'), seconds = Number(retry);
         const delay = retry && Number.isFinite(seconds) ? seconds * 1000 : retry ? Date.parse(retry) - Date.now() : 60000;
@@ -455,7 +524,7 @@
     const currentActor = response.headers.get('X-FeedbackPress-Actor-Id');
     if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
       c.privateNotes = false; ownRevisions.clear(); privateIssueIds.clear(); pendingRequests.clear(); try { sessionStorage.removeItem(revisionsKey); } catch (_) {} for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
-      issueCache.clear(); issues = []; pageIssues = []; selected = null; cacheDenied = true; notesRequest++;
+      projectCounts = null; statusCounts = null; countedStatuses.clear(); issueCache.clear(); issues = []; pageIssues = []; selected = null; cacheDenied = true; notesRequest++;
       clearAttachments(true); dismissInterface(); issuePopup.replaceChildren();
       try { sessionStorage.removeItem(cacheKey); } catch (_) {}
       const error = new Error('Your WordPress identity changed. Reload this page to continue.'); error.status = 403; message(error.message); throw error;
@@ -468,7 +537,7 @@
         cancelLocate(); issueCache.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
-        issues = []; pageIssues = []; selected = null; statusCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); threadScrolls.clear(); issuePopup.replaceChildren();
+        issues = []; pageIssues = []; selected = null; statusCounts = null; projectCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); threadScrolls.clear(); issuePopup.replaceChildren();
         listLoading = false; listError = data.message || 'Feedback access changed. Refresh this page.';
         mentionData = null; closeMentionMenu();
         sidebarSettings.querySelector('.review-link-result')?.replaceChildren();
@@ -506,7 +575,7 @@
       if (!c.userName && !actorId) ensureActor().then(() => { if (selected && !busy && !root.activeElement?.matches('input,textarea,select')) renderIssue(); else if (selected) deferredIssueRender = true; }).catch(() => {});
       return action();
     }
-    identity.replaceChildren(el('header', {}, el('h2', {}, 'Introduce yourself'), button(icon('close'), () => { identity.hidden = true; launcher.focus(); }, { class: 'fp-icon-button', 'aria-label': 'Dismiss name prompt' })));
+    identity.replaceChildren(el('header', {}, el('h2', {}, 'Introduce yourself'), button(icon('close'), () => { identity.hidden = true; launcher.focus(); }, { class: 'fp-icon-button', 'aria-label': 'Dismiss name prompt', 'aria-keyshortcuts': 'Escape' })));
     const input = el('input', { name: 'author', 'aria-label': 'Your name', required: true, maxlength: 120, autocomplete: 'name', placeholder: 'Your name' });
     input.value = name;
     const mail = el('input', { name: 'email', type: 'email', required: true, maxlength: 254, autocomplete: 'email', placeholder: 'Email address', 'aria-label': 'Email address' }); mail.value = email;
@@ -607,8 +676,9 @@
           const current = new Map(data.issues.map(issue => [issue.id, issue]));
           issues = issues.filter(issue => current.has(issue.id) || issue.pending).map(issue => optimisticIssue(current.get(issue.id) || issue));
         } else { issues = data.issues.map(optimisticIssue); total = data.total; listPage = data.page; keepListOrder = false; }
-        if (data.status_counts) {
-          statusCounts = { ...data.status_counts }; countedStatuses.clear();
+        if (validProjectCounts(data.project_counts)) projectCounts = { ...data.project_counts };
+        if (data.status_counts || validProjectCounts(data.project_counts)) {
+          if (data.status_counts) statusCounts = { ...data.status_counts }; countedStatuses.clear();
           for (const { issue } of issueCache.values()) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
           for (const { issue } of issueCache.values()) updateStatusCount(optimisticIssue(issue));
         }
@@ -626,11 +696,10 @@
         class: 'fp-icon-button status-action status-' + status + (current ? ' is-current' : ''),
         'aria-pressed': String(current), disabled: Boolean(issue.pending),
         'data-status-action': status,
+        'data-tooltip-shortcut': change ? null : statusKeys[status],
         'aria-label': change ? `New issue status: ${label}` : `Set issue ${issue.number} to ${label}`,
         'aria-keyshortcuts': !change && (shortcutIssueId || selected?.id) === issue.id ? statusKeys[status] : null,
-        title: current && !issue.conflict ? label + ' — current' : 'Set to ' + label,
-        'data-tooltip-shortcut': change ? null : statusKeys[status],
-        'data-tooltip-note': change ? null : 'Shortcuts follow your latest mouse or keyboard interaction'
+        title: label
       });
       return action;
     });
@@ -645,6 +714,14 @@
   function matchesListSearch(issue) { return matchesScope(issue) && matchesSearch(issue); }
   function updateStatusCount(issue) {
     const before = countedStatuses.get(issue.id), matches = matchesListSearch(issue);
+    if (projectCounts) {
+      if (issue.visibility === 'private') projectCounts.contains_private = true;
+      if (before && before.status !== issue.status) {
+        const previous = before.status === 'done' ? 'closed' : 'open', next = issue.status === 'done' ? 'closed' : 'open';
+        if (previous !== next) { projectCounts[previous] = Math.max(0, projectCounts[previous] - 1); projectCounts[next]++; }
+      }
+      if (!before && [...sharedJobs.values()].some(job => job.kind === 'create' && job.issueId === issue.id)) projectCounts[issue.status === 'done' ? 'closed' : 'open']++;
+    }
     if (statusCounts && before && (before.status !== issue.status || before.matches !== matches)) {
       if (before.matches) statusCounts[before.status] = Math.max(0, statusCounts[before.status] - 1);
       if (matches) statusCounts[issue.status]++;
@@ -653,7 +730,25 @@
     countedStatuses.set(issue.id, { status: issue.status, matches });
     paintStatusCounts();
   }
+  function validProjectCounts(counts) { return counts && ['open', 'closed'].every(key => Number.isSafeInteger(counts[key]) && counts[key] >= 0) && typeof counts.contains_private === 'boolean'; }
+  function projectCountLabel(kind) {
+    if (!projectCounts) return kind === 'open' ? listError ? 'Counts unavailable' : 'Loading…' : '';
+    const count = projectCounts[kind]; return `${count.toLocaleString()} ${kind} ${count === 1 ? 'issue' : 'issues'}`;
+  }
+  function paintProjectCounts() {
+    const openCount = panel.querySelector('.open-issue-count'), closedCount = panel.querySelector('.closed-issue-count');
+    if (openCount) openCount.textContent = projectCountLabel('open');
+    if (closedCount) { closedCount.textContent = projectCountLabel('closed'); closedCount.hidden = !projectCounts; }
+    scheduleCacheSave();
+  }
+  function removeStatusCount(id) {
+    const before = countedStatuses.get(id); if (!before) return;
+    if (statusCounts && before.matches) statusCounts[before.status] = Math.max(0, statusCounts[before.status] - 1);
+    if (projectCounts) { const key = before.status === 'done' ? 'closed' : 'open'; projectCounts[key] = Math.max(0, projectCounts[key] - 1); }
+    countedStatuses.delete(id); paintStatusCounts();
+  }
   function paintStatusCounts() {
+    paintProjectCounts();
     if (!statusCounts) return;
     panel.querySelectorAll('[data-count-status]').forEach(node => { node.textContent = statusCounts[node.dataset.countStatus]; });
     panel.querySelectorAll('[data-filter-status]').forEach(node => node.setAttribute('aria-description', `${statusCounts[node.dataset.filterStatus]} matching issues`));
@@ -693,6 +788,8 @@
     if (filterOpen && !event.composedPath().includes(panel.querySelector('.status-filter'))) closeStatusFilter();
   }, true);
   function render() {
+    if (!cacheDenied && panel.querySelector('.note-actions:popover-open')) { deferredListRender = true; return; }
+    deferredListRender = false;
     captureListScroll();
     rowPreviewObserver?.disconnect(); rowPreviewQueue.clear();
     updateChrome();
@@ -704,15 +801,15 @@
     const changeView = () => { listPage = 1; resetListScroll(); saveView(); load(); };
     const order = el('select', { 'aria-label': 'Order issues', 'data-tooltip': 'Order issues: ' + sortLabels[sort], onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
     const orderControl = el('span', { class: 'order-control' }, icon('sort'), order);
-    const heading = el('header', { class: 'panel-header' }, el('div', { class: 'panel-heading' }, el('h2', {}, 'Issues'), el('span', { class: 'issue-count', 'aria-live': 'polite' }, listLoading && !total ? 'Loading…' : `${total} ${total === 1 ? 'issue' : 'issues'}`)),
+    const heading = el('header', { class: 'panel-header' }, el('div', { class: 'panel-heading', 'aria-live': 'polite', 'aria-atomic': 'true' }, el('h2', { class: 'open-issue-count' }, projectCountLabel('open')), el('span', { class: 'issue-count closed-issue-count', hidden: !projectCounts }, projectCountLabel('closed'))),
       el('div', { class: 'panel-actions' }, orderControl, button(icon('plus'), () => withIdentity(startPick), { class: 'fp-icon-button', 'aria-label': 'Leave feedback', title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' }), button(icon('close'), () => toggle(false), { class: 'fp-icon-button', 'aria-label': 'Dismiss issues', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' })));
-    const searchField = el('input', { type: 'search', class: 'issue-search', 'aria-label': 'Search issues and replies', placeholder: 'Search issues and replies…', value: search, oninput: event => {
+    const searchField = el('input', { type: 'search', class: 'issue-search', 'aria-label': 'Search issues and replies', placeholder: 'Search…', value: search, oninput: event => {
       search = event.target.value; listPage = 1; resetListScroll(); saveView(); requestNumber++;
       clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 200);
     } });
-    const pages = el('select', { 'aria-label': 'Issue page view', onchange: event => { scope = event.target.value === 'current' ? 'current' : 'all'; grouping = event.target.value === 'paged' ? 'page' : 'none'; changeView(); } }, el('option', { value: 'list' }, 'All issues listed'), el('option', { value: 'paged' }, 'All issues by page'), el('option', { value: 'current' }, 'Current page')); pages.value = scope === 'current' ? 'current' : grouping === 'page' ? 'paged' : 'list';
+    const pages = el('select', { 'aria-label': 'Issue page view', onchange: event => { scope = event.target.value === 'current' ? 'current' : 'all'; grouping = event.target.value === 'paged' ? 'page' : 'none'; changeView(); } }, el('option', { value: 'list' }, 'Issues list'), el('option', { value: 'paged' }, 'Issues by page'), el('option', { value: 'current' }, 'Current page')); pages.value = scope === 'current' ? 'current' : grouping === 'page' ? 'paged' : 'list';
     const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
-    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, statusFilterControl())), list);
+    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'list-controls' }, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, statusFilterControl()))), list);
     if (!issues.length) {
       if (listLoading) list.append(el('div', { class: 'list-placeholder', role: 'status', 'aria-label': 'Loading issues' }, ...Array.from({ length: 3 }, () => el('div', {}, el('span'), el('span'), el('span')))));
       else if (listError) list.append(el('div', { class: 'empty', role: 'status' }, el('p', { class: 'subtle' }, listError), button('Try again', () => load(), { class: 'fp-quiet' })));
@@ -745,29 +842,35 @@
     updateChrome();
     for (const row of panelContents.querySelectorAll('.issue-row')) {
       const issue = issues.find(issue => issue.id === row.dataset.issue);
-      if (issue && row.feedbackpressIssue !== issue) {
+      if (issue && row.feedbackpressIssue !== issue && JSON.stringify(row.feedbackpressIssue) !== JSON.stringify(issue)) {
         for (const tile of row.querySelectorAll('.row-attachment')) { rowPreviewObserver?.unobserve(tile); rowPreviewQueue.delete(tile); }
         row.replaceWith(issueRow(issue)); continue;
       }
+      if (issue) row.feedbackpressIssue = issue;
       const active = row.dataset.issue === selected?.id;
       row.classList.toggle('is-selected', active);
       if (active) row.querySelector('.issue-open').setAttribute('aria-current', 'true'); else row.querySelector('.issue-open').removeAttribute('aria-current');
     }
   }
   function issueRow(issue) {
-    const active = selected?.id === issue.id;
-    const row = el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status },
-      el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'row-heading' }, el('span', { class: 'row-number' }, '#' + issue.number), el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null), el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null), issueSummary(issue), statusControl(issue, 'row-status'));
+    const active = selected?.id === issue.id, replies = issue.activity.filter(event => event.kind === 'reply').length;
+    const rail = el('div', { class: 'row-rail' },
+      button(String(issue.number), () => showIssue(issue.id), { class: 'row-number', 'aria-label': 'Open issue ' + issue.number, 'aria-description': labels[issue.status] }),
+      replies ? button([icon('reply'), String(replies)], () => showIssue(issue.id), { class: 'row-replies', 'aria-label': `${replies} ${replies === 1 ? 'reply' : 'replies'}` }) : null);
+    const row = el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status, onclick: event => { if (!event.target.closest('button, a, form, input, textarea, select, label')) showIssue(issue.id); } }, rail,
+      el('div', { class: 'row-content' },
+        el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null),
+        el('div', { class: 'row-footer' }, el('div', { class: 'row-meta' }, el('span', { class: 'row-author' }, issue.author), issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null)), issueSummary(issue), statusControl(issue, 'row-status')));
+    if (ownsComment(issue) && !editDrafts.has(issue.id)) { const actions = noteActions('issue', issue, issue.id, true); actions.classList.add('row-issue-actions'); row.querySelector('.row-content').append(actions); row.classList.add('has-issue-actions'); }
+    const editor = editDrafts.get(issue.id);
+    const management = el('div', { class: 'row-management' }, editor?.sidebar ? commentEditor(issue, editor) : null, confirmationView(issue.id, issue.id, true));
+    if (management.hasChildNodes()) row.querySelector('.row-content').append(management);
     row.feedbackpressIssue = issue; return row;
   }
   function issueSummary(issue) {
-    const replies = issue.activity.filter(event => event.kind === 'reply').length;
     const files = issue.files.filter(file => !file.screenshot);
-    if (!replies && !files.length) return null;
-    const summary = el('span', { class: 'row-summary' });
-    if (replies) summary.append(button([icon('reply'), `${replies} ${replies === 1 ? 'reply' : 'replies'}`], () => showIssue(issue.id), { class: 'row-replies' }));
-    if (files.length) summary.append(el('span', { class: 'row-attachments', role: 'group', 'aria-label': `${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}` }, ...files.slice(0, 3).map(file => rowAttachment(file, issue)), files.length > 3 ? button('+' + (files.length - 3), () => showIssue(issue.id), { class: 'row-attachment-more', 'aria-label': `Show all ${files.length} attachments` }) : null));
-    return summary;
+    if (!files.length) return null;
+    return el('span', { class: 'row-summary' }, el('span', { class: 'row-attachments', role: 'group', 'aria-label': `${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}` }, ...files.slice(0, 3).map(file => rowAttachment(file, issue)), files.length > 3 ? button('+' + (files.length - 3), () => showIssue(issue.id), { class: 'row-attachment-more', 'aria-label': `Show all ${files.length} attachments` }) : null));
   }
   function rowAttachment(file, issue) {
     const tile = button(icon(file.mime.startsWith('image/') ? 'image' : 'document'), () => openAttachment(file, tile, issue), { class: 'row-attachment', 'data-file': file.id, 'aria-label': 'Preview ' + file.name, disabled: !file.available, title: (file.expired ? 'Expired: ' : !file.available ? 'Not yet available: ' : '') + file.name });
@@ -779,7 +882,7 @@
       });
       rowPreviewObserver.observe(tile);
     }
-    return el('span', { class: 'row-file' }, tile, attachmentDownload(file, true));
+    return tile;
   }
   function loadRowPreviews() {
     // Original images can be 5 MB: only visible tiles, two transfers at a time.
@@ -846,6 +949,7 @@
         ownScroll(locating, document.documentElement); ownScroll(locating, document.body); ownScroll(locating, scroller);
         nativeScrollTo.call(scroller, { left, top, behavior: 'instant' });
       }
+      if (!countedStatuses.has(issue.id)) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
       closeDraft(); cancelPick(); privateNotes.delete(issue.id); selected = issue;
       issues = issues.map(existing => existing.id === issue.id ? issue : existing);
       if (scroll) open = true;
@@ -918,21 +1022,22 @@
   function downloadAttachment(file, url) {
     const link = el('a', { href: url, download: file.name }); root.append(link); link.click(); link.remove();
   }
-  function attachmentDownload(file, compact = false) {
+  function attachmentDownload(file) {
     const caption = file.screenshot ? 'Screenshot' : file.name;
-    const control = button(compact ? icon('download') : [icon('download'), 'Download'], async () => {
+    const control = button(icon('download'), async () => {
       control.disabled = true; control.setAttribute('aria-busy', 'true');
       try { const data = await attachmentData(file); downloadAttachment(file, data.url); }
       catch (error) { message(error.message); }
       finally { control.disabled = !file.available; control.removeAttribute('aria-busy'); }
-    }, { class: compact ? 'fp-icon-button row-file-download' : 'attachment-download', 'aria-label': 'Download ' + caption, title: 'Download ' + caption, disabled: !file.available });
+    }, { class: 'attachment-download', 'aria-label': 'Download ' + caption, disabled: !file.available });
     return control;
   }
   async function openAttachment(file, trigger, issue = selected) {
     closeMentionMenu();
     const ticket = ++viewerRequest; returnFocus = trigger; previewFileId = file.id; lightbox.dataset.issue = issue?.id || '';
+    lightbox.style.setProperty('--preview-width', file.mime === 'application/pdf' ? '1600px' : '640px');
     const body = el('div', { class: 'lightbox-body', role: 'status' }, 'Loading preview…');
-    const toolbar = el('div', { class: 'lightbox-tools' }, button(icon('close'), closeLightbox, { class: 'fp-icon-button', 'aria-label': 'Dismiss attachment', title: 'Dismiss', 'data-tooltip-shortcut': 'Esc' }));
+    const toolbar = el('div', { class: 'lightbox-tools' }, button(icon('close'), closeLightbox, { class: 'fp-icon-button', 'aria-label': 'Dismiss attachment', 'aria-keyshortcuts': 'Escape', title: 'Dismiss', 'data-tooltip-shortcut': 'Esc' }));
     const comment = issue?.activity.find(event => event.kind === 'reply' && event.id === file.comment_id);
     const author = !file.comment_id || file.comment_id === issue?.id ? issue?.author : comment?.payload.author;
     const heading = el('div', { class: 'lightbox-heading' }, el('strong', {}, file.screenshot ? 'Screenshot' : file.name), el('small', { class: 'lightbox-author' }, author ? 'By ' + author : 'Author unavailable'));
@@ -941,9 +1046,15 @@
     try {
       const data = await attachmentData(file);
       if (!lightbox.open || ticket !== viewerRequest) return;
-      toolbar.prepend(button('Download', () => downloadAttachment(file, data.url), { class: 'fp-quiet' }));
+      toolbar.prepend(button([icon('download'), el('span', { class: 'lightbox-download-label' }, 'Download')], () => downloadAttachment(file, data.url), { class: 'fp-quiet lightbox-download', 'aria-label': 'Download' }));
       body.removeAttribute('role');
-      if (file.mime.startsWith('image/')) body.replaceChildren(el('img', { src: data.url, alt: file.name, class: 'lightbox-image' }));
+      if (file.mime.startsWith('image/')) body.replaceChildren(el('img', { src: data.url, alt: file.name, class: 'lightbox-image', onload: event => {
+        const image = event.currentTarget;
+        if (ticket === viewerRequest && lightbox.open && image.naturalHeight) {
+          hideTooltip();
+          lightbox.style.setProperty('--preview-width', `max(360px, min(${image.naturalWidth + 24}px, calc((100dvh - 120px) * ${image.naturalWidth / image.naturalHeight} + 24px)))`);
+        }
+      } }));
       else if (file.mime === 'application/pdf') {
         toolbar.prepend(el('a', { href: data.url, target: '_blank', rel: 'noopener', class: 'pdf-open' }, 'Open PDF'));
         body.replaceChildren(el('iframe', { src: data.url, title: 'PDF preview: ' + file.name, class: 'lightbox-pdf' }), el('small', { class: 'pdf-fallback' }, 'If the preview is unavailable, use Open PDF or Download.'));
@@ -954,20 +1065,24 @@
   }
   function attachmentThumbnail(file) {
     const caption = file.screenshot ? 'Screenshot' : file.name;
-    const thumbnail = button('', () => openAttachment(file, thumbnail), { class: 'attachment-thumbnail', 'aria-label': 'Preview ' + caption, title: caption, disabled: !file.available });
-    if (!file.available) { thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document')), el('small', {}, caption), el('small', { class: 'file-state' }, file.expired ? 'Expired' : 'Waiting for sync')); return el('div', { class: 'attachment-item' }, thumbnail, attachmentDownload(file)); }
-    if (file.mime.startsWith('image/')) {
+    const thumbnail = button('', () => openAttachment(file, thumbnail), { class: 'attachment-thumbnail', 'aria-label': 'Preview ' + caption, disabled: !file.available });
+    if (!file.available) thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document')), el('small', { class: 'file-state' }, file.expired ? 'Expired' : 'Waiting for sync'));
+    else if (file.mime.startsWith('image/')) {
       const image = el('img', { alt: caption, class: 'attachment-image', loading: 'lazy' });
       const placeholder = el('span', { class: 'file-placeholder' }, icon('image'));
-      thumbnail.append(placeholder, el('small', {}, caption));
-      attachmentData(file).then(data => { if (thumbnail.isConnected) { image.src = data.url; placeholder.replaceWith(image); } }).catch(() => { if (thumbnail.isConnected) thumbnail.dataset.tooltip = caption + ' — click to retry preview'; });
-    } else thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document'), el('span', {}, file.mime === 'application/pdf' ? 'PDF' : 'File')), el('small', {}, caption));
-    return el('div', { class: 'attachment-item' }, thumbnail, attachmentDownload(file));
+      thumbnail.append(placeholder);
+      attachmentData(file).then(data => { if (thumbnail.isConnected) { image.src = data.url; placeholder.replaceWith(image); } }).catch(() => { if (thumbnail.isConnected) thumbnail.setAttribute('aria-description', 'Preview unavailable. Click to retry.'); });
+    } else thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document'), el('span', {}, file.mime === 'application/pdf' ? 'PDF' : 'File')));
+    return el('div', { class: 'attachment-item' + (!file.available ? ' is-unavailable' : '') }, thumbnail,
+      el('div', { class: 'attachment-caption' }, el('span', { class: 'attachment-label', 'aria-hidden': 'true' }, caption), attachmentDownload(file)));
   }
   lightbox.addEventListener('cancel', event => { event.preventDefault(); closeLightbox(); });
   lightbox.addEventListener('click', event => { if (event.target === lightbox) { const rect = lightbox.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLightbox(); } });
   addEventListener('pageshow', () => { pageLeaving = false; });
-  addEventListener('pagehide', () => { pageLeaving = true; cancelLocate(); captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
+  addEventListener('pagehide', () => { pageLeaving = true;
+    // WebKit can reject a navigation-cancelled fetch just before pagehide; keep its resumable descriptor.
+    for (const job of sharedJobs.values()) if (job.error && !job.dismissed && performance.now() - (transportFailures.get(job) ?? -Infinity) < 1000) { delete job.error; storeJob(job).catch(() => {}); }
+    cancelLocate(); captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
   async function editAuthor(trigger, issue) {
     try {
       const people = await (await api('authors')).json();
@@ -995,11 +1110,12 @@
       group.append(choose, cancel); trigger.replaceWith(group); choose.focus();
     } catch (error) { message(error.message); }
   }
-  function editComment(comment) {
-    if (!selected || actorId !== (comment.owner_id || comment.author_id)) return;
+  function editComment(comment, issueId = selected?.id, sidebar = false) {
+    if (!issueId || actorId !== (comment.owner_id || comment.author_id)) return;
     mentionDrafts.delete('edit:' + comment.id);
-    editDrafts.set(comment.id, { issue: selected.id, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
-    renderIssue(); issuePopup.querySelector(`[data-edit-comment="${comment.id}"] textarea`)?.focus();
+    editDrafts.set(comment.id, { issue: issueId, sidebar, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
+    renderNoteSurfaces(issueId, sidebar);
+    (sidebar ? panel : issuePopup).querySelector(`[data-edit-comment="${comment.id}"] textarea`)?.focus({ preventScroll: true });
   }
   async function loadMentionPeople() {
     if (mentionData && Date.now() - mentionAt < cacheLifetime) return mentionData;
@@ -1089,10 +1205,30 @@
     else return false;
     event.preventDefault(); event.stopImmediatePropagation(); return true;
   }
+  function linkedText(text) {
+    const nodes = []; let at = 0;
+    for (const match of text.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"']+/giu)) {
+      const value = match[0], excess = {};
+      for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}']]) excess[close] = value.split(close).length - value.split(open).length;
+      let end = value.length;
+      while (end && (/[.,!?;:]/.test(value[end - 1]) || excess[value[end - 1]] > 0)) {
+        if (excess[value[end - 1]] > 0) excess[value[end - 1]]--;
+        end--;
+      }
+      const label = value.slice(0, end);
+      nodes.push(text.slice(at, match.index));
+      try {
+        const url = new URL(/^www\./i.test(label) ? 'https://' + label : label);
+        nodes.push(['http:', 'https:'].includes(url.protocol) && url.hostname ? el('a', { href: url.href, target: '_blank', rel: 'noopener noreferrer' }, label) : label);
+      } catch (_) { nodes.push(label); }
+      nodes.push(value.slice(end)); at = match.index + value.length;
+    }
+    nodes.push(text.slice(at)); return nodes;
+  }
   function mentionText(comment) {
     const nodes = []; let at = 0;
-    for (const m of comment.mentions || []) { if (m.start < at || m.end > comment.body.length) continue; nodes.push(comment.body.slice(at, m.start), el('span', { class: 'comment-mention' }, comment.body.slice(m.start, m.end))); at = m.end; }
-    nodes.push(comment.body.slice(at)); return nodes;
+    for (const m of comment.mentions || []) { if (m.start < at || m.end > comment.body.length) continue; nodes.push(...linkedText(comment.body.slice(at, m.start)), el('span', { class: 'comment-mention' }, comment.body.slice(m.start, m.end))); at = m.end; }
+    nodes.push(...linkedText(comment.body.slice(at))); return nodes;
   }
   document.addEventListener('pointerdown', event => { if (mentionActive && !event.composedPath().includes(mentionActive.field) && !event.composedPath().includes(mentionPicker)) closeMentionMenu(); }, true);
   root.addEventListener('scroll', event => { if (!mentionPicker?.contains(event.target)) closeMentionMenu(); }, true);
@@ -1107,9 +1243,9 @@
       enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}` + (c.privateNotes ? '/manage' : ''), { ...(c.privateNotes ? { action: 'edit' } : {}), author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
       if (selected?.id === draft.issue) renderIssue();
     } });
-    if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (selected?.id !== draft.issue) return; selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && (latest.owner_id || latest.author_id) === actorId) editComment({ ...latest, id: comment.id }); else { editDrafts.delete(comment.id); renderIssue(); } }), { class: 'fp-quiet' }));
+    if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (!draft.sidebar && selected?.id !== draft.issue) return; if (draft.sidebar) applyIssue(current); else selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && (latest.owner_id || latest.author_id) === actorId) editComment({ ...latest, id: comment.id }, draft.issue, draft.sidebar); else { editDrafts.delete(comment.id); if (draft.sidebar) render(); else renderIssue(); } }), { class: 'fp-quiet' }));
     if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
-    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && selected?.visibility !== 'private'), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderIssue(); }, { class: 'fp-quiet' })));
+    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && (draft.sidebar || selected?.visibility !== 'private')), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderNoteSurfaces(draft.issue, draft.sidebar); if (draft.sidebar) panel.querySelector(`[data-issue="${draft.issue}"] .note-actions-trigger`)?.focus({ preventScroll: true }); }, { class: 'fp-quiet', 'aria-keyshortcuts': 'Escape', 'data-cancel-edit': true })));
     return form;
   }
   const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -1130,23 +1266,25 @@
   }
   setInterval(refreshCommentTimes, 30000);
   document.addEventListener('visibilitychange', refreshCommentTimes);
+  function ownsComment(comment) { return !comment.pending && !comment.pending_edit && actorId && actorId === (comment.owner_id || comment.author_id); }
   function commentView(comment, files) {
     const author = comment.id === selected?.id && !comment.pending ? button(comment.author || 'Unknown author', event => editAuthor(event.currentTarget, comment), { class: 'comment-author author-edit', 'aria-label': 'Change author: ' + comment.author, title: 'Change author' }) : el('strong', { class: 'comment-author' }, comment.author || 'Unknown author');
-    const byline = el('div', { class: 'comment-byline' }, author);
+    const byline = el('div', { class: 'comment-byline' }, comment.id === selected?.id ? el('strong', { class: 'issue-reference' }, '#' + selected.number) : null, author);
     const time = commentTime(comment.created_at); if (time) byline.append(time);
     if (comment.pending || comment.pending_edit) byline.append(el('span', { class: 'comment-date' }, 'Saving…'));
-    if (comment.edited_at) byline.append(el('time', { class: 'comment-edited', datetime: comment.edited_at, title: 'Edited ' + new Date(comment.edited_at).toLocaleString() }, 'Edited'));
-    const own = !comment.pending && !comment.pending_edit && actorId && actorId === (comment.owner_id || comment.author_id);
+    const own = comment.id !== selected?.id && ownsComment(comment);
     if (comment.visibility === 'private') byline.append(el('span', { class: 'private-label' }, 'Private · Only you'));
-    if (own && c.privateNotes && !editDrafts.has(comment.id)) byline.append(noteActions(comment.id === selected?.id ? 'issue' : 'reply', comment, selected.id));
-    else if (own && !editDrafts.has(comment.id)) byline.append(button('Edit', () => editComment(comment), { class: 'comment-edit', 'aria-label': comment.id === selected?.id ? 'Edit issue' : 'Edit reply' }));
+    if (own && c.privateNotes && !editDrafts.has(comment.id)) byline.append(noteActions('reply', comment, selected.id));
+    else if (own && !editDrafts.has(comment.id)) byline.append(button('Edit', () => editComment(comment), { class: 'comment-edit', 'aria-label': 'Edit reply' }));
     const uploads = files.filter(file => !file.screenshot);
     const screenshots = files.filter(file => file.screenshot);
-    const draft = editDrafts.get(comment.id);
-    const copy = el('div', { class: 'comment-copy' }, byline, confirmationView(comment.id, selected.id), comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]));
-    if (uploads.length) copy.append(el('div', { class: 'attachment-strip comment-uploads', role: 'group', 'aria-label': 'Comment attachments' }, ...uploads.map(attachmentThumbnail)));
-    return el('div', { class: 'thread-comment' + (screenshots.length ? ' has-screenshot' : ''), 'data-comment': comment.id }, copy,
-      screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null);
+    const draft = editDrafts.get(comment.id)?.sidebar ? null : editDrafts.get(comment.id);
+    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]), byline);
+    return el('div', { class: 'thread-comment', 'data-comment': comment.id, 'data-visibility': comment.visibility === 'private' || selected?.visibility === 'private' ? 'private' : 'shared' }, copy,
+      files.length ? el('div', { class: 'comment-media' },
+        screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null,
+        uploads.length ? el('div', { class: 'attachment-strip comment-uploads', role: 'group', 'aria-label': 'Comment attachments' }, ...uploads.map(attachmentThumbnail)) : null) : null);
+
   }
   function threadEntries(issue) {
     const entries = [...issue.activity.filter(event => event.kind === 'reply'), ...(c.privateNotes ? privateNotes.get(issue.id) || [] : []).map(note => ({ kind: 'private', id: note.id, created_at: note.created_at, note }))];
@@ -1185,25 +1323,38 @@
       if (selected?.id === id) issuePopup.querySelectorAll('.private-note').forEach(node => node.remove());
     }
   }
-  function noteActions(kind, item, issueId) {
+  function renderNoteSurfaces(issueId, sidebar = false) {
+    if (sidebar || panel.querySelector(`[data-issue="${issueId}"] .row-management`)) render();
+    if (selected?.id === issueId && !issuePopup.hidden) renderIssue();
+  }
+  function noteActions(kind, item, issueId, sidebar = false) {
     const privateNote = kind === 'private note', isPrivate = privateNote || item.visibility === 'private';
-    const popupId = 'fp-note-actions-' + item.id;
+    const popupId = 'fp-note-actions-' + item.id + (sidebar ? '-sidebar' : '');
     const trigger = button(icon('more'), () => {}, { class: 'fp-icon-button note-actions-trigger', 'aria-label': 'Actions for ' + kind, popovertarget: popupId });
     const menu = el('div', { class: 'note-actions', id: popupId, popover: 'auto', role: 'group', 'aria-label': 'Actions for ' + kind });
     const action = (label, run, destructive = false) => button(label, () => { menu.hidePopover(); run(); }, { class: 'note-action' + (destructive ? ' is-destructive' : '') });
     menu.append(action('Edit', () => {
       noteConfirmations.delete(item.id);
       if (privateNote) { privateEditDrafts.set(item.id, { issue: issueId, body: item.body, revision: item.revision }); renderIssue(); issuePopup.querySelector(`[data-private-edit="${item.id}"] textarea`)?.focus(); }
-      else editComment(item);
+      else editComment(item, issueId, sidebar);
     }));
-    if (selected?.visibility === 'private' && kind !== 'issue') menu.append(el('small', { class: 'note-action-hint' }, 'Make the issue public first to share a note.'));
-    else menu.append(action(isPrivate ? 'Make public' : 'Make private', () => {
-      noteConfirmations.set(item.id, { kind, item, issueId, action: isPrivate ? 'public' : 'private' }); renderIssue(); issuePopup.querySelector(`[data-confirm-note="${item.id}"] button`)?.focus();
-    }));
-    menu.append(action('Delete', () => { noteConfirmations.set(item.id, { kind, item, issueId, action: 'delete' }); renderIssue(); issuePopup.querySelector(`[data-confirm-note="${item.id}"] button`)?.focus(); }, true));
+    if (c.privateNotes) {
+      if (selected?.visibility === 'private' && kind !== 'issue') menu.append(el('small', { class: 'note-action-hint' }, 'Make the issue public first to share a note.'));
+      else menu.append(action(isPrivate ? 'Make public' : 'Make private', () => {
+        noteConfirmations.set(item.id, { kind, item, issueId, sidebar, action: isPrivate ? 'public' : 'private' }); renderNoteSurfaces(issueId, sidebar); (sidebar ? panel : issuePopup).querySelector(`[data-confirm-note="${item.id}"] button`)?.focus({ preventScroll: true });
+      }));
+      menu.append(action('Delete', () => { noteConfirmations.set(item.id, { kind, item, issueId, sidebar, action: 'delete' }); renderNoteSurfaces(issueId, sidebar); (sidebar ? panel : issuePopup).querySelector(`[data-confirm-note="${item.id}"] button`)?.focus({ preventScroll: true }); }, true));
+    }
     menu.addEventListener('beforetoggle', event => { if (event.newState === 'open') menu.style.visibility = 'hidden'; });
     menu.addEventListener('toggle', event => {
-      if (event.newState !== 'open') return;
+      if (event.newState !== 'open') {
+        if (root.querySelector('.note-actions:popover-open')) return;
+        const restoreFocus = root.activeElement === trigger;
+        if (deferredListRender && open) render();
+        if (deferredIssueRender && selected && !issuePopup.hidden && !root.activeElement?.matches('input, textarea, select, [contenteditable]')) renderIssue();
+        if (restoreFocus) root.querySelector(`[popovertarget="${popupId}"]`)?.focus({ preventScroll: true });
+        return;
+      }
       const r = trigger.getBoundingClientRect(), box = menu.getBoundingClientRect();
       menu.style.left = Math.max(8, Math.min(innerWidth - box.width - 8, r.right - box.width)) + 'px';
       menu.style.top = (r.bottom + box.height + 8 < innerHeight ? r.bottom + 4 : Math.max(8, r.top - box.height - 4)) + 'px';
@@ -1211,10 +1362,10 @@
     });
     return el('span', { class: 'note-action-container' }, trigger, menu);
   }
-  function confirmationView(id, issueId) {
-    const pending = noteConfirmations.get(id); if (!pending || pending.issueId !== issueId) return null;
+  function confirmationView(id, issueId, sidebar = false) {
+    const pending = noteConfirmations.get(id); if (!pending || pending.issueId !== issueId || (pending.sidebar === true) !== sidebar) return null;
     const { kind, item, action } = pending, label = action === 'delete' ? 'Delete ' + (kind === 'private note' ? 'note' : kind) : action === 'public' ? 'Make public' : 'Make private';
-    const explanation = action === 'delete' ? kind === 'issue' ? 'Remove this entire issue, its replies and attachments from review?' : 'Remove this note from the conversation?' : action === 'public' ? 'All project reviewers will be able to read ' + (kind === 'issue' ? 'this issue and its shared replies and attachments.' : 'this note.') : 'Only your logged-in WordPress email will be able to read ' + (kind === 'issue' ? 'this issue, its replies and attachments.' : 'this reply and its attachments.');
+    const explanation = action === 'delete' ? kind === 'issue' ? 'The issue, its replies and attachments will be removed from review.' : 'This note will be removed from the conversation.' : action === 'public' ? 'All project reviewers will be able to read ' + (kind === 'issue' ? 'this issue and its shared replies and attachments.' : 'this note.') : 'Only your logged-in WordPress email will be able to read ' + (kind === 'issue' ? 'this issue, its replies and attachments.' : 'this reply and its attachments.');
     return el('form', { class: 'note-confirm', 'data-confirm-note': id, 'aria-label': label, onsubmit: event => {
       event.preventDefault(); perform(event.currentTarget, async () => {
         let result;
@@ -1223,26 +1374,26 @@
           if (result.issue) applyIssue(result.issue); privateEditDrafts.delete(id); await loadNotes(issueId);
         } else {
           const path = `issues/${issueId}` + (kind === 'issue' ? '' : `/comments/${id}`) + '/manage';
-          result = await (await api(path, { method: 'POST', body: { action, revision: selected?.id === issueId ? selected.revision : item.edit_revision } })).json();
+          result = await (await api(path, { method: 'POST', body: { action, revision: selected?.id === issueId ? selected.revision : kind === 'issue' ? item.revision : item.edit_revision } })).json();
           clearAttachments(true);
           if (result.deleted) {
             for (const job of sharedJobs.values()) if (job.issueId === issueId) makeJobPrivate(job);
-            issueCache.delete(issueId); issues = issues.filter(issue => issue.id !== issueId); pageIssues = pageIssues.filter(issue => issue.id !== issueId); privateNotes.delete(issueId); total = Math.max(0, total - 1);
+            removeStatusCount(issueId); issueCache.delete(issueId); issues = issues.filter(issue => issue.id !== issueId); pageIssues = pageIssues.filter(issue => issue.id !== issueId); privateNotes.delete(issueId); total = Math.max(0, total - 1);
             if (selected?.id === issueId) { cancelLocate(); selected = null; issuePopup.replaceChildren(); issuePopup.hidden = true; }
             render(); drawPins(); scheduleCacheSave();
           } else applyIssue(result);
         }
         noteConfirmations.delete(id); editDrafts.delete(id);
+        if (sidebar) render();
         if (selected?.id === issueId && !issuePopup.hidden) renderIssue();
         message(action === 'public' ? 'Now public to project reviewers.' : action === 'private' ? 'Now private to your WordPress email.' : 'Deleted from review.');
       });
-    } }, el('p', {}, explanation), el('div', { class: 'actions' }, el('button', { type: 'submit', class: action === 'delete' ? 'fp-danger' : 'fp-primary' }, label), button('Cancel', () => { noteConfirmations.delete(id); renderIssue(); }, { class: 'fp-quiet' })));
+    } }, el('h3', { class: 'note-confirm-title' }, action === 'delete' && kind === 'issue' ? `Delete issue #${item.number}?` : label + '?'), el('p', {}, explanation), el('div', { class: 'actions' }, button('Cancel', () => { noteConfirmations.delete(id); renderNoteSurfaces(issueId, sidebar); const scope = sidebar ? panel.querySelector(`[data-issue="${issueId}"]`) : kind === 'issue' ? issuePopup.querySelector('.popup-header') : issuePopup.querySelector(kind === 'private note' ? `[data-note="${id}"]` : `[data-comment="${id}"]`); scope?.querySelector('.note-actions-trigger')?.focus({ preventScroll: true }); }, { class: 'fp-quiet' }), el('button', { type: 'submit', class: action === 'delete' ? 'fp-quiet note-confirm-delete' : 'fp-primary' }, label)));
   }
   function privateNoteView(note) {
     const issueId = note.issue_id || selected.id;
     const byline = el('div', { class: 'comment-byline' }, el('strong', { class: 'comment-author' }, note.author_kind === 'agent' ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, 'Private · Only you'));
     const time = commentTime(note.created_at); if (time) byline.append(time);
-    if (note.edited_at) byline.append(el('span', { class: 'comment-edited' }, 'Edited'));
     if (!privateEditDrafts.has(note.id)) byline.append(noteActions('private note', note, issueId));
     const draft = privateEditDrafts.get(note.id);
     const editor = draft ? el('form', { class: 'comment-editor', 'data-private-edit': note.id, onsubmit: event => {
@@ -1250,20 +1401,23 @@
         await api(`issues/${issueId}/notes/${note.id}`, { method: 'POST', body: { body: draft.body, revision: draft.revision } });
         privateEditDrafts.delete(note.id); await loadNotes(issueId);
       });
-    } }, draft.stale ? el('p', { class: 'warning' }, 'This note changed elsewhere. Your draft is kept. Cancel and reopen Edit to use the latest version.') : null, el('textarea', { rows: 3, maxlength: 20000, required: true, 'aria-label': 'Edit private note', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => draft.body = event.target.value }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale }, 'Save'), button('Cancel', () => { privateEditDrafts.delete(note.id); renderIssue(); }, { class: 'fp-quiet' }))) : el('p', { class: 'comment' }, note.body);
-    return el('div', { class: 'thread-comment private-note', 'data-note': note.id }, el('div', { class: 'comment-copy' }, byline, confirmationView(note.id, issueId), editor));
+    } }, draft.stale ? el('p', { class: 'warning' }, 'This note changed elsewhere. Your draft is kept. Cancel and reopen Edit to use the latest version.') : null, el('textarea', { rows: 3, maxlength: 20000, required: true, 'aria-label': 'Edit private note', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => draft.body = event.target.value }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale }, 'Save'), button('Cancel', () => { privateEditDrafts.delete(note.id); renderIssue(); }, { class: 'fp-quiet' }))) : el('p', { class: 'comment' }, ...linkedText(note.body));
+    return el('div', { class: 'thread-comment private-note', 'data-note': note.id, 'data-visibility': 'private' }, el('div', { class: 'comment-copy' }, confirmationView(note.id, issueId), editor, byline));
   }
   function renderIssue() {
+    deferredIssueRender = false;
     closeMentionMenu();
     const issue = selected; const threadScroll = stylesReady && previewIssueId === issue.id ? issuePopup.querySelector('.issue-thread')?.scrollTop || 0 : threadScrolls.get(issue.id) || 0; issuePopup.dataset.status = issue.status;
     threadScrolls.set(issue.id, threadScroll);
     if (previewIssueId !== issue.id) { clearAttachments(); previewIssueId = issue.id; }
     const items = navigationIssues();
     const index = items.findIndex(item => item.id === issue.id);
-    issuePopup.replaceChildren(el('header', { class: 'popup-header' }, el('strong', {}, '#' + issue.number), statusControl(issue, 'popup-status'), el('div', { class: 'popup-navigation' },
+    const issueActions = ownsComment(issue) && !editDrafts.has(issue.id) ? c.privateNotes ? noteActions('issue', issue, issue.id) : button('Edit', () => editComment(issue), { class: 'comment-edit', 'aria-label': 'Edit issue' }) : null;
+    issuePopup.replaceChildren(el('header', { class: 'popup-header' }, statusControl(issue, 'popup-status'), el('div', { class: 'popup-navigation' },
       button(icon('previous'), () => stepIssue(-1), { class: 'fp-icon-button', 'aria-label': 'Previous issue', title: 'Previous issue', 'data-tooltip-shortcut': 'P / ↑', 'aria-keyshortcuts': 'P ArrowUp', disabled: index <= 0 && listPage <= 1 }),
       button(icon('next'), () => stepIssue(1), { class: 'fp-icon-button', 'aria-label': 'Next issue', title: 'Next issue', 'data-tooltip-shortcut': 'N / ↓', 'aria-keyshortcuts': 'N ArrowDown', disabled: index >= items.length - 1 && listPage * 50 >= total }),
-      button(icon('close'), () => { if (!busy) { closeIssue(); (panel.hidden ? viewButton : panel.querySelector('[aria-label="Dismiss issues"]')).focus(); } }, { class: 'fp-icon-button', 'aria-label': 'Dismiss issue' }))));
+      issueActions, button(icon('close'), () => { if (!busy) { closeIssue(); (panel.hidden ? viewButton : panel.querySelector('[aria-label="Dismiss issues"]')).focus(); } }, { class: 'fp-icon-button', 'aria-label': 'Dismiss issue', 'aria-keyshortcuts': 'Escape' }))));
+    const issueConfirmation = confirmationView(issue.id, issue.id); if (issueConfirmation) issuePopup.append(issueConfirmation);
     if (issue.author_conflict) issuePopup.append(el('p', { class: 'warning' }, 'The author changed on more than one site. Choose the author again to resolve.'));
     if (issue.conflict) issuePopup.append(el('p', { class: 'warning' }, 'Conflicting status changes: ' + issue.status_choices.map(choice => `${labels[choice.status]} (${choice.author})`).join('; ') + '. Choose a status to resolve.'));
     const replies = issue.activity.filter(event => event.kind === 'reply');
@@ -1293,7 +1447,8 @@
       input.value = ''; renderQueued();
     });
     renderQueued();
-    const privateToggle = c.privateNotes && issue.visibility !== 'private' ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply…'; } }), 'Private note') : null;
+    const attach = button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply', disabled: privateReply.has(issue.id) });
+    const privateToggle = c.privateNotes && issue.visibility !== 'private' ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', role: 'switch', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = attach.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply or attach images…'; } }), el('span', { class: 'private-switch-track', 'aria-hidden': 'true' }), el('span', { class: 'private-switch-label' }, 'Private note')) : null;
     input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
     issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
       if (!privateReply.has(issue.id)) return submitReply(event, issue.id);
@@ -1301,10 +1456,10 @@
       const body = reply.value, key = crypto.randomUUID(); imageDropJob = null;
       replyDrafts.delete(issue.id); mentionDrafts.delete('reply:' + issue.id); reply.value = '';
       privateWork('private note', async () => {
-        await api(`issues/${issue.id}/notes`, { method: 'POST', requestId: key, body: { body, kind: 'human' } });
-        await loadNotes(issue.id);
+        const note = await (await api(`issues/${issue.id}/notes`, { method: 'POST', requestId: key, body: { body, kind: 'human' } })).json();
+        await loadNotes(issue.id); revealThreadEntry(issue.id, note.id);
       });
-    } }, issue.visibility === 'private' ? el('small', { class: 'subtle' }, 'Replies in this private issue are visible only to you.') : null, mentionField(reply, 'reply:' + issue.id, [], () => issue.visibility !== 'private' && !privateReply.has(issue.id)), input, queued, el('div', { class: 'reply-actions' }, button(icon('attach'), () => input.click(), { class: 'fp-icon-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply' }), privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))));
+    } }, issue.visibility === 'private' ? el('small', { class: 'subtle' }, 'Replies in this private issue are visible only to you.') : null, el('div', { class: 'composer-field reply-field' }, mentionField(reply, 'reply:' + issue.id, [], () => issue.visibility !== 'private' && !privateReply.has(issue.id)), queued, el('div', { class: 'reply-toolbar' }, attach, privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))), input));
     issuePopup.hidden = false; positionDraft(); restoreThreadScroll();
   }
   const pendingForms = new WeakSet();
@@ -1336,7 +1491,6 @@
     replyDrafts.delete(id); mentionDrafts.delete('reply:' + id); replyFiles.delete(id); form.elements.body.value = '';
     const key = replyOperations.get(id)?.key || crypto.randomUUID(); replyOperations.delete(id);
     enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, ...content, attachment_only: !content.body && files.length > 0, revision: current.revision }, files, null, key);
-    if (selected?.id === id) renderIssue();
   }
   async function upload(id, file, capture = false, comment = null, requestId = null) {
     if (file.size > c.maxBytes) throw new Error(`${file.name} exceeds 5 MB.`);
@@ -1375,7 +1529,7 @@
       input, attached,
       el('div', { class: 'composer-footer' }, el('button', { type: 'submit', class: 'fp-primary', title: 'Submit feedback', 'data-tooltip-shortcut': submitShortcut, 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }, 'Submit feedback')));
     form.feedbackpressFiles = files;
-    composer.replaceChildren(el('div', { class: 'composer-top' }, statusPicker, button(icon('close'), () => { if (!busy) startPick(); }, { class: 'fp-icon-button', 'aria-label': 'Close feedback', title: 'Discard this pin' })), form);
+    composer.replaceChildren(el('div', { class: 'composer-top' }, statusPicker, button(icon('close'), () => { if (!busy) startPick(); }, { class: 'fp-icon-button', 'aria-label': 'Close feedback', 'aria-keyshortcuts': 'Escape', title: 'Discard this pin' })), form);
     composer.hidden = false; draftPin.hidden = !draft.selector; positionDraft(); form.elements.title.focus();
   }
   function closeDraft() { closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
@@ -1483,6 +1637,8 @@
     const anchor = makeTarget(target, event.clientX, event.clientY); if (anchor) newDraft(anchor);
   }, true);
   function dismissInterface() {
+    deferredIssueRender = deferredListRender = false;
+    root.querySelectorAll('.note-actions:popover-open').forEach(menu => menu.hidePopover());
     cancelLocate();
     closeStatusFilter(); captureThreadScroll(); uiSession++; issueRequest++; openingIssue = 0;
     selected = null; targetIssueShortcuts(null); open = false; cancelPick(); closeDraft(); clearAttachments();
@@ -1498,7 +1654,7 @@
     if (event.key === 'Escape' || event.key === 'Esc') {
       hideTooltip();
       const editForm = event.composedPath().find(node => node instanceof Element)?.closest('[data-edit-comment]');
-      if (editForm) { consume(); editDrafts.delete(editForm.dataset.editComment); mentionDrafts.delete('edit:' + editForm.dataset.editComment); notice.hidden = true; renderIssue(); return; }
+      if (editForm) { consume(); editForm.querySelector('[data-cancel-edit]')?.click(); return; }
       if (pinDrag && !pinDrag.ending) { consume(); cancelPinDrag(); return; }
       if (lightbox.open) { consume(); closeLightbox(); }
       else if (filterOpen) { consume(); closeStatusFilter(true); }
@@ -1863,10 +2019,10 @@
       document.fonts.add(font); font.load().then(redraw).catch(() => {});
     } catch (_) { /* System sans remains available when a browser cannot load the bundled font. */ }
   }
-  document.fonts?.ready.then(refreshPageFit);
+  document.fonts?.ready.then(() => { refreshPageFit(); queueScrollCues(); });
   window.visualViewport?.addEventListener('resize', redraw);
   window.visualViewport?.addEventListener('scroll', redraw);
-  const sharedJobs = new Map(), ownRevisions = new Map();
+  const sharedJobs = new Map(), ownRevisions = new Map(), transportFailures = new WeakMap();
   const revisionsKey = cacheKey + ':revisions';
   function persistRevisions() { try { sessionStorage.setItem(revisionsKey, JSON.stringify([...ownRevisions].filter(([id]) => !privateIssueIds.has(id)).map(([id, values]) => [id, [...values]]))); } catch (_) {} }
   try { for (const [id, revisions] of JSON.parse(sessionStorage.getItem(revisionsKey) || '[]')) ownRevisions.set(id, new Map(revisions)); } catch (_) {}
@@ -1886,17 +2042,24 @@
     request.onupgradeneeded = () => request.result.createObjectStore('jobs', { keyPath: 'id' });
     request.onsuccess = () => resolve(request.result); request.onerror = () => resolve(null);
   });
+  const storedFileBytes = new WeakMap();
   async function storeJob(job, remove = false) {
     if (job.private) return;
-    job.updatedAt = Date.now();
+    job.updatedAt = Math.max(Date.now(), (job.updatedAt || 0) + 1);
     if (remove) journal.delete(job.id); else journal.set(job.id, { ...job, files: [], missingFiles: job.files.length || job.missingFiles || 0 });
     try { sessionStorage.setItem(journalKey, JSON.stringify([...journal.values()])); } catch (_) {}
     const db = await workDatabase;
     if (!db) return;
+    // Persist bytes rather than File handles: WebKit cannot reliably clone them into IndexedDB.
+    const persisted = remove ? null : { ...job, files: await Promise.all(job.files.map(async item => {
+      if (!storedFileBytes.has(item.file)) storedFileBytes.set(item.file, item.file.arrayBuffer());
+      return { ...item, file: { bytes: await storedFileBytes.get(item.file), name: item.file.name, type: item.file.type, size: item.file.size, lastModified: item.file.lastModified } };
+    })) };
+    if (job.private) return;
     await new Promise((resolve, reject) => {
       const transaction = db.transaction('jobs', 'readwrite');
-      if (remove) transaction.objectStore('jobs').delete(job.id); else transaction.objectStore('jobs').put(job);
-      transaction.oncomplete = resolve; transaction.onerror = () => reject(new Error('Browser storage is full. Keep this page open to retry.'));
+      if (remove) transaction.objectStore('jobs').delete(job.id); else transaction.objectStore('jobs').put(persisted);
+      transaction.oncomplete = resolve; transaction.onerror = event => reject(new Error(event.target.error?.name === 'QuotaExceededError' ? 'Browser storage is full. Keep this page open to retry.' : 'Browser storage is unavailable. Keep this page open to retry.'));
     });
   }
   function makeJobPrivate(job) {
@@ -1954,7 +2117,8 @@
     const current = issueCache.get(job.issueId)?.issue || (selected?.id === job.issueId ? selected : null);
     job.private = current?.visibility === 'private' || (kind === 'edit' && current?.activity.some(event => event.id === path.split('/')[3] && event.payload.visibility === 'private'));
     sharedJobs.set(job.id, job); showPendingCreate(job); renderJobs();
-    if (job.issueId) { const current = issueCache.get(job.issueId)?.issue || selected; if (current) applyIssue(current); }
+    if (job.issueId) { const current = issueCache.get(job.issueId)?.issue || selected; if (current) applyIssue(current, false, kind === 'reply' ? { from: job.id, to: job.id } : null); }
+    if (kind === 'reply') revealThreadEntry(job.issueId, job.id);
     executeJob(job, capturePromise); return job;
   }
   async function executeJob(job, capturePromise = null) {
@@ -1989,7 +2153,7 @@
             if (matchesView(saved)) { issues.push(saved); if (saved.path === pagePath) pageIssues.push(saved); }
             if (selected?.id === temporary) selected = saved;
           }
-          applyIssue(saved, job.kind === 'create'); await storeJob(job);
+          applyIssue(saved, job.kind === 'create', job.kind === 'reply' ? { from: job.id, to: job.commentId } : null); await storeJob(job);
         });
         textTail = send; await send; if (pageLeaving) return;
       }
@@ -2011,10 +2175,11 @@
         if (!job.files.length) break;
       }
       job.phase = 'done'; renderJobs();
-      if (job.kind !== 'status') api('issues/' + job.issueId).then(response => response.json()).then(applyIssue).catch(() => {});
+      if (job.kind !== 'status') api('issues/' + job.issueId).then(response => response.json()).then(updated => applyIssue(updated, false, job.kind === 'reply' ? { from: job.commentId, to: job.commentId } : null)).catch(() => {});
       setTimeout(() => { if (job.phase === 'done') { sharedJobs.delete(job.id); renderJobs(); } }, 6000);
     } catch (error) {
       if (pageLeaving) return;
+      if (error.feedbackpressTransport) transportFailures.set(job, performance.now()); else transportFailures.delete(job);
       job.error = error.message; await storeJob(job).catch(() => {}); renderJobs();
       if (job.kind === 'status' || job.kind === 'edit') { const current = issueCache.get(job.issueId)?.issue; if (current) applyIssue(current); }
     } finally { executingJobs.delete(job.id); }
@@ -2050,6 +2215,7 @@
   async function resumeJobs() {
     const db = await workDatabase;
     const saved = db ? await new Promise(resolve => { const request = db.transaction('jobs').objectStore('jobs').getAll(); request.onsuccess = () => resolve(request.result); request.onerror = () => resolve([]); }) : [];
+    for (const job of saved) for (const item of job.files || []) if (item.file?.bytes instanceof ArrayBuffer) item.file = new File([item.file.bytes], item.file.name, { type: item.file.type, lastModified: item.file.lastModified });
     const recovered = new Map([...journal.values()].map(job => [job.id, job]));
     for (const job of saved) {
       const newer = recovered.get(job.id);
@@ -2069,7 +2235,7 @@
   else if (resumeOpen && restoredDetails && restoredSelection && selected?.path === pagePath) withIdentity(() => { open = true; showIssue(restoredSelection, false); });
   else if (resumeOpen || new URLSearchParams(location.search).get('feedbackpress') === 'open') withIdentity(() => toggle(true));
   if (name && !c.userName) remember(name);
-  let syncTimer = null, syncBusy = false, syncAttempt = 0, lastActivity = Date.now(), syncCursor = c.cursor || 0, deferredIssueRender = false;
+  let syncTimer = null, syncBusy = false, syncAttempt = 0, lastActivity = Date.now(), syncCursor = c.cursor || 0;
   function activity() {
     if (!c.activitySync) return;
     lastActivity = Date.now();
@@ -2097,13 +2263,16 @@
         // The gateway offers all snapshot IDs; only an ID absent from the prior snapshot is new.
         for (const id of data.new_issues || []) { const issue = byId.get(id); if (knownIssues && !knownIssues.has(id) && issue && !visible.has(id) && matches(issue)) { issues.push(issue); total++; } }
         knownIssues = new Set(byId.keys());
+        projectCounts = { open: 0, closed: 0, contains_private: false };
         statusCounts = Object.fromEntries(Object.keys(labels).map(status => [status, 0])); countedStatuses.clear();
-        for (const item of data.issues) { const current = optimisticIssue(item), matches = matchesListSearch(current); countedStatuses.set(item.id, { status: current.status, matches }); if (matches) statusCounts[current.status]++; }
+        for (const item of data.issues) { const current = optimisticIssue(item), matches = matchesListSearch(current); countedStatuses.set(item.id, { status: current.status, matches }); if (matches) statusCounts[current.status]++; projectCounts[current.status === 'done' ? 'closed' : 'open']++; if (current.visibility === 'private') projectCounts.contains_private = true; }
         paintStatusCounts();
         keepListOrder = listLoaded;
         pageIssues = data.issues.filter(issue => issue.path === pagePath && matches(issue)).map(optimisticIssue);
         for (const job of sharedJobs.values()) showPendingCreate(job);
-        const editing = root.activeElement?.matches('input, textarea, select, [contenteditable]') || draft || busy;
+        const actionMenu = root.querySelector('.note-actions:popover-open');
+        const editing = root.activeElement?.matches('input, textarea, select, [contenteditable]') || actionMenu || draft || busy;
+        if (actionMenu && open) deferredListRender = true;
         if (selected && byId.has(selected.id)) { selected = byId.get(selected.id); deferredIssueRender = Boolean(editing); if (!editing && !issuePopup.hidden) renderIssue(); }
         if (!editing) {
           if (open) render();
@@ -2118,7 +2287,7 @@
     }
   }
   root.addEventListener('focusout', () => { setTimeout(() => {
-    if (deferredIssueRender && !busy && !draft && !root.activeElement?.matches('input, textarea, select, [contenteditable]')) { deferredIssueRender = false; if (selected && !issuePopup.hidden) renderIssue(); if (open) render(); }
+    if (deferredIssueRender && !busy && !draft && !root.querySelector('.note-actions:popover-open') && !root.activeElement?.matches('input, textarea, select, [contenteditable]')) { deferredIssueRender = false; if (selected && !issuePopup.hidden) renderIssue(); if (open) render(); }
   }, 0); });
   root.addEventListener('pointerdown', activity, { passive: true });
   root.addEventListener('keydown', activity);

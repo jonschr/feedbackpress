@@ -1,6 +1,6 @@
 // Intercepted transport abort after pagehide must leave shared uploads resumable.
-const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
-(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+const {chromium,webkit}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const engine=process.env.FEEDBACKPRESS_BROWSER==='webkit'?webkit:chromium,browser=await engine.launch(engine===chromium?{channel:'chrome',headless:true}:{headless:true,...(process.env.FEEDBACKPRESS_WEBKIT_PATH?{executablePath:process.env.FEEDBACKPRESS_WEBKIT_PATH}:{})});try{
  const base='https://feedbackpress.test',context=await browser.newContext({viewport:{width:1280,height:900}}),keys=[];let abortUpload,uploadStarted,replies=0,uploads=0;const started=new Promise(resolve=>uploadStarted=resolve);
  const issue={id:'11111111-1111-4111-8111-111111111111',number:1,title:'Interrupted upload',body:'Shared issue',author:'Owner',status:'todo',revision:1,path:'/',target:{selector:'body',x:.5,y:.5},files:[],activity:[]};
  await context.route(base+'/**',async route=>{const request=route.request(),path=new URL(request.url()).pathname;
@@ -12,7 +12,12 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
   return route.fulfill({contentType:'text/html',body:`<!doctype html><body><script>window.FeedbackPressConfig={api:'${base}/api/',home:'${base}',css:'${base}/review.css',nonce:'fixture',userName:'Owner',network:'upload-navigation',maxBytes:5242880}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`});
  });
  const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));await page.goto(base);await page.getByRole('button',{name:'View issues',exact:true}).click();await page.locator('.issue-open').click();const popup=page.getByRole('region',{name:'Issue details',exact:true});await popup.getByRole('textbox',{name:'Reply',exact:true}).fill('One reply across navigation');await popup.getByLabel('Issue attachments',{exact:true}).setInputFiles({name:'proof.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\nfixture\n%%EOF')});await popup.getByRole('button',{name:'Reply',exact:true}).click();
- await started;assert.ok(abortUpload);await page.evaluate(()=>dispatchEvent(new PageTransitionEvent('pagehide')));await abortUpload();await page.waitForTimeout(100);
+ await started;assert.ok(abortUpload);
+ if(process.env.FEEDBACKPRESS_CANCEL_BEFORE_PAGEHIDE==='1'){
+  await page.evaluate(()=>{window.fixturePageHideAfterFailure=new Promise(resolve=>{const root=document.querySelector('#feedbackpress-root').shadowRoot,watch=new MutationObserver(()=>{if(root.querySelector('.work-item[data-state=error]')){watch.disconnect();dispatchEvent(new PageTransitionEvent('pagehide'));resolve();}});watch.observe(root,{childList:true,subtree:true});});});
+  await abortUpload();await page.evaluate(()=>window.fixturePageHideAfterFailure);
+ }else{await page.evaluate(()=>dispatchEvent(new PageTransitionEvent('pagehide')));await abortUpload();}
+ await page.waitForTimeout(100);
  const pending=await page.evaluate(()=>JSON.parse(Object.keys(sessionStorage).map(key=>key.endsWith(':work')?sessionStorage.getItem(key):null).find(Boolean)));assert.equal(pending.length,1);assert.equal(pending[0].error,undefined,'Navigation abort was persisted as a permanent upload failure');
  await page.goto(base+'/next/');await page.getByRole('status').filter({hasText:'Saved'}).waitFor();assert.equal(replies,1);assert.equal(uploads,1);assert.equal(keys.length,2);assert.equal(keys[0],keys[1]);assert.deepEqual(errors,[]);
  console.log('PASS Navigation-aborted shared upload resumes from browser storage with its original key, one reply/file, and no persisted transport error.');

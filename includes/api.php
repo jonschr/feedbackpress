@@ -128,7 +128,13 @@ final class API {
     public static function personResult(array $p): array { $person = Service::person($p); return ['id' => $person['author_id'], 'name' => $person['author']]; }
     public static function listing($r): array {
         $terms = preg_split('/\s+/u', trim((string) $r->get_param('search')), -1, PREG_SPLIT_NO_EMPTY);
-        $issues = array_values(array_filter(Service::snapshot()['issues'], function ($i) use ($r, $terms) {
+        $snapshot = Service::snapshot()['issues'];
+        $projectCounts = ['open' => 0, 'closed' => 0, 'contains_private' => false];
+        foreach ($snapshot as $issue) {
+            $projectCounts[$issue['status'] === 'done' ? 'closed' : 'open']++;
+            if (($issue['visibility'] ?? '') === 'private') $projectCounts['contains_private'] = true;
+        }
+        $issues = array_values(array_filter($snapshot, function ($i) use ($r, $terms) {
             if (($r->get_param('path') && $i['path'] !== $r->get_param('path'))) return false;
             $text = $i['title'] . "\n" . $i['body']; foreach ($i['activity'] as $e) $text .= "\n" . $e['payload']['body'];
             foreach ($terms as $term) if (!preg_match('/' . preg_quote($term, '/') . '/iu', $text)) return false;
@@ -142,7 +148,7 @@ final class API {
         usort($issues, fn($a, $b) => self::compareIssues($a, $b, $order, $group));
         $page = max(1, min((int) $r->get_param('page'), max(1, (int) ceil(count($issues) / 50))));
         if ($r->get_param('focus')) foreach ($issues as $n => $issue) if ($issue['id'] === $r->get_param('focus')) { $page = (int) floor($n / 50) + 1; break; }
-        return ['issues' => array_slice($issues, ($page - 1) * 50, 50), 'total' => count($issues), 'page' => $page, 'order' => $order, 'group' => $group, 'status_counts' => $counts];
+        return ['issues' => array_slice($issues, ($page - 1) * 50, 50), 'total' => count($issues), 'page' => $page, 'order' => $order, 'group' => $group, 'status_counts' => $counts, 'project_counts' => $projectCounts];
     }
     public static function compareIssues(array $a, array $b, string $order, string $group): int {
         if ($group === 'page' && ($page = strnatcasecmp($a['path'], $b['path']))) return $page;

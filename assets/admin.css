@@ -1,21 +1,28 @@
-.fp-settings { max-width:960px; margin:24px auto; padding:0 24px; }
-.fp-settings h1 { margin-bottom:20px; }
-.fp-section { background:#fff; border:1px solid #dcdcde; padding:20px 24px; margin:0 0 16px; }
-.fp-section h2 { margin:0 0 12px; font-size:18px; }
-.fp-section h3 { margin:24px 0 8px; font-size:14px; }
-.fp-section summary { font-size:14px; font-weight:600; cursor:pointer; }
-.fp-section[open] summary { margin-bottom:16px; }
-.fp-section form { display:flex; flex-direction:column; align-items:flex-start; gap:10px; max-width:620px; margin:16px 0; }
+.fp-settings { max-width:800px; margin:24px 0; padding:0 12px 24px 0; }
+.fp-settings h1 { margin:0 0 20px; }
+.fp-settings [hidden] { display:none !important; }
+.fp-section { background:#fff; border:1px solid #dcdcde; padding:24px; margin:0 0 16px; }
+.fp-section h2 { margin:0 0 8px; font-size:16px; line-height:1.5; }
+.fp-section h3 { margin:0 0 8px; font-size:13px; line-height:1.5; }
+.fp-section summary { font-size:13px; font-weight:600; cursor:pointer; }
+.fp-section[open] > summary { margin-bottom:16px; }
+.fp-section form { display:flex; flex-direction:column; align-items:flex-start; gap:8px; max-width:620px; margin:16px 0 0; }
 .fp-section label { font-weight:600; }
-.fp-section textarea,.fp-section input:not([type=checkbox]),.fp-section select { width:100%; max-width:100%; margin:0; }
-.fp-section textarea { resize:vertical; }
-.fp-section [hidden] { display:none !important; }
-.fp-section .fp-project-name { font-size:20px; font-weight:600; margin:8px 0; }
-.fp-section .description { max-width:75ch; overflow-wrap:anywhere; }
+.fp-section input:not([type=checkbox]),.fp-section select { width:100%; max-width:100%; margin:0; }
+.fp-section .description { color:#50575e; max-width:70ch; margin:8px 0 0; overflow-wrap:anywhere; }
+.fp-section form > .description { margin:0; }
 .fp-section pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; font-size:12px; }
 .fp-section li { overflow-wrap:anywhere; }
-@media(max-width:782px) { .fp-settings { padding:0 8px; } .fp-section { padding:16px; } }
-.fp-main .description { margin:8px 0 16px; }
+.fp-subsection { margin-top:24px; padding-top:20px; border-top:1px solid #dcdcde; }
+.fp-subsection > .description { margin:0 0 12px; }
+.fp-field-actions { display:flex; align-items:flex-start; gap:8px; width:100%; }
+.fp-field-actions > select { flex:1; min-width:0; }
+.fp-field-actions > .button { flex:none; }
+#fp-review-link-result { margin-top:12px; max-width:620px; }
+#fp-review-link-result label { display:block; margin-bottom:6px; }
+@media(max-width:782px) { .fp-settings { padding-inline-end:0; } .fp-section { padding:20px; } }
+@media(max-width:480px) { .fp-field-actions { flex-direction:column; align-items:flex-start; } .fp-field-actions > select { flex:auto; } }
+#fp-new-project { margin-top:8px; }
 .fp-project-picker { position:relative; max-width:620px; margin:16px 0 0; }
 .fp-project-picker > label { display:block; font-weight:600; margin-bottom:8px; }
 .fp-select-wrap { position:relative; }
@@ -29,12 +36,17 @@
 .fp-no-projects { padding:12px; color:#50575e; }
 .fp-site-list { margin:0; }
 .fp-site-list > li { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0; padding:12px 0; border-bottom:1px solid #f0f0f1; }
-.fp-site-list > li:last-child { border:0; padding-bottom:0; }
+.fp-site-list > li:last-child { border:0; }
 .fp-site-list > li > div { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
 .fp-site-list a { overflow-wrap:anywhere; }
-.fp-site-list small { color:#50575e; font-size:11px; }
+.fp-site-list small { color:#50575e; font-size:12px; }
 .fp-site-list button { flex-shrink:0; }
 .fp-service-details { width:100%; margin-top:4px; }
 .fp-service-details summary { font-size:12px; font-weight:400; }
 .fp-service-details[open] summary { margin-bottom:8px; }
 .fp-inline-actions { display:flex; align-items:center; gap:12px; }
+
+.fp-notifications { margin-top:12px; }
+.fp-notifications > summary { color:#50575e; font-weight:400; }
+.fp-notifications[open] > summary { margin-bottom:12px; }
+.fp-notifications form { margin-top:0; }
