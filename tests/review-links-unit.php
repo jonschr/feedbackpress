@@ -6,7 +6,7 @@ require_once dirname(__DIR__) . '/feedbackpress.php';
 use FeedbackPress\Service;
 use FeedbackPress\ReviewAccess;
 use FeedbackPress\API;
-$cfg = ['mode' => 'admins'];
+$cfg = []; // Missing/empty settings must use the administrator-only default.
 $c = ['project' => '11111111-1111-4111-8111-111111111111', 'credential_id' => '22222222-2222-4222-8222-222222222222', 'token' => 'fp_' . str_repeat('x', 43), 'site_url' => Service::home(), 'service' => 'https://service.example.test'];
 add_filter('pre_option_feedbackpress_settings', function () use (&$cfg) { return $cfg; });
 add_filter('pre_option_' . Service::OPTION, function () use (&$c) { return Service::pack($c); });
@@ -14,6 +14,12 @@ add_filter('pre_http_request', function () { throw new RuntimeException('Unexpec
 $assert = function ($ok) { if (!$ok) throw new RuntimeException('Review-link assertion failed'); };
 // Cross-language expected signature generated independently by Node.
 $token = getenv('FEEDBACKPRESS_REVIEW_UNIT_TOKEN'); if (!$token) throw new RuntimeException('Synthetic signature required');
+$assert(FeedbackPress\defaults()['mode'] === 'admins' && FeedbackPress\settings()['mode'] === 'admins');
+$hook = 'plugin_action_links_' . plugin_basename(dirname(__DIR__) . '/feedbackpress.php');
+wp_set_current_user(1); $assert(API::can_view());
+$links = apply_filters($hook, ['Deactivate']); $assert(count($links) === 2 && str_contains($links[0], 'options-general.php?page=feedbackpress'));
+$reader = new WP_User(); $reader->ID = PHP_INT_MAX; $reader->allcaps = ['read' => true]; $GLOBALS['current_user'] = $reader;
+$assert(is_user_logged_in() && !API::can_view()); $assert(apply_filters($hook, ['Deactivate']) === ['Deactivate']);
 wp_set_current_user(0); $assert(!API::can_view());
 $_COOKIE[ReviewAccess::COOKIE] = $token; $assert(API::can_view()); $assert(is_wp_error(API::privateRead()));
 $original = $c;

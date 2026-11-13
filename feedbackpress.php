@@ -4,14 +4,14 @@
  * Plugin URI: https://github.com/jonschr/feedbackpress
  * Update URI: https://github.com/jonschr/feedbackpress
  * Description: On-page client feedback, screenshots, and central project storage.
- * Version: 0.3.2
+ * Version: 0.3.3
  * Requires at least: 6.6
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  */
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-const VERSION = '0.3.2';
+const VERSION = '0.3.3';
 require_once __DIR__ . '/includes/service.php';
 require_once __DIR__ . '/includes/review-access.php';
 require_once __DIR__ . '/includes/api.php';
@@ -20,7 +20,7 @@ require_once __DIR__ . '/includes/log.php';
 require_once __DIR__ . '/includes/admin.php';
 require_once __DIR__ . '/includes/cli.php';
 require_once __DIR__ . '/includes/update-checker.php';
-function defaults(): array { return ['mode' => 'everyone']; }
+function defaults(): array { return ['mode' => 'admins']; }
 function settings(): array { return (array) get_option('feedbackpress_settings', []) + defaults(); }
 function bound(): bool { $c = Service::connection(); return !empty($c['project']) && !empty($c['token']) && empty($c['disconnected']); }
 register_deactivation_hook(__FILE__, function () { wp_clear_scheduled_hook('feedbackpress_tick'); });
@@ -28,6 +28,7 @@ register_activation_hook(__FILE__, function () { wp_clear_scheduled_hook('feedba
 add_action('rest_api_init', [API::class, 'routes']);
 add_filter('application_password_is_api_request', [API::class, 'hosting_auth']);
 add_action('admin_menu', [Admin::class, 'menu']);
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), [Admin::class, 'pluginLinks']);
 add_action('admin_enqueue_scripts', [Admin::class, 'assets']);
 add_action('template_redirect', function () { if (is_user_logged_in() || ReviewAccess::grant()) { if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true); nocache_headers(); } });
 function asset_version(): string { return VERSION . '.' . max(filemtime(__DIR__ . '/assets/review.js'), filemtime(__DIR__ . '/assets/review.css')); }

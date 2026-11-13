@@ -1,6 +1,6 @@
 # Client review link
 
-Current source uses one reusable link per HTTPS site connection. In **Settings → FeedbackPress → Review access**, **Every visitor / Logged-in administrators / Nobody (disabled)** controls who can use FeedbackPress without a link. A valid client link enables shared feedback through the administrator-only gate; Nobody disables all review access.
+Current source uses one reusable link per HTTPS site connection. In **Settings → FeedbackPress → Review access**, **Every visitor / Logged-in administrators / Nobody (disabled)** controls who can use FeedbackPress without a link. New installations default to Logged-in administrators; explicitly saved access choices remain in effect. A valid client link enables shared feedback through the administrator-only gate; Nobody disables all review access.
 
 Open **Client review link** and choose **Copy review link**. WordPress retrieves the same reusable URL from the authenticated central API each time. Copy it from the live or staging copy your client can reach, and send it through your normal communication channel. There are no individual invitations, labels, link list, expiry picker, revoke controls, or separate sharing-permission setting. Only the connection's WordPress administrator can retrieve the link; an invited guest cannot use connection management.
 

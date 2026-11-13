@@ -39,11 +39,11 @@
     if (state?.project?.id !== nextState.project?.id) { if ($('fp-review-link-result')) $('fp-review-link-result').hidden = true; if ($('fp-review-link-url')) $('fp-review-link-url').value = ''; }
     state = nextState; projects = nextProjects;
     search.disabled = false; $('fp-project-picker').setAttribute('aria-busy', 'false'); closePicker();
-    $('fp-project-state').textContent = state.disconnected ? 'This site is disconnected. Choose a project to reconnect.' : state.project ? '' : 'Choose a project to connect this site.';
+    $('fp-project-state').textContent = state.disconnected ? 'This site is disconnected. Choose a project to reconnect.' : state.project ? '' : 'No project connected.';
     $('fp-project-state').hidden = Boolean(state.project && !state.disconnected);
     if ($('fp-review-links')) $('fp-review-links').hidden = !state.project || Boolean(state.disconnected);
     const section = $('fp-connected-sites'), notificationOpen = section.querySelector('.fp-notifications')?.open; section.replaceChildren(); const heading = document.createElement('h3'); heading.textContent = 'Connected sites'; section.append(heading);
-    section.hidden = !state.project;
+    section.hidden = !state.project || !$('fp-create-project').hidden;
     if (!state.project) return;
     const list = document.createElement('ul'); list.className = 'fp-site-list';
     for (const site of state.project.sites || []) {
@@ -82,9 +82,16 @@
   });
   document.addEventListener('pointerdown', event => { if (search && !event.target.closest('.fp-project-picker')) closePicker(); });
   $('fp-account')?.addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; run(form, async () => { await api('account', { service: $('fp-service').value, key: $('fp-account-key').value }); $('fp-account-key').value = ''; form.hidden = true; show('Account connected. Loading your projects…'); location.reload(); }); });
-  $('fp-new-project')?.addEventListener('click', () => { closePicker(); projectDraftId = crypto.randomUUID(); $('fp-new-project').hidden = true; $('fp-create-project').hidden = false; $('fp-project-name').focus(); });
-  $('fp-cancel-project')?.addEventListener('click', () => { $('fp-create-project').hidden = true; $('fp-new-project').hidden = false; $('fp-project-name').value = ''; });
-  $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); $('fp-create-project').hidden = true; $('fp-new-project').hidden = false; $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
+  function creatingProject(creating) {
+    $('fp-admin-message').hidden = true;
+    $('fp-project-select').hidden = creating;
+    $('fp-create-project').hidden = !creating;
+    $('fp-connected-sites').hidden = creating || !state?.project;
+    $('fp-project-heading').textContent = creating ? 'Create a project' : 'Project';
+  }
+  $('fp-new-project')?.addEventListener('click', () => { closePicker(); projectDraftId = crypto.randomUUID(); creatingProject(true); $('fp-project-name').focus(); });
+  $('fp-cancel-project')?.addEventListener('click', () => { creatingProject(false); $('fp-project-name').value = ''; $('fp-new-project').focus(); });
+  $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); creatingProject(false); $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
   $('fp-access')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('settings', { mode: $('fp-mode').value }); show('Review access saved.'); }); });
   $('fp-review-link-copy')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => {
     const link = await api('review-link');

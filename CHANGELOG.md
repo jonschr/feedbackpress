@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3 — Review build, not published
+
+- Default new installations to administrator-only review access, with reusable review links retained.
+- Simplify account-key setup, add the Plugins-page Settings link, and make project creation the primary action beside the existing-project picker.
+- Default to Issues by page, with collapsible groups, relative page links and session folding preferences.
+- Center the Issue N reference in the card header; put Leave feedback before View issues.
+- Add the blue pin-style placement cursor and let card-content clicks reveal offscreen markers without replacing drafts.
+- Add owner-only Backspace/Enter and Cmd/Ctrl+Backspace deletion, preserving typing guards, revision checks and next-issue focus.
+
+
 ## 0.3.2 — November 13, 2026
 
 - Make tooltips and shortcut badges pointer-transparent so they cannot keep themselves open after leaving a control. Preserve keyboard hints and adjacent-icon hover behavior.

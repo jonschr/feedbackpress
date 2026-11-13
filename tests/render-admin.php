@@ -10,6 +10,7 @@ $html = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="wid
 $path = '/tmp/feedbackpress-copy-admin.html';
 file_put_contents($path, $html); chmod($path, 0600);
 add_filter('pre_option_' . FeedbackPress\Service::OPTION, fn() => '', 999);
+add_filter('pre_option_feedbackpress_settings', fn() => [], 999);
 ob_start(); FeedbackPress\Admin::page(); $disconnected = ob_get_clean();
 $disconnected = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' . $styles . file_get_contents(dirname(__DIR__) . '/assets/admin.css') . '</style><body class="wp-admin wp-core-ui"><div id="wpcontent"><div id="wpbody-content">' . $disconnected . '</div></div><script>window.FeedbackPressAdmin={api:"https://feedbackpress.test/adminapi/",nonce:"fixture"};</script><script src="https://feedbackpress.test/admin.js"></script>';
 $path = '/tmp/feedbackpress-disconnected-admin.html'; file_put_contents($path, $disconnected); chmod($path, 0600);

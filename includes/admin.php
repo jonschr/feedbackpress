@@ -2,6 +2,10 @@
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
 final class Admin {
+    public static function pluginLinks(array $links): array {
+        if (current_user_can('manage_options')) array_unshift($links, '<a href="' . esc_url(admin_url('options-general.php?page=feedbackpress')) . '">' . esc_html__('Settings') . '</a>');
+        return $links;
+    }
     public static function menu(): void { add_options_page('FeedbackPress', 'FeedbackPress', 'manage_options', 'feedbackpress', [self::class, 'page']); }
     public static function state(): array {
         try { $c = Service::ensureConnection(); } catch (RemoteError $e) { if ($e->remoteCode !== 'site_disconnected') throw $e; $c = Service::connection(); }
@@ -43,10 +47,9 @@ final class Admin {
         ?>
         <form id="fp-account" method="post" autocomplete="off">
             <label for="fp-account-key">License or account access key</label>
-            <input id="fp-account-key" name="feedbackpress_access_key" data-1p-ignore type="text" required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="fp-key-help">
-            <p id="fp-key-help" class="description">Visible while entering. Cleared after connecting.</p>
+            <input id="fp-account-key" name="feedbackpress_access_key" data-1p-ignore type="text" required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
             <button class="button button-primary" type="submit">Connect account</button>
-            <details class="fp-service-details"><summary>Service address</summary><label for="fp-service" class="screen-reader-text">FeedbackPress service</label><input id="fp-service" type="url" required value="<?php echo esc_attr($c['service'] ?? 'https://feedbackpress.elod.in'); ?>"></details>
+            <input id="fp-service" type="hidden" value="<?php echo esc_attr($c['service'] ?? 'https://feedbackpress.elod.in'); ?>">
         </form>
         <?php
     }
@@ -60,22 +63,23 @@ final class Admin {
             <?php if (isset($_GET['disconnected'])): ?><div class="notice inline notice-info"><p><?php echo $_GET['disconnected'] === 'unconfirmed' ? 'Account disconnected here. The service could not confirm removal; remove this URL from another connected site when it is available.' : 'This installation is disconnected. Your feedback remains in the service.'; ?></p></div><?php endif; ?>
             <section class="fp-section fp-main" id="fp-main">
             <?php if (!empty($c['manager'])): ?>
-                <h2>Project</h2>
-                <p class="description">Feedback stays with its project when you switch.</p>
+                <h2 id="fp-project-heading">Project</h2>
+                <div id="fp-project-select">
+                <div class="fp-project-choice">
                 <div class="fp-project-picker" id="fp-project-picker" aria-busy="true">
                     <label for="fp-project-search" class="screen-reader-text">Project</label>
-                    <div class="fp-select-wrap"><input id="fp-project-search" type="text" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="fp-project-options" autocomplete="off" data-1p-ignore placeholder="Search your projects…" disabled><span class="fp-select-chevron" aria-hidden="true"></span></div>
+                    <div class="fp-select-wrap"><input id="fp-project-search" type="text" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="fp-project-options" autocomplete="off" data-1p-ignore placeholder="Choose an existing project…" disabled><span class="fp-select-chevron" aria-hidden="true"></span></div>
                     <ul id="fp-project-options" role="listbox" aria-label="Account projects" hidden></ul>
                 </div>
+                <span class="fp-project-or">or</span>
+                <button type="button" class="button button-primary" id="fp-new-project">Create a project</button>
+                </div>
                 <p id="fp-project-state" class="description" aria-live="polite">Loading your projects…</p>
-                <button type="button" class="button-link" id="fp-new-project">Create a project</button>
-                <form id="fp-create-project" method="post" hidden><label for="fp-project-name">Project name</label><input id="fp-project-name" required maxlength="120" data-1p-ignore><div class="fp-inline-actions"><button class="button" type="submit">Create project</button><button class="button-link" type="button" id="fp-cancel-project">Cancel</button></div></form>
+                </div>
+                <form id="fp-create-project" method="post" hidden><label for="fp-project-name">Project name</label><input id="fp-project-name" type="text" placeholder="e.g. Website review" required maxlength="120" data-1p-ignore><div class="fp-inline-actions"><button class="button button-primary" type="submit">Create and connect</button><button class="button-link" type="button" id="fp-cancel-project">Cancel</button></div></form>
                 <div id="fp-connected-sites" class="fp-subsection" hidden><h3>Connected sites</h3><p class="description">Choose a project to connect this site.</p></div>
             <?php else: ?>
-                <h2>Connect your account</h2>
-                <p class="description">Enter a license or access key to choose your project.</p>
                 <?php self::accountForm(); ?>
-                <p class="description">Your license or access key is not saved in WordPress.</p>
             <?php endif; ?>
             </section>
             <section class="fp-section">
@@ -89,7 +93,6 @@ final class Admin {
                 </div><?php endif; ?>
             </section>
             <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Account connection</summary>
-                <p class="description">Connected to <?php echo esc_html($c['service']); ?>. Enter another key to reconnect or switch accounts.</p>
                 <?php self::accountForm(); ?>
                 <div class="fp-subsection"><p class="description">Disconnecting removes this installation from its project. All feedback stays in the service.</p><button class="button-link button-link-delete" id="fp-disconnect" type="button">Disconnect account</button></div>
             </details><?php endif; ?>
