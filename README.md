@@ -2,7 +2,7 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
-**0.3.3 is an unpublished review build.** The public release remains [0.3.2](https://github.com/jonschr/feedbackpress/releases/tag/0.3.2). It requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
+**0.3.3 is a normal release** of the central-backed plugin. It requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
 
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.
@@ -17,7 +17,7 @@ Connect your account with a license or access key, then choose a project from th
 
 The customer key is a FeedbackPress account access key or the license supplied with a FeedbackPress purchase. Lemon Squeezy merchant API keys belong only on the central service. Project creation, selection and connected-site management all happen in WordPress, without another FeedbackPress login. See the [setup guide](docs/GETTING-STARTED.md), including the current pilot boundary.
 
-Review access initially allows everyone. Choose administrator-only access for private review. Images and PDFs stay outside WordPress and expire after 60 days.
+Review access defaults to logged-in administrators. Share a review link for client access, or explicitly enable access for everyone. Images and PDFs stay outside WordPress and expire after 60 days.
 
 ## Shortcuts
 

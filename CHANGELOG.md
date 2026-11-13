@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.3 — Review build, not published
+## 0.3.3 — November 13, 2026
 
 - Default new installations to administrator-only review access, with reusable review links retained.
 - Simplify account-key setup, add the Plugins-page Settings link, and make project creation the primary action beside the existing-project picker.
