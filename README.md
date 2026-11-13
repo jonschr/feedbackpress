@@ -30,3 +30,5 @@ The [central service plan](https://github.com/jonschr/feedbackpress/blob/main/do
 ## License
 
 [GPL-2.0-or-later](LICENSE). Bundled [html2canvas-pro](assets/vendor/html2canvas-pro-LICENSE.txt) and [Plugin Update Checker](vendor/plugin-update-checker/license.txt) retain their MIT licenses. [Inter](assets/fonts/LICENSE-Inter.txt) uses the SIL Open Font License.
+
+Local development checkout: `~/Local Sites/FeedbackPress Plugin`. Local Harrison uses the packaged WordPress release, not a linked development tree.
