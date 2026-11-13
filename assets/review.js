@@ -445,15 +445,14 @@
   }
   root.addEventListener('pointerover', event => {
     if (event.pointerType === 'touch') return;
-    if (tooltip.contains(event.target)) { clearTimeout(tooltipHideTimer); return; }
     const target = event.target.closest?.(tooltipTargets);
     if (target && !target.contains(event.relatedTarget)) showTooltip(target);
   });
   root.addEventListener('pointerout', event => {
-    if (!tooltipTarget || !(tooltipTarget.contains(event.target) || tooltip.contains(event.target)) || tooltipTarget.contains(event.relatedTarget) || tooltip.contains(event.relatedTarget)) return;
+    if (!tooltipTarget || !tooltipTarget.contains(event.target) || tooltipTarget.contains(event.relatedTarget)) return;
     const target = tooltipTarget;
     clearTimeout(tooltipHideTimer);
-    tooltipHideTimer = setTimeout(() => { if (tooltipTarget === target && !target.matches(':hover') && !tooltip.matches(':hover')) hideTooltip(); }, 100);
+    tooltipHideTimer = setTimeout(() => { if (tooltipTarget === target && !target.matches(':hover')) hideTooltip(); }, 100);
   });
   function targetIssueShortcuts(id) {
     if (shortcutIssueId === id) return;

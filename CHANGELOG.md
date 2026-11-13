@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — November 13, 2026
+
+- Make tooltips and shortcut badges pointer-transparent so they cannot keep themselves open after leaving a control. Preserve keyboard hints and adjacent-icon hover behavior.
+- Swap status colors: To do is blue and Doing is amber, consistently across pins, sidebar rails, filters and card controls. Warnings retain their amber palette.
+- Install the packaged release on local Harrison with physical plugin files, keeping the development checkout separate. Existing connection settings and central feedback remain unchanged.
+
 ## 0.3.1
 
 - Refine the sidebar, conversation cards and WordPress connection screen with shared typography, controls and status colors.
