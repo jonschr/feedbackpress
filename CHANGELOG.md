@@ -3,6 +3,7 @@
 ## 0.3.4 — Unpublished review build
 
 - Add Note / Text change selection, in-place plain-text suggestions, original/proposed comparison, safe preview and copy, and owner revision-based suggestion editing.
+- Simplify suggestions to red/green diff rows with hover/focus copy; select text before C or highlight after C to start a text change directly.
 - Add system-following light/dark appearance with a manual sidebar control.
 - Add free one-project onboarding with 100 MB attachments and an account-bound sandbox upgrade to unlimited projects for $30/month, retaining the same key.
 - Keep WordPress content application separate; live paid activation and public signup await their documented acceptance gates.

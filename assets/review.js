@@ -1326,7 +1326,7 @@
     const uploads = files.filter(file => !file.screenshot);
     const screenshots = files.filter(file => file.screenshot);
     const draft = editDrafts.get(comment.id)?.sidebar ? null : editDrafts.get(comment.id);
-    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]), byline);
+    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated && !comment.target?.text_change ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]), byline);
     return el('div', { class: 'thread-comment', 'data-comment': comment.id, 'data-visibility': comment.visibility === 'private' || selected?.visibility === 'private' ? 'private' : 'shared' }, copy,
       files.length ? el('div', { class: 'comment-media' },
         screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null,
@@ -1582,8 +1582,12 @@
   }
   function editableTextNode(target) {
     const node = resolveTarget({ target })?.node;
-    if (!node || node.childElementCount || !node.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,span,li,strong,em') || node.closest('form,#wpadminbar,[data-feedbackpress-private]') || node.isContentEditable || !node.textContent.trim() || node.textContent.length > 10000) return null;
+    if (!isPlainTextNode(node)) return null;
     return node;
+  }
+  function isPlainTextNode(node) {
+    if (!node || node.childElementCount || !node.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,span,li,strong,em') || node.closest('form,#wpadminbar,[data-feedbackpress-private]') || node.isContentEditable || !node.textContent.trim() || node.textContent.length > 10000) return false;
+    return true;
   }
   function startTextSession(node, value, editing, changed = () => {}) {
     stopTextSession();
@@ -1609,10 +1613,29 @@
       startTextSession(node, change.proposed, false);
     } });
     preview.checked = textSession?.last === change.proposed && !textSession?.editing;
-    return el('div', {class:'text-change-view'}, el('strong', {class:'text-change-label'}, 'Text change'), el('small',{},'Original'),el('p',{class:'text-change-original'},change.original),el('small',{},'Suggested'),el('p',{class:'text-change-proposed'},change.proposed),
-      el('label',{class:'text-change-preview'},preview,'Preview on page'), button([icon('copy'), 'Copy replacement'], () => navigator.clipboard.writeText(change.proposed).then(()=>message('Replacement copied. Apply it separately in WordPress.')).catch(()=>message('Select and copy the suggested wording above.')), {class:'fp-quiet'}));
+    const copy = button(icon('copy'), () => navigator.clipboard.writeText(change.proposed).then(()=>message('Replacement copied.')).catch(()=>message('Select and copy the replacement text.')), {class:'fp-icon-button text-change-copy', 'aria-label':'Copy replacement'});
+    return el('div', {class:'text-change-view'},
+      el('del',{class:'text-change-original', 'aria-label':'Original text'},change.original),
+      el('div',{class:'text-change-replacement'},el('ins',{class:'text-change-proposed', 'aria-label':'Replacement text'},change.proposed),copy),
+      el('label',{class:'text-change-preview'},preview,'Preview on page'));
   }
-  function renderDraft() {
+  function selectedPageText() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1 || !selection.toString().trim()) return null;
+    const range = selection.getRangeAt(0), container = range.commonAncestorContainer;
+    const node = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
+    if (!(node instanceof Element) || node.getRootNode() !== document || node === host || !isPlainTextNode(node)) return null;
+    const before = range.cloneRange(); before.selectNodeContents(node); before.setEnd(range.startContainer,range.startOffset);
+    return {node,original:node.textContent,start:before.toString().length,end:before.toString().length+range.toString().length};
+  }
+  function suggestSelection(selection) {
+    if (!selection?.node.isConnected || selection.node.textContent !== selection.original) return false;
+    const rect = selection.node.getBoundingClientRect(), anchor = makeTarget(selection.node,rect.left+rect.width/2,rect.top+rect.height/2);
+    if (!anchor) return false;
+    newDraft(anchor,selection); return true;
+  }
+
+  function renderDraft(selection = null) {
     const files = [];
     const input = el('input', { type: 'file', name: 'files', 'aria-label': 'Images or PDFs', class: 'visually-hidden', tabindex: '-1', accept: 'image/png,image/jpeg,image/webp,application/pdf', multiple: true });
     const attached = el('div', { class: 'attached-files', 'aria-live': 'polite' });
@@ -1668,15 +1691,20 @@
     form.feedbackpressModes = modes;
     form.feedbackpressFiles = files;
     composer.replaceChildren(modes, el('div', { class: 'composer-top' }, statusPicker, button(icon('close'), () => { if (!busy) startPick(); }, { class: 'fp-icon-button', 'aria-label': 'Close feedback', 'aria-keyshortcuts': 'Escape', title: 'Discard this pin' })), form);
-    composer.hidden = false; draftPin.hidden = !draft.selector; positionDraft(); form.elements.title.focus();
+    composer.hidden = false; draftPin.hidden = !draft.selector; positionDraft();
+    if (selection && selection.node === textNode) {
+      modes.querySelector('[data-kind=text]').click();
+      const range = document.createRange(); range.setStart(textNode.firstChild,selection.start); range.setEnd(textNode.firstChild,selection.end);
+      const current = window.getSelection(); current.removeAllRanges(); current.addRange(range);
+    } else form.elements.title.focus();
   }
   function closeDraft() { stopTextSession(); closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
-  function newDraft(target) {
+  function newDraft(target, selection = null) {
     cancelLocate();
     if (busy) return;
     imageDropJob = null; clearImageDrop();
     cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); panel.hidden = !open || innerWidth < 900; updateChrome(); viewButton.setAttribute('aria-expanded', String(open));
-    notice.hidden = true; drawPins(); screenshot = capture(target); renderDraft();
+    notice.hidden = true; drawPins(); screenshot = capture(target); renderDraft(selection);
   }
   function positionDraft() {
     const surface = draft ? composer : selected && !issuePopup.hidden ? issuePopup : null;
@@ -1781,6 +1809,8 @@
   document.addEventListener('click', event => {
     if (!picking || event.composedPath().includes(host)) return;
     event.preventDefault(); event.stopImmediatePropagation(); const target = event.target; notice.hidden = true;
+    const selection = selectedPageText();
+    if (selection?.node === target && suggestSelection(selection)) return;
     const anchor = makeTarget(target, event.clientX, event.clientY); if (anchor) newDraft(anchor);
   }, true);
   function dismissInterface() {
@@ -1828,7 +1858,7 @@
     }
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     const key = event.key.toLowerCase();
-    if (key === 'c') { consume(); if (picking || draft || !identity.hidden) stopPlacement(); else withIdentity(startPick); return; }
+    if (key === 'c') { consume(); if (picking || draft || !identity.hidden) stopPlacement(); else { const selection = selectedPageText(); withIdentity(() => { startPick(); if (selection) suggestSelection(selection); }); } return; }
     if (key === 'v') { consume(); viewButton.click(); return; }
     if (picking && event.key.toLowerCase() === 'p') { consume(); newDraft({ selector: '', text: 'Page feedback', x: .5, y: .5 }); return; }
     if (draft || picking || pinDrag || !identity.hidden) return;
