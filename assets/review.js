@@ -1727,6 +1727,29 @@
     if (x + 22 + width <= right) { boxX = x + 22; boxY = clamp(y - 24, top, bottom - height); }
     else if (x - 22 - width >= left) { boxX = x - 22 - width; boxY = clamp(y - 24, top, bottom - height); }
     else { horizontal = false; boxX = clamp(x - width / 2, left, right - width); boxY = y + 22 + height <= bottom ? y + 22 : clamp(y - 22 - height, top, bottom - height); }
+    const isTextChange = draft ? composer.querySelector('form')?.feedbackpressTextChange : anchor.text_change;
+    const textRect = isTextChange && (textSession?.node || resolveTarget({target:anchor})?.node)?.getBoundingClientRect();
+    if (textRect && textRect.bottom > top && textRect.top < bottom) {
+      // Protect the whole text element, not only the pin's point inside it.
+      const options = [
+        {x:textRect.right+12,y:clamp(y-24,top,bottom-height),horizontal:true},
+        {x:textRect.left-12-width,y:clamp(y-24,top,bottom-height),horizontal:true},
+        {x:clamp(x-width/2,left,right-width),y:textRect.bottom+12,horizontal:false},
+        {x:clamp(x-width/2,left,right-width),y:textRect.top-12-height,horizontal:false}
+      ];
+      const fits = option => option.x>=left && option.x+width<=right && option.y>=top && option.y+height<=bottom;
+      let placement = options.find(fits);
+      if (!placement) {
+        const below = bottom-textRect.bottom-12, above = textRect.top-top-12;
+        const available = Math.max(below,above);
+        if (available >= 240) {
+          surface.style.maxHeight = Math.min(height,available)+'px';
+          const compactHeight = surface.getBoundingClientRect().height;
+          placement = {x:clamp(x-width/2,left,right-width),y:below>=above?textRect.bottom+12:textRect.top-12-compactHeight,horizontal:false};
+        }
+      }
+      if (placement) { boxX=placement.x; boxY=placement.y; horizontal=placement.horizontal; }
+    }
     Object.assign(surface.style, { left: boxX + 'px', top: boxY + 'px' });
     Object.assign(draftPin.style, { left: x + 'px', top: y + 'px' });
     tether.hidden = true;
