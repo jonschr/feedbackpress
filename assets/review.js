@@ -84,6 +84,7 @@
   let draftOperation = null;
   let shortcutIssueId = null, lastPointer = null, steppingPage = false;
   const textPreviews = new Map();
+  let textHighlightsDirty = true;
   let showTextChanges = true, textPicking = false;
   try { showTextChanges=localStorage.getItem('feedbackpress-text-preview')!=='off'; } catch (_) {}
   const privateNotes = new Map(), privateEditDrafts = new Map(), noteConfirmations = new Map();
@@ -1132,7 +1133,7 @@
   lightbox.addEventListener('cancel', event => { event.preventDefault(); closeLightbox(); });
   lightbox.addEventListener('click', event => { if (event.target === lightbox) { const rect = lightbox.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeLightbox(); } });
   addEventListener('pageshow', () => { pageLeaving = false; });
-  addEventListener('pagehide', () => { pageLeaving = true; stopTextSession(); for(const [node,preview] of textPreviews) restoreTextPreview(node,preview);
+  addEventListener('pagehide', () => { pageLeaving = true; stopTextSession(); for(const [node,preview] of textPreviews) restoreTextPreview(node,preview);updateTextHighlights();
     // WebKit can reject a navigation-cancelled fetch just before pagehide; keep its resumable descriptor.
     for (const job of sharedJobs.values()) if (job.error && !job.dismissed && performance.now() - (transportFailures.get(job) ?? -Infinity) < 1000) { delete job.error; storeJob(job).catch(() => {}); }
     cancelLocate(); captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
@@ -1614,37 +1615,49 @@
   }
   function textDiff(original, proposed) {
     const a=original.match(/\s+|[^\s]+/g)||[], b=proposed.match(/\s+|[^\s]+/g)||[];
-    const old=[], next=[];
+    const old=[], next=[], combined=[];
     const append=(out,tag,value)=>{if(value)out.push(tag?el(tag,{},value):document.createTextNode(value));};
     if(a.length*b.length>262144){
       let start=0,end=0;while(start<a.length&&start<b.length&&a[start]===b[start])start++;
       while(end<a.length-start&&end<b.length-start&&a[a.length-1-end]===b[b.length-1-end])end++;
       const prefix=a.slice(0,start).join(''),suffix=end?a.slice(-end).join(''):'';
       append(old,null,prefix);append(next,null,prefix);append(old,'del',a.slice(start,a.length-end).join(''));append(next,'ins',b.slice(start,b.length-end).join(''));append(old,null,suffix);append(next,null,suffix);
-      return {old,next};
+      append(combined,null,prefix);append(combined,'del',a.slice(start,a.length-end).join(''));append(combined,'ins',b.slice(start,b.length-end).join(''));append(combined,null,suffix);
+      return {old,next,combined};
     }
     const width=b.length+1, table=new Uint16Array((a.length+1)*width);
     for(let i=a.length-1;i>=0;i--)for(let j=b.length-1;j>=0;j--)table[i*width+j]=a[i]===b[j]?1+table[(i+1)*width+j+1]:Math.max(table[(i+1)*width+j],table[i*width+j+1]);
     let i=0,j=0,removed='',added='';
-    const flush=()=>{append(old,'del',removed);append(next,'ins',added);removed=added='';};
+    const flush=()=>{append(old,'del',removed);append(next,'ins',added);append(combined,'del',removed);append(combined,'ins',added);removed=added='';};
     while(i<a.length||j<b.length){
-      if(i<a.length&&j<b.length&&a[i]===b[j]){flush();append(old,null,a[i]);append(next,null,b[j]);i++;j++;}
+      if(i<a.length&&j<b.length&&a[i]===b[j]){flush();append(old,null,a[i]);append(next,null,b[j]);append(combined,null,a[i]);i++;j++;}
       else if(i<a.length&&(j===b.length||table[(i+1)*width+j]>=table[i*width+j+1]))removed+=a[i++];else added+=b[j++];
     }
-    flush();return {old,next};
+    flush();return {old,next,combined};
   }
   function textChangeView(issue) {
     const change = issue.target?.text_change; if (!change) return null;
     const diff = textDiff(change.original,change.proposed);
     const copy = button(icon('copy'), () => navigator.clipboard.writeText(change.proposed).then(()=>message('Replacement copied.')).catch(()=>message('Select and copy the replacement text.')), {class:'fp-icon-button text-change-copy', 'aria-label':'Copy replacement'});
     return el('div', {class:'text-change-view'},
-      el('div',{class:'text-change-original', 'aria-label':'Original text'},...diff.old),
-      el('div',{class:'text-change-replacement'},el('div',{class:'text-change-proposed', 'aria-label':'Replacement text'},...diff.next),copy));
+      el('div',{class:'text-change-replacement'},el('div',{class:'text-change-unified', 'aria-label':'Text changes'},...diff.combined),copy));
   }
   function restoreTextPreview(node, preview) {
     if (node.textContent === preview.proposed) node.textContent=preview.original;
     for (const [key,value,priority,applied] of preview.styles) if (node.style.getPropertyValue(key)===applied) { if(value)node.style.setProperty(key,value,priority);else node.style.removeProperty(key); }
-    textPreviews.delete(node);
+    textPreviews.delete(node);textHighlightsDirty=true;
+  }
+  const wordHighlights = typeof Highlight==='function' && CSS.highlights ? new Highlight() : null;
+  const wordHighlightStyle = document.createElement('style');wordHighlightStyle.dataset.html2canvasIgnore='true';
+  wordHighlightStyle.textContent='::highlight(feedbackpress-replacements){background-color:#b9e2c7;color:#164f2a;text-decoration:underline}';
+  document.head.append(wordHighlightStyle);
+  function updateTextHighlights() {
+    if(!wordHighlights || !textHighlightsDirty)return;
+    textHighlightsDirty=false;wordHighlights.clear();
+    for(const [node,preview] of textPreviews)if(node.textContent===preview.proposed && node.firstChild?.nodeType===Node.TEXT_NODE && node.firstChild.length===preview.proposed.length)for(const [start,end] of preview.ranges){
+      const range=document.createRange();range.setStart(node.firstChild,start);range.setEnd(node.firstChild,end);wordHighlights.add(range);
+    }
+    if(wordHighlights.size)CSS.highlights.set('feedbackpress-replacements',wordHighlights);else CSS.highlights.delete('feedbackpress-replacements');
   }
   function syncTextPreviews(visible) {
     const wanted = new Map(), conflicts = new Set();
@@ -1663,11 +1676,14 @@
     for (const [node,preview] of textPreviews) if (!wanted.has(node) || wanted.get(node).proposed!==preview.proposed) restoreTextPreview(node,preview);
     for (const [node,change] of wanted) if (!textPreviews.has(node) && node.textContent===change.original) {
       const styles=[];
-      for(const [key,value] of [['background-color','#dcefe3'],['color','#205d36'],['text-decoration-line','underline'],['text-decoration-style','dotted']]) {
+      for(const [key,value] of (wordHighlights ? [] : [['text-decoration-line','underline'],['text-decoration-style','dotted']])) {
         const previous=[key,node.style.getPropertyValue(key),node.style.getPropertyPriority(key)];node.style.setProperty(key,value,'important');styles.push([...previous,node.style.getPropertyValue(key)]);
       }
-      textPreviews.set(node,{...change,styles});node.textContent=change.proposed;
+      let offset=0;const ranges=[];
+      for(const part of textDiff(change.original,change.proposed).next){const end=offset+part.textContent.length;if(part.nodeName==='INS' && end>offset)ranges.push([offset,end]);offset=end;}
+      textPreviews.set(node,{...change,styles,ranges});textHighlightsDirty=true;node.textContent=change.proposed;
     }
+    updateTextHighlights();
   }
   addEventListener('pageshow',event=>{if(event.persisted){pageLeaving=false;drawPins();}});
   function selectedPageText() {

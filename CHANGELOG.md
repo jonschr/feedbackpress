@@ -3,7 +3,7 @@
 ## 0.3.4 — Unpublished review build
 
 - Add Note / Text change selection, in-place plain-text suggestions, original/proposed comparison, safe preview and copy, and owner revision-based suggestion editing.
-- Simplify suggestions to word-level red/green diffs with full plain-text copy; preserve complete original/replacement blocks.
+- Show suggestions as one neutral paragraph with red deletions and green insertions; highlight only changed words in supported on-page previews. Copy still returns the full plain replacement.
 - Add Change text / T direct editing, a synchronized Change text to field and one global highlighted-preview switch. Retain C selection shortcuts and safe original restoration.
 - Add system-following light/dark appearance with a manual sidebar control.
 - Add free one-project onboarding with 100 MB attachments and an account-bound sandbox upgrade to unlimited projects for $30/month, retaining the same key.
