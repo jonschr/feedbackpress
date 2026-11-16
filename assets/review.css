@@ -534,12 +534,19 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .text-change-view { --fp-diff-removed:#922b35; --fp-diff-removed-fill:#fff0f1; --fp-diff-added:#23643b; --fp-diff-added-fill:#edf8f0; }
 :host([data-appearance=dark]) .text-change-view { --fp-diff-removed:#ffb4bc; --fp-diff-removed-fill:#382329; --fp-diff-added:#9adeaf; --fp-diff-added-fill:#1e3227; }
 .text-change-original,.text-change-proposed { display:block; padding:8px 10px; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5; }
-.text-change-original { color:var(--fp-diff-removed); background:var(--fp-diff-removed-fill); text-decoration:line-through; }
+.text-change-original { color:var(--fp-diff-removed); background:var(--fp-diff-removed-fill); }
 .text-change-replacement { position:relative; margin-top:4px; }
 .text-change-proposed { color:var(--fp-diff-added); background:var(--fp-diff-added-fill); text-decoration:none; padding-inline-end:38px; }
 .text-change-copy { position:absolute; right:4px; top:4px; color:var(--fp-diff-added); opacity:0; pointer-events:none; }
 .text-change-replacement:is(:hover,:focus-within) .text-change-copy { opacity:1; pointer-events:auto; }
 @media (hover:none) { .text-change-copy { opacity:1; pointer-events:auto; } }
 @media (forced-colors:active) { .text-change-original,.text-change-proposed { color:CanvasText; background:Canvas; } .text-change-proposed { text-decoration:underline; } }
-.text-change-preview { margin-top:10px; display:flex; align-items:center; gap:8px; font-size:var(--fp-text-meta); }
-.text-change-preview input { width:14px; min-height:14px; margin:0; }
+
+.text-change-editor { display:block; color:var(--fp-muted); font-size:var(--fp-text-meta); line-height:1.5; }
+.text-change-editor span { display:block; margin-bottom:6px; }
+.composer .text-change-input { font:inherit; font-size:var(--fp-text-meta); line-height:1.5; width:100%; padding:10px; border:1px solid var(--fp-line); background:var(--fp-surface); color:var(--fp-ink); }
+
+.text-change-original del { background:color-mix(in srgb,var(--fp-diff-removed) 16%,transparent); text-decoration:line-through; }
+.text-change-proposed ins { background:color-mix(in srgb,var(--fp-diff-added) 16%,transparent); text-decoration:none; font-weight:var(--fp-weight-medium); }
+
+.sidebar-utilities button[aria-pressed=true] { background:var(--fp-active); color:var(--fp-ink); }
