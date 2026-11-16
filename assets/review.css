@@ -538,6 +538,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .text-change-unified del { color:var(--fp-diff-removed); background:var(--fp-diff-removed-fill); text-decoration:line-through; border-radius:2px; padding:1px 3px; margin-inline-end:3px; }
 .text-change-unified ins { color:var(--fp-diff-added); background:var(--fp-diff-added-fill); text-decoration:none; border-radius:2px; padding:1px 3px; font-weight:var(--fp-weight-strong); }
 .text-change-copy { position:absolute; right:4px; top:4px; color:var(--fp-diff-added); opacity:0; pointer-events:none; }
+.text-change-view[data-layout=stacked] .text-change-copy { top:50%; transform:translateY(-50%); }
 .text-change-replacement:is(:hover,:focus-within) .text-change-copy { opacity:1; pointer-events:auto; }
 @media (hover:none) { .text-change-copy { opacity:1; pointer-events:auto; } }
 
