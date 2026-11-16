@@ -2,10 +2,12 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
-**0.3.4 is an unpublished review build.** The public release remains [0.3.3](https://github.com/jonschr/feedbackpress/releases/tag/0.3.3). It requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
+**0.3.4** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
 
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.
+- Suggest text changes directly on the page, compare wording and copy replacements.
+- Follow system light/dark appearance or choose it in the sidebar.
 - Track To do, Information needed, Doing, Review, and Done statuses.
 - Search feedback, connect site copies, and work through REST or WP-CLI.
 
@@ -21,7 +23,7 @@ Review access defaults to logged-in administrators. Share a review link for clie
 
 ## Shortcuts
 
-**C** toggles feedback mode, **V** toggles issues, and **Escape** exits placement. **Command/Ctrl + Enter** submits a comment. Shortcuts leave typing fields alone.
+**C** toggles feedback mode, **T** selects text editing, **V** toggles issues, and **Escape** exits placement. **Command/Ctrl + Enter** submits a comment. Shortcuts leave typing fields alone.
 
 See [central service testing](docs/CENTRAL-TESTING.md) for the current pilot and agent commands.
 

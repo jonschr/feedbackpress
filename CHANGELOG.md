@@ -1,13 +1,18 @@
 # Changelog
 
-## 0.3.4 — Unpublished review build
+## 0.3.4 — November 16, 2026
 
 - Add Note / Text change selection, in-place plain-text suggestions, original/proposed comparison, safe preview and copy, and owner revision-based suggestion editing.
-- Show suggestions as one neutral paragraph with red deletions and green insertions; highlight only changed words in supported on-page previews. Copy still returns the full plain replacement.
+- Show stacked original/replacement rows for text of up to 10 words, and a single inline red/green diff for longer text. Highlight only changed words on the page; Copy returns the full plain replacement.
 - Add Change text / T direct editing, a synchronized Change text to field and one global highlighted-preview switch. Retain C selection shortcuts and safe original restoration.
+- Keep suggestion cards clear of their source text and center Copy in short replacement rows.
+- Update the URL for same-page issue navigation, preserving query parameters and direct links.
+- Show thumbnail loading/decoding states without layout shifts, with reduced-motion support.
+- Keep background activity and identity prompts clear of the three launcher buttons on narrow screens.
 - Add system-following light/dark appearance with a manual sidebar control.
 - Add free one-project onboarding with 100 MB attachments and an account-bound sandbox upgrade to unlimited projects for $30/month, retaining the same key.
 - Keep WordPress content application separate; live paid activation and public signup await their documented acceptance gates.
+- Known limitations: thumbnails still transfer original image bytes; server-side resizing/variants are future work. The strict Chrome timing check still has occasional over-100ms paint results (132ms in this release check); no universal latency guarantee is claimed.
 
 
 ## 0.3.3 — November 13, 2026

@@ -5,7 +5,7 @@ You need the plugin ZIP, administrator access to WordPress, and your FeedbackPre
 1. In WordPress, open **Plugins → Add Plugin → Upload Plugin**. Choose the ZIP, install it, then **Activate Plugin**.
 2. Open **Settings → FeedbackPress**.
 3. Paste your key into **License or account access key**, then select **Connect account**. The service address is already filled in; ordinary installations do not need to change it.
-4. Choose a project by its name in the searchable **Project** field. If this is your first project, select **Create a project**, give it a label, then **Create project**. Creation also connects this installation.
+4. Choose a project by its name in the searchable **Project** field. If this is your first project, select **Create a project**, give it a label, then **Create and connect**. Creation also connects this installation.
 5. **Connected sites** lists every currently connected copy and marks **This site**. On another WordPress copy, install the same ZIP, enter the same customer key, and select the same project. Both copies then use the same central issues and media.
 6. Open the site's front end to leave feedback. Under **Review access**, choose whether everyone or only logged-in administrators can review, or disable review on this copy.
 
@@ -15,9 +15,15 @@ Project selection, project creation, site removal and reconnection stay in this 
 
 For the current complimentary owner pilot, use the **FeedbackPress account access key** supplied privately by the service operator. It is independent of Lemon Squeezy and does not create a charge. The owner's explicit pilot allowance is 100 MiB across the account, with 60-day media retention; this is not a paid-plan storage policy.
 
-The purchase path uses the **FeedbackPress license key** generated for the purchased product. Lemon Squeezy includes generated licenses in purchase receipts; see its [license guide](https://docs.lemonsqueezy.com/guides/tutorials/license-keys). Enter that license in the same WordPress field. The service validates it and connects the account; project management then stays in WordPress.
+The older configured test-purchase path accepts the **FeedbackPress license key** generated for that product. Lemon Squeezy includes generated licenses in purchase receipts; see its [license guide](https://docs.lemonsqueezy.com/guides/tutorials/license-keys). Enter that license in the same WordPress field. The service validates it and connects the account; project management then stays in WordPress.
 
 Do not enter a Lemon Squeezy merchant API key, a Resend key or a database password. Those are private service credentials. Keep your customer key in your password manager. WordPress exchanges it for a limited server-side account connection and does not save the submitted license/root access key or expose it to the public review script.
+
+## One free project and upgrades
+
+The service supports one free project indefinitely with 100 MB (100,000,000 bytes) of attachments and 60-day media retention. When free registration is enabled, **Start free** creates an account and displays its access key once; copy it into your password manager before continuing. Existing connections retain only limited manager/site credentials.
+
+The $30/month unlimited-project upgrade keeps the same account key, projects and connections. The current hosted service offers an explicitly labelled **test checkout**, with public free registration and live billing still disabled. Existing complimentary owner accounts retain their earlier allowance; do not replace that key or assume an existing account has been changed to the free plan. Paid storage and expiry policy remain unresolved.
 
 ## Current access and billing
 
