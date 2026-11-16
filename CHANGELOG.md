@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 — November 16, 2026
+
+- Add a project owner email setting for shared-feedback summaries after ten minutes without new client comments. New projects default to their creator’s WordPress administrator email.
+- Use durable central batching, exclude the owner’s own comments and all private feedback, and fold owner mentions into the digest.
+- Preserve existing notification-link selection, project access and connections. A compatible central service supplies delivery and safe retries.
+
 ## 0.3.4 — November 16, 2026
 
 - Add Note / Text change selection, in-place plain-text suggestions, original/proposed comparison, safe preview and copy, and owner revision-based suggestion editing.

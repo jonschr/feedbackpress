@@ -11,7 +11,7 @@ final class Admin {
         try { $c = Service::ensureConnection(); } catch (RemoteError $e) { if ($e->remoteCode !== 'site_disconnected') throw $e; $c = Service::connection(); }
         if (empty($c['manager'])) return ['account_connected' => false, 'current_url' => Service::home()];
         $project = !empty($c['project']) ? Service::manager('GET', '/projects/' . $c['project']) : null;
-        return ['account_connected' => true, 'current_url' => Service::home(), 'service' => $c['service'], 'project' => $project, 'disconnected' => !empty($c['disconnected'])];
+        return ['account_connected' => true, 'current_url' => Service::home(), 'service' => $c['service'], 'project' => $project, 'notification_default_email' => wp_get_current_user()->user_email, 'disconnected' => !empty($c['disconnected'])];
     }
     public static function routes($route): void {
         $admin = fn() => current_user_can('manage_options') ? true : API::error('Administrator access required.', 403);
@@ -25,12 +25,15 @@ final class Admin {
         $route('/admin/project', 'POST', function ($r) { Service::selectProject((string) $r->get_param('project')); return self::state(); }, $admin);
         $route('/admin/project/new', 'POST', function ($r) {
             $id = (string) $r->get_param('id'); if (!Service::uuid($id)) throw new \InvalidArgumentException('A project request ID is required.');
-            Service::manager('POST', '/projects', ['id' => $id, 'name' => $r->get_param('name')]);
+            Service::manager('POST', '/projects', ['id' => $id, 'name' => $r->get_param('name'), 'notification_email' => wp_get_current_user()->user_email]);
             Service::selectProject($id); return self::state();
         }, $admin);
         $route('/admin/site/remove', 'POST', function ($r) { Service::removeSite((string) $r->get_param('url')); return self::state(); }, $admin);
         $route('/admin/notifications', 'POST', function ($r) {
-            $c = Service::connection(); Service::manager('POST', '/projects/' . $c['project'] . '/notifications', ['review_site' => $r->get_param('review_site')]); return self::state();
+            $body = [];
+            if ($r->has_param('review_site')) $body['review_site'] = $r->get_param('review_site');
+            if ($r->has_param('notification_email')) $body['notification_email'] = $r->get_param('notification_email');
+            $c = Service::connection(); Service::manager('POST', '/projects/' . $c['project'] . '/notifications', $body); return self::state();
         }, $admin);
         $route('/admin/disconnect', 'POST', fn() => Service::disconnect(), $admin);
         $route('/admin/settings', 'POST', function ($r) {

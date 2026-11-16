@@ -32,6 +32,10 @@ The hosted service accepts complimentary account keys and the configured Feedbac
 Mention autocomplete and shared image replies are available. Email verification is deferred until the owner participates, and mention delivery remains capture-only.
 
 
-## Choose notification links
+## Email notifications
 
-Under **Settings → FeedbackPress → Sites in this project**, use **Notification link destination**. Automatic chooses the first connected public HTTPS copy. Choose a staging or production URL to override it, then **Save link destination**. This is shared across all copies of the project. Known local/private addresses are excluded using URL and DNS/IP checks; arbitrary words such as “staging” are not used to guess the preferred environment. If all copies are local, connect a public copy before notification links become available. Email delivery remains deferred/capture-only until verified with the owner.
+In **Settings → FeedbackPress**, set **Project owner email** and select **Save email**. New projects use their creator’s WordPress administrator email. Leave it empty to turn summaries off. New tickets and shared comments from other people are grouped after ten minutes without further client comments; owner comments and private notes are excluded. The background worker normally sends within the following minute. Emails link to the issue and do not grant access.
+
+### Notification links
+
+Under **Settings → FeedbackPress → Sites in this project**, use **Notification link destination**. Automatic chooses the first connected public HTTPS copy. Choose a staging or production URL to override it, then **Save link destination**. This is shared across all copies of the project. Known local/private addresses are excluded using URL and DNS/IP checks; arbitrary words such as “staging” are not used to guess the preferred environment. If all copies are local, connect a public copy before notification links become available. Owner summaries use Resend when enabled by the service; other mention delivery remains separately controlled.
