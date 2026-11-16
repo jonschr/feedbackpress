@@ -1647,8 +1647,10 @@
     const change = issue.target?.text_change; if (!change) return null;
     const diff = textDiff(change.original,change.proposed);
     const copy = button(icon('copy'), () => navigator.clipboard.writeText(change.proposed).then(()=>message('Replacement copied.')).catch(()=>message('Select and copy the replacement text.')), {class:'fp-icon-button text-change-copy', 'aria-label':'Copy replacement'});
-    return el('div', {class:'text-change-view'},
-      el('div',{class:'text-change-replacement'},el('div',{class:'text-change-unified', 'aria-label':'Text changes'},...diff.combined),copy));
+    const short = Math.max(...[change.original,change.proposed].map(text=>text.trim().split(/\s+/).length))<=10;
+    return el('div', {class:'text-change-view','data-layout':short?'stacked':'inline'},
+      short ? el('div',{class:'text-change-original','aria-label':'Original text'},...diff.old) : null,
+      el('div',{class:'text-change-replacement'},short ? el('div',{class:'text-change-proposed','aria-label':'Replacement text'},...diff.next) : el('div',{class:'text-change-unified', 'aria-label':'Text changes'},...diff.combined),copy));
   }
   function restoreTextPreview(node, preview) {
     if (node.textContent === preview.proposed) node.textContent=preview.original;
