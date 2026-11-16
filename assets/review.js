@@ -928,7 +928,7 @@
   function rowAttachment(file, issue) {
     const tile = button(icon(file.mime.startsWith('image/') ? 'image' : 'document'), () => openAttachment(file, tile, issue), { class: 'row-attachment', 'data-file': file.id, 'aria-label': 'Preview ' + file.name, disabled: !file.available, title: (file.expired ? 'Expired: ' : !file.available ? 'Not yet available: ' : '') + file.name });
     if (file.available && file.mime.startsWith('image/')) {
-      tile.feedbackpressFile = file;
+      tile.feedbackpressFile = file; tile.dataset.previewState='queued';tile.setAttribute('aria-busy','true');
       rowPreviewObserver ||= new IntersectionObserver(entries => {
         for (const entry of entries) { if (entry.isIntersecting) rowPreviewQueue.add(entry.target); else rowPreviewQueue.delete(entry.target); }
         loadRowPreviews();
@@ -942,10 +942,10 @@
     while (rowPreviewActive < 2 && rowPreviewQueue.size) {
       const tile = rowPreviewQueue.values().next().value; rowPreviewQueue.delete(tile); rowPreviewObserver.unobserve(tile);
       if (!tile.isConnected || cacheDenied) continue;
-      rowPreviewActive++;
+      rowPreviewActive++;tile.dataset.previewState='loading';
       const file = tile.feedbackpressFile;
-      attachmentData(file).then(data => { if (tile.isConnected) tile.replaceChildren(el('img', { src: data.url, alt: '', decoding: 'async' })); })
-        .catch(() => { if (tile.isConnected) tile.dataset.tooltip = 'Preview unavailable: ' + file.name; })
+      attachmentData(file).then(data => displayThumbnail(tile,el('img',{alt:'',decoding:'async'}),data))
+        .catch(() => { if (tile.isConnected) { tile.dataset.previewState='error';tile.setAttribute('aria-busy','false');tile.querySelector('img[hidden]')?.remove();tile.dataset.tooltip = 'Preview unavailable: ' + file.name; } })
         .finally(() => { rowPreviewActive--; loadRowPreviews(); });
     }
   }
@@ -1118,15 +1118,22 @@
       if (lightbox.open && ticket === viewerRequest) body.replaceChildren(el('p', { role: 'alert' }, error.message), button('Retry', () => openAttachment(file, trigger, issue)));
     }
   }
+  async function displayThumbnail(tile,image,data) {
+    if(!tile.isConnected || cacheDenied)return;
+    // Keep decoding images in the tree so cache eviction waits for their load/error.
+    image.hidden=true;tile.append(image);image.src=data.url;await image.decode();
+    if(!tile.isConnected || cacheDenied)return;
+    image.hidden=false;tile.replaceChildren(image);tile.dataset.previewState='ready';tile.setAttribute('aria-busy','false');
+  }
   function attachmentThumbnail(file) {
     const caption = file.screenshot ? 'Screenshot' : file.name;
     const thumbnail = button('', () => openAttachment(file, thumbnail), { class: 'attachment-thumbnail', 'aria-label': 'Preview ' + caption, disabled: !file.available });
     if (!file.available) thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document')), el('small', { class: 'file-state' }, file.expired ? 'Expired' : 'Waiting for sync'));
     else if (file.mime.startsWith('image/')) {
-      const image = el('img', { alt: caption, class: 'attachment-image', loading: 'lazy' });
+      const image = el('img', { alt: caption, class: 'attachment-image', decoding: 'async' });
       const placeholder = el('span', { class: 'file-placeholder' }, icon('image'));
-      thumbnail.append(placeholder);
-      attachmentData(file).then(data => { if (thumbnail.isConnected) { image.src = data.url; placeholder.replaceWith(image); } }).catch(() => { if (thumbnail.isConnected) thumbnail.setAttribute('aria-description', 'Preview unavailable. Click to retry.'); });
+      thumbnail.append(placeholder);thumbnail.dataset.previewState='loading';thumbnail.setAttribute('aria-busy','true');
+      attachmentData(file).then(data => displayThumbnail(thumbnail,image,data)).catch(() => { if (thumbnail.isConnected) { thumbnail.dataset.previewState='error';thumbnail.setAttribute('aria-busy','false');image.remove();thumbnail.setAttribute('aria-description', 'Preview unavailable. Click to retry.'); } });
     } else thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document'), el('span', {}, file.mime === 'application/pdf' ? 'PDF' : 'File')));
     return el('div', { class: 'attachment-item' + (!file.available ? ' is-unavailable' : '') }, thumbnail,
       el('div', { class: 'attachment-caption' }, el('span', { class: 'attachment-label', 'aria-hidden': 'true' }, caption), attachmentDownload(file)));

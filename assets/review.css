@@ -549,3 +549,9 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .sidebar-utilities button[aria-pressed=true] { background:var(--fp-active); color:var(--fp-ink); }
 
 @media (forced-colors:active) { .text-change-unified del,.text-change-unified ins { color:CanvasText; background:Canvas; } .text-change-unified ins { text-decoration:underline; } }
+
+.row-attachment:is([data-preview-state=queued],[data-preview-state=loading]),.attachment-thumbnail[data-preview-state=loading] .file-placeholder { background:var(--fp-soft); }
+@media (prefers-reduced-motion:no-preference) {
+  .row-attachment:is([data-preview-state=queued],[data-preview-state=loading]) > svg,.attachment-thumbnail[data-preview-state=loading] .file-placeholder > svg { animation:fp-preview-loading 1100ms ease-in-out infinite alternate; }
+  @keyframes fp-preview-loading { from { opacity:.3; } to { opacity:1; } }
+}
