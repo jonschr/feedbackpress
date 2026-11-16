@@ -326,7 +326,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .popup-navigation .note-action-container { margin: 0; }
 
 .popup-upload, .tether { display: none !important; }
-.identity { bottom: 128px; max-height: calc(100dvh - 140px); right: 20px; z-index: 2147483604; }
+.identity { bottom: var(--fp-launcher-clearance, 180px); max-height: calc(100dvh - var(--fp-launcher-clearance, 180px) - 12px); right: 20px; z-index: 2147483604; }
 .identity form { margin-top: 16px; }
 .identity input + input { margin-top: 10px; }
 .identity form button { margin-top: 12px; width: 100%; }
@@ -410,7 +410,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
   .sidebar-option, .sidebar-utilities .fp-icon-button { width: 40px; height: 40px; }
   .feedback-toolbar { inset-inline: 12px; bottom: 14px; flex-wrap: wrap; gap: 8px; }
   .feedback-toolbar .notice { flex-basis: 100%; max-width: none; }
-  .identity { right: 12px; bottom: 122px; max-height: calc(100dvh - 134px); }
+  .identity { right: 12px; bottom: var(--fp-launcher-clearance, 174px); max-height: calc(100dvh - var(--fp-launcher-clearance, 174px) - 12px); }
 }
 @media (max-width: 440px) {
   .panel-tools { padding-inline: 16px; }
@@ -457,7 +457,7 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .work-item[data-state=done] .work-indicator, .work-item[data-state=error] .work-indicator { animation: none; border: 0; border-radius: 0; }
 @keyframes fp-working { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .work-indicator { animation: none; } }
-@media (max-width: 899px) { .work-panel { left: 12px; bottom: 122px; width: min(350px, calc(100vw - 24px)); } }
+@media (max-width: 899px) { .work-panel { left: 12px; bottom: var(--fp-launcher-clearance, 174px); max-height: min(340px, calc(100dvh - var(--fp-launcher-clearance, 174px) - 12px)); width: min(350px, calc(100vw - 24px)); } }
 .work-indicator svg { width: 14px; height: 14px; }
 .work-item:has(input[type=file]) { flex-wrap: wrap; }
 .work-item input[type=file] { flex-basis: 100%; min-width: 0; font-size: var(--fp-text-meta); }

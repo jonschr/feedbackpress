@@ -349,6 +349,8 @@
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
     launchers.hidden = open;
+    const clearance=(open?0:launchers.getBoundingClientRect().height)+26;
+    if(host.style.getPropertyValue('--fp-launcher-clearance')!==clearance+'px')host.style.setProperty('--fp-launcher-clearance',clearance+'px');
     sidebarSettings.querySelectorAll('fieldset').forEach(group => { group.disabled = innerWidth < 900; });
     sidebarSettings.querySelectorAll('input').forEach(input => {
       const chosen = input.checked, label = input.getAttribute('aria-label');
@@ -2329,7 +2331,7 @@
   const refreshPageFit = () => { if (pageFit) pageFitDirty = true; redraw(); };
   new ResizeObserver(() => positionDraft()).observe(issuePopup);
   new ResizeObserver(() => positionDraft()).observe(composer);
-  new ResizeObserver(() => positionDraft()).observe(toolbar);
+  new ResizeObserver(() => { updateChrome(); positionDraft(); }).observe(toolbar);
   addEventListener('scroll', redraw, { passive: true }); addEventListener('resize', redraw);
   addEventListener('load', refreshPageFit);
   function scrollStyleOnly(record) {
