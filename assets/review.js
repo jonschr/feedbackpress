@@ -1005,6 +1005,7 @@
       if (!countedStatuses.has(issue.id)) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
       if (scroll && grouping === 'page' && collapsedPages.has(issue.path)) setPageCollapsed(issue.path, false);
       closeDraft(); cancelPick(); privateNotes.delete(issue.id); selected = issue;
+      if (/^[a-f0-9-]{36}$/i.test(issue.id) && location.hash !== '#feedbackpress='+issue.id) history.replaceState(history.state, '', location.pathname+location.search+'#feedbackpress='+issue.id);
       issues = issues.map(existing => existing.id === issue.id ? issue : existing);
       if (scroll) open = true;
       panel.hidden = !open || innerWidth < 900; viewButton.setAttribute('aria-expanded', String(open)); renderSelection(); renderIssue(); loadNotes(issue.id);

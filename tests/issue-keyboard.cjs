@@ -51,7 +51,7 @@ const path = require('node:path');
     const panel = page.getByRole('complementary', { name: 'Issues', exact: true });
     const popup = page.getByRole('region', { name: 'Issue details', exact: true });
     const row = n => panel.locator(`[data-issue="${items[n - 1].id}"]`);
-    const selected = n => popup.locator('.issue-reference').filter({ hasText: new RegExp('^Issue ' + n + '$') }).waitFor();
+    const selected = async n => { await popup.locator('.issue-reference').filter({ hasText: new RegExp('^Issue ' + n + '$') }).waitFor(); assert.equal(new URL(page.url()).hash,'#feedbackpress='+items[n-1].id); };
     const bodyFocus = () => page.evaluate(() => { document.body.tabIndex = -1; document.body.focus(); });
     const status = async (key, number, value) => {
       const before = writes.length;
