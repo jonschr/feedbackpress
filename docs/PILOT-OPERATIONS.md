@@ -1,13 +1,13 @@
 # FeedbackPress pilot operations
 
-Latest update November 17: core service cf8eb29548ae removes the timing/access footer from newly rendered HTML/plain-text notification emails. Owner/participant Resend delivery, batching, frozen retries, opt-out links, configuration and feedback are unchanged. Public/loopback health and offline worker render checks pass; no test email was sent. Plugin 0.3.8 remains unchanged. Previous pause-capable b4b6e56db91a is retained for rollback; see CENTRAL-SERVICE-PLAN.md for receipts.
+Latest update November 17: normal plugin 0.3.9 is published and installed on Harrison/Alliance and four QA/onboarding copies. Magic-link anonymous reading, administrator direct-ticket sharing, preferred native login and prompt spacing are verified. Public ZIP/feed, all installed/served assets, native grants and preserved feedback/settings match. Core service cf8eb29548ae and notification/billing/signup configuration are unchanged; see CENTRAL-SERVICE-PLAN.md for release evidence.
 
 Verified November 12, 2026. The normal central workflow supports explicit complimentary owner access; live paid billing remains disabled.
 
 ## Running deployment
 
 - Public origin: https://feedbackpress.elod.in; `/ready` returns 200.
-- Active API checkpoint: `cf8eb29548ae` (service 0.1.0), committed/tested and deployed with notification footer cleanup. Public plugin 0.3.8 is installed on Harrison/Alliance and four review copies. Owner and participant digests are live; legacy immediate mentions remain captured and paid activation remains disabled.
+- Active API checkpoint: `cf8eb29548ae` (service 0.1.0), committed/tested and deployed with notification footer cleanup. Public plugin 0.3.9 is installed on Harrison/Alliance and four review copies. Owner and participant digests are live; legacy immediate mentions remain captured and paid activation remains disabled.
 - API: `feedbackpress.service`, user/group `feedbackpress`, loopback 8791. 128 MiB JS heap, 256 MiB service memory cap, 25% CPU cap, four-connection database pool. Journal output contains classification/status only, rate limited to 30 entries/minute.
 - Independent PostgreSQL 18 cluster: `feedbackpress`, loopback 55494; dedicated OS user `feedbackpress-db`, owner `fp_owner`, restricted runtime `fp_runtime`. Data `/var/lib/feedbackpress-db/data`; socket/PID directory `/run/feedbackpress-db` recreated by tmpfiles. Shared buffers 32 MiB, 12 maximum connections, 224 MiB systemd memory cap, 25% CPU cap. Runtime has no ownership/bypass privileges.
 - Private configuration: `/etc/feedbackpress/config.json`; provider test secrets beside it. Root/service-group access only. Media `/var/lib/feedbackpress/media`, outside releases and web roots. Root provisioning credentials are outside releases/Git. No Sunrise or Guest Key database/credentials/app services are shared.

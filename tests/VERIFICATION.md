@@ -1,3 +1,8 @@
+# Published 0.3.9 — November 17, 2026
+
+- Normal Latest 0.3.9, anonymous public ZIP download, public JSON metadata and all 144 archive hashes match. Exact published package installed on Harrison/Alliance and four QA/onboarding copies, with all files and 12 actual served JS/CSS hashes matching. Original connections/settings and complete issue snapshots are unchanged.
+- Native QA/Harrison normal/AJAX updater and Harrison actual-public-feed checks pass. Actual installed Harrison/Alliance central review grants validate with native administrator precedence and guest/private separation; no grant is printed and no feedback/settings saved. All nine final browser suites and source/native syntax/identity checks pass as listed below. Core service runtime unchanged. Private receipts are in the canonical plan's 0.3.9 publication entry.
+
 # 0.3.9 release candidate — November 17, 2026
 
 - Final release checks pass all nine intercepted browser suites: anonymous-review, issue-review-links, review-access, note-actions, sidebar-actions, review-pause, navigation-shortcuts, write-queue and pin-drag. Native reviewer-config completes successfully with login precedence, administrator-only sharing and guest/private separation. Plugin PHP, changed JS and whitespace checks pass.
