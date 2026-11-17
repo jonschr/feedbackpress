@@ -302,6 +302,7 @@
   placementCursorStyle.dataset.feedbackpressCursor = '';
   document.head.append(placementCursorStyle);
   const pageLayoutStyle = document.createElement('style');
+  pageLayoutStyle.dataset.feedbackpressLayout = '';
   document.head.append(pageLayoutStyle);
   let pageFit = null, pageFitDirty = false, fixedSequence = 0;
   function viewportPositioned(node) {
@@ -1886,19 +1887,27 @@
   async function capture(target) {
     try {
       const width = innerWidth, height = innerHeight;
-      const point = targetPoint({ target });
+      const scale = pageFit?.scale || 1, offset = pageFit && sidebarSide === 'left' ? 400 : 0;
+      const clicked = targetPoint({ target });
+      // Keep the clicked content at its current height when the capture returns to full size.
+      const x = scrollX / scale, y = (scrollY + (clicked?.y || 0)) / scale - (clicked?.y || 0);
+      const point = clicked && { x: (clicked.x - offset) / scale, y: clicked.y };
       // The renderer replaces videos with unstyled canvases; retain their layout in the clone.
       const videos = [...document.querySelectorAll('video')].map(video => {
         const styles = getComputedStyle(video);
         return { parent: selector(video.parentElement), index: [...video.parentElement.children].filter(node => ['VIDEO', 'CANVAS'].includes(node.tagName)).indexOf(video), styles: [...styles].map(property => [property, styles.getPropertyValue(property)]) };
       });
-      const canvas = await Promise.race([(window.html2canvas.default || window.html2canvas)(document.body, { useCORS: true, logging: false, backgroundColor: '#ffffff', scale: Math.min(devicePixelRatio, 1.5), x: scrollX, y: scrollY, width, height, onclone: doc => {
+      const canvas = await Promise.race([(window.html2canvas.default || window.html2canvas)(document.body, { useCORS: true, logging: false, backgroundColor: '#ffffff', scale: Math.min(devicePixelRatio, 1.5), x, y, scrollX: x, scrollY: y, width, height, onclone: doc => {
+        // Capture the normal page without changing the live sidebar, scroll or layout.
+        doc.querySelector('[data-feedbackpress-layout]')?.remove();
+        doc.documentElement.removeAttribute('data-feedbackpress-room');
         doc.querySelectorAll('input,textarea,select,[data-feedbackpress-private]').forEach(n => { n.style.visibility = 'hidden'; });
         for (const video of videos) {
           const parent = doc.querySelector(video.parent);
           const clone = parent && [...parent.children].filter(node => ['VIDEO', 'CANVAS'].includes(node.tagName))[video.index];
           if (clone) for (const [property, value] of video.styles) clone.style.setProperty(property, value);
         }
+        if (scale !== 1) doc.defaultView.scrollTo({ left: x, top: y, behavior: 'instant' });
       } }), new Promise((_, reject) => setTimeout(() => reject(new Error('Capture timed out')), 12000))]);
       if (point) {
         // Stamp the original click, independent of later layout changes and UI pin clamping.

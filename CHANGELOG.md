@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8 — November 17, 2026
+
+- Capture automatic screenshots at the page's normal scale while the sidebar is open, without blank sidebar space. Preserve the clicked location, fixed headers and the live page's scale and scroll position.
+
 ## 0.3.7 — November 17, 2026
 
 - Add account-owner controls to pause or resume new client tickets across a project. Existing client replies, attachments and ticket permissions remain available.

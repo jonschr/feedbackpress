@@ -1,3 +1,10 @@
+# 0.3.8 full-size screenshot capture — 2026-11-17
+
+- Reproduced the scaled capture/pin mismatch with the real bundled renderer before the fix. Screenshot capture now removes only FeedbackPress page-fit styles in the temporary clone, translates scroll/pin coordinates and retains the clicked content's vertical position.
+- `screenshot-pin.cjs` passes for both sidebar sides, high DPI, a low-screen pin, overlay, scaled page-level feedback, mobile, delayed capture and capture failure. Checks include full-width screenshot content at both edges, fixed admin-bar geometry/pixels, hidden input contents and unchanged live scale/scroll.
+- Existing `video-capture.cjs` and `page-scale.cjs` pass. JavaScript syntax and whitespace checks pass. All requests are intercepted; no customer feedback is created. Safari/Firefox were not rerun. This is a plugin-only release; no service change is needed.
+- Installed the matching `review.js` patch on local Harrison's physical plugin and Alliance's existing shared installation. The prior asset matched HEAD and was backed up privately; installed bytes match the working source. Saved options, issues and the published 0.3.7 package are unchanged. Hard-refresh the local page before reviewing.
+
 # Five-status/count acceptance — 2026-11-12 UTC
 
 23 service cases pass, including idempotent expansion of an old status constraint without data changes. statuses.cjs validates five ordered statuses/keys/icons, default needs_info visibility, 90-issue counts independent of pagination/checkboxes, search/zero counts, optimistic deltas and 390/320px overflow. Shifted existing keyboard/tooltip tests pass. New status ink #15675f on #ddf3ef passes body contrast; SVG is an authored question-circle.
