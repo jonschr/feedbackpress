@@ -596,7 +596,9 @@
       const data = await response.json().catch(() => ({}));
       if (response.status === 404 && !writes) { const gone = route.match(/^issues\/([a-f0-9-]{36})(?:\/notes)?$/)?.[1]; if (gone) forgetIssue(gone); }
       if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
-      if ([401, 403].includes(response.status) && !route.includes('/notes')) {
+      const creationPaused=data.code==='feedback_paused', ownerDenied=route==='review-access'&&data.code==='account_owner_required';
+      if(creationPaused||ownerDenied)applyReviewAccess({paused:creationPaused||reviewAccess.paused,account_owner:false,can_create:!creationPaused&&!reviewAccess.paused});
+      if ([401, 403].includes(response.status) && !route.includes('/notes') && !creationPaused && !ownerDenied) {
         cancelLocate(); issueCache.clear(); collapsedPages.clear(); sharedPagePaths.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
