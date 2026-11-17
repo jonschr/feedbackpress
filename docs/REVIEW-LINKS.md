@@ -4,7 +4,7 @@ Current source uses one reusable link per HTTPS site connection. In **Settings â
 
 Open **Client review link** and choose **Copy review link**. WordPress retrieves the same reusable URL from the authenticated central API each time. Copy it from the live or staging copy your client can reach, and send it through your normal communication channel. There are no individual invitations, labels, link list, expiry picker, revoke controls, or separate sharing-permission setting. Only the connection's WordPress administrator can retrieve the link; an invited guest cannot use connection management.
 
-Anyone holding the link can use shared issues, replies, attachments and status changes. It grants no WordPress login, verified email, administration or private-note identity. Private notes still require project access and a logged-in WordPress user with the matching server-resolved email.
+Anyone holding the link can use shared issues, replies, attachments and status changes. With a valid review session, opening the sidebar, reading tickets and viewing attachments requires no account, login, name or email. Ask for a name and email when the visitor submits a reply or starts a new ticket/text suggestion; other changes still require identification. Cancelling that prompt preserves the reply text and queued files. Access without a review link retains its existing identity prompt. It grants no WordPress login, verified email, administration or private-note identity. Private notes still require project access and a logged-in WordPress user with the matching server-resolved email.
 
 The URL fragment is exchanged for a Secure/HttpOnly/SameSite=Lax site cookie and removed from the browser address/history. Original query strings and issue fragments are preserved. Browser sessions last up to 30 days; reopening the same reusable link starts another session. **End review session** ends only that browser's session. There is no invitation expiry. The link is scoped to the current HTTPS site/project/connection credential, and replacing/disconnecting that connection invalidates it through normal connection authorization. No new invitation records or schema are required. Old local invitation metadata is left untouched and unused, with no legacy adapter.
 
@@ -13,3 +13,9 @@ The central API derives a purpose-separated HMAC from the authenticated connecti
 ## Testing and installation
 
 See the canonical service PILOT-OPERATIONS.md and CENTRAL-SERVICE-PLAN.md for the installed releases, validation receipts and rollback. The service and plugin must be updated together; the earlier invitation-management version has a different endpoint contract. Email delivery remains deferred; copying a link sends no email.
+
+## Share an individual issue
+
+WordPress administrators can choose **Copy magic link** from a shared issue's three-dot menu, in its card or sidebar row. This combines the existing site review grant with the issue's full relative page/query and a ticket return fragment. It opens that ticket directly; the grant still permits the project's shared review access, not only that ticket. Copying creates no issue or email. Private issues and private notes do not offer this action. Other administrators can copy links for shared tickets they did not author without gaining edit/delete controls. If clipboard access fails, a selected readonly URL is available for manual copying.
+
+Identity prompts put **Log in to this site** first, returning to the current page/ticket, followed by the name/email guest form. The login URL comes from WordPress and honors its login filters. A WordPress login takes precedence over guest attribution and a concurrent review-link session; the link does not log anyone out, switch users or replace their private-note identity.

@@ -364,13 +364,16 @@
   const highlight = el('div', { class: 'highlight', hidden: true });
   const notice = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite', hidden: true });
   const launcher = button([icon('plus'), el('span', {}, 'Leave feedback')], () => withIdentity(startPick), { title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' });
-  const viewButton = button([icon('issues'), el('span', {}, 'View issues')], () => withIdentity(() => { if (selected && innerWidth < 900 && panel.hidden) { prepareListReveal(); open = true; viewButton.setAttribute('aria-expanded', 'true'); issuePopup.hidden = true; tether.hidden = true; panel.hidden = false; render(); } else toggle(!open); }), { 'aria-expanded': 'false', title: 'Toggle issues panel', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' });
+  const viewButton = button([icon('issues'), el('span', {}, 'View issues')], () => withReadAccess(() => { if (selected && innerWidth < 900 && panel.hidden) { prepareListReveal(); open = true; viewButton.setAttribute('aria-expanded', 'true'); issuePopup.hidden = true; tether.hidden = true; panel.hidden = false; render(); } else toggle(!open); }), { 'aria-expanded': 'false', title: 'Toggle issues panel', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' });
   const textLauncher = button([icon('text'),el('span',{},'Change text')],()=>withIdentity(()=>startPick(true)),{title:'Change text','data-tooltip-shortcut':'T','aria-keyshortcuts':'T'});
   const launchers = el('div', { class: 'launcher' }, launcher, textLauncher, viewButton);
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
     launchers.hidden = open;launcher.hidden=textLauncher.hidden=!reviewAccess.can_create;
-    const clearance=(open?0:launchers.getBoundingClientRect().height)+26;
+    const launcherRect=launchers.getBoundingClientRect();
+    const clearance=(open?0:launcherRect.height)+26;
+    const identityClearance=open?'26px':`calc(${innerHeight-launcherRect.top}px + var(--fp-launcher-gap))`;
+    if(host.style.getPropertyValue('--fp-identity-clearance')!==identityClearance)host.style.setProperty('--fp-identity-clearance',identityClearance);
     if(host.style.getPropertyValue('--fp-launcher-clearance')!==clearance+'px')host.style.setProperty('--fp-launcher-clearance',clearance+'px');
     sidebarSettings.querySelectorAll('fieldset').forEach(group => { group.disabled = innerWidth < 900; });
     sidebarSettings.querySelectorAll('input').forEach(input => {
@@ -600,7 +603,7 @@
       if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
       const creationPaused=data.code==='feedback_paused', ownerDenied=route==='review-access'&&data.code==='account_owner_required';
       if(creationPaused||ownerDenied)applyReviewAccess({paused:creationPaused||reviewAccess.paused,account_owner:false,can_create:!creationPaused&&!reviewAccess.paused});
-      if ([401, 403].includes(response.status) && !route.includes('/notes') && !creationPaused && !ownerDenied) {
+      if ([401, 403].includes(response.status) && !route.includes('/notes') && !creationPaused && !ownerDenied && !(route === 'admin/review-link' && response.status === 403)) {
         cancelLocate(); issueCache.clear(); collapsedPages.clear(); sharedPagePaths.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
@@ -636,18 +639,27 @@
     if (!actorRequest) actorRequest = api('identity', { method: 'POST', body: { author: name, author_email: email } }).then(response => response.json()).then(person => { actorId = person.author_id; return actorId; }).catch(error => { actorRequest = null; throw error; });
     return actorRequest;
   }
+  function withReadAccess(action) {
+    return c.reviewSession && !(name && (c.userName || email)) ? action() : withIdentity(action);
+  }
   function withIdentity(action) {
     if (busy) return;
     if (name && (c.userName || email)) {
       if (!c.userName && !actorId) ensureActor().then(() => { if (selected && !busy && !root.activeElement?.matches('input,textarea,select')) renderIssue(); else if (selected) deferredIssueRender = true; }).catch(() => {});
       return action();
     }
-    identity.replaceChildren(el('header', {}, el('h2', {}, 'Introduce yourself'), button(icon('close'), () => { identity.hidden = true; launcher.focus(); }, { class: 'fp-icon-button', 'aria-label': 'Dismiss name prompt', 'aria-keyshortcuts': 'Escape' })));
+    identity.replaceChildren(el('header', {}, el('h2', {}, 'Choose how to continue'), button(icon('close'), () => { identity.hidden = true; launcher.focus(); }, { class: 'fp-icon-button', 'aria-label': 'Dismiss name prompt', 'aria-keyshortcuts': 'Escape' })));
     const input = el('input', { name: 'author', 'aria-label': 'Your name', required: true, maxlength: 120, autocomplete: 'name', placeholder: 'Your name' });
     input.value = name;
     const mail = el('input', { name: 'email', type: 'email', required: true, maxlength: 254, autocomplete: 'email', placeholder: 'Email address', 'aria-label': 'Email address' }); mail.value = email;
-    identity.append(el('p', { class: 'subtle' }, 'So everyone knows who left the feedback. We’ll remember you on this site.'), el('form', { onsubmit: event => { event.preventDefault(); if (!input.value.trim()) return; remember(input.value, mail.value); identity.hidden = true; withIdentity(action); } }, input, mail, el('button', { type: 'submit', class: 'fp-primary' }, 'Continue')));
-    panel.hidden = true; identity.hidden = false; input.focus();
+    let login = null;
+    if (c.loginUrl) {
+      const url = new URL(c.loginUrl); url.searchParams.set('redirect_to', location.href);
+      login = el('a', { class: 'identity-login fp-primary', href: url.href }, 'Log in to this site');
+      identity.append(login, el('p', { class: 'identity-guest-label subtle' }, 'Or continue as a guest'));
+    }
+    identity.append(el('form', { onsubmit: event => { event.preventDefault(); if (!input.value.trim()) return; remember(input.value, mail.value); identity.hidden = true; withIdentity(action); } }, el('label', {}, 'Name', input), el('label', {}, 'Email', mail), el('button', { type: 'submit', class: c.loginUrl ? 'fp-quiet' : 'fp-primary' }, 'Continue')));
+    if (!c.reviewSession) panel.hidden = true; identity.hidden = false; (login || input).focus();
   }
   function toggle(value) {
     if (busy) return;
@@ -940,7 +952,7 @@
       el('div', { class: 'row-content' },
         el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null),
         el('div', { class: 'row-footer' }, el('div', { class: 'row-meta' }, el('span', { class: 'row-author' }, issue.author), issue.target?.text_change ? el('span',{class:'subtle'},'Text change') : null, issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null)), issueSummary(issue), statusControl(issue, 'row-status')));
-    if (ownsComment(issue) && !editDrafts.has(issue.id)) { const actions = noteActions('issue', issue, issue.id, true); actions.classList.add('row-issue-actions'); row.querySelector('.row-content').append(actions); row.classList.add('has-issue-actions'); }
+    if ((ownsComment(issue) || canShareIssue(issue)) && !editDrafts.has(issue.id)) { const actions = noteActions('issue', issue, issue.id, true); actions.classList.add('row-issue-actions'); row.querySelector('.row-content').append(actions); row.classList.add('has-issue-actions'); }
     const editor = editDrafts.get(issue.id);
     const management = el('div', { class: 'row-management' }, editor?.sidebar ? commentEditor(issue, editor) : null, confirmationView(issue.id, issue.id, true));
     if (management.hasChildNodes()) row.querySelector('.row-content').append(management);
@@ -1358,7 +1370,7 @@
   document.addEventListener('visibilitychange', refreshCommentTimes);
   function ownsComment(comment) { return !comment.pending && !comment.pending_edit && actorId && actorId === (comment.owner_id || comment.author_id); }
   function commentView(comment, files) {
-    const author = comment.id === selected?.id && !comment.pending ? button(comment.author || 'Unknown author', event => editAuthor(event.currentTarget, comment), { class: 'comment-author author-edit', 'aria-label': 'Change author: ' + comment.author, title: 'Change author' }) : el('strong', { class: 'comment-author' }, comment.author || 'Unknown author');
+    const author = comment.id === selected?.id && !comment.pending ? button(comment.author || 'Unknown author', () => withIdentity(() => ensureActor().then(() => { if (selected?.id === comment.id) editAuthor(issuePopup.querySelector('.author-edit'), selected); }).catch(error => message(error.message))), { class: 'comment-author author-edit', 'aria-label': 'Change author: ' + comment.author, title: 'Change author' }) : el('strong', { class: 'comment-author' }, comment.author || 'Unknown author');
     const byline = el('div', { class: 'comment-byline' }, author);
     const time = commentTime(comment.created_at); if (time) byline.append(time);
     if (comment.pending || comment.pending_edit) byline.append(el('span', { class: 'comment-date' }, 'Saving…'));
@@ -1417,18 +1429,36 @@
     if (sidebar || panel.querySelector(`[data-issue="${issueId}"] .row-management`)) render();
     if (selected?.id === issueId && !issuePopup.hidden) renderIssue();
   }
+  function canShareIssue(issue) { return c.canShareReviewLinks && !issue.pending && issue.visibility !== 'private'; }
+  async function copyIssueReviewLink(issue, trigger) {
+    await perform(trigger, async () => {
+      const data = await (await api('admin/review-link')).json();
+      const link = new URL(data.url), target = new URL(c.home + issue.path);
+      if (link.origin !== target.origin || !link.hash.startsWith('#fp-review=')) throw new Error('Could not create a review link for this site.');
+      link.pathname = target.pathname; link.search = target.search;
+      const hash = new URLSearchParams(link.hash.slice(1)); hash.set('fp-return', 'feedbackpress=' + issue.id); link.hash = hash.toString();
+      try { await navigator.clipboard.writeText(link.href); message('Magic link copied.'); }
+      catch (_) {
+        message('Select and copy the magic link.');
+        const field = el('input', { readonly: true, value: link.href, 'aria-label': 'Magic link for issue ' + issue.number });
+        notice.append(field); field.focus(); field.select();
+      }
+    });
+  }
   function noteActions(kind, item, issueId, sidebar = false) {
     const privateNote = kind === 'private note', isPrivate = privateNote || item.visibility === 'private';
     const popupId = 'fp-note-actions-' + item.id + (sidebar ? '-sidebar' : '');
     const trigger = button(icon('more'), () => {}, { class: 'fp-icon-button note-actions-trigger', 'aria-label': 'Actions for ' + kind, popovertarget: popupId });
     const menu = el('div', { class: 'note-actions', id: popupId, popover: 'auto', role: 'group', 'aria-label': 'Actions for ' + kind });
     const action = (label, run, destructive = false, attrs = {}) => button(label, () => { menu.hidePopover(); run(); }, { class: 'note-action' + (destructive ? ' is-destructive' : ''), ...attrs });
-    menu.append(action('Edit', () => {
+    const editable = kind !== 'issue' || ownsComment(item);
+    if (editable) menu.append(action('Edit', () => {
       noteConfirmations.delete(item.id);
       if (privateNote) { privateEditDrafts.set(item.id, { issue: issueId, body: item.body, revision: item.revision }); renderIssue(); issuePopup.querySelector(`[data-private-edit="${item.id}"] textarea`)?.focus(); }
       else editComment(item, issueId, sidebar);
     }));
-    if (c.privateNotes) {
+    if (kind === 'issue' && canShareIssue(item)) menu.append(action('Copy magic link', () => copyIssueReviewLink(item, trigger)));
+    if (editable && c.privateNotes) {
       if (selected?.visibility === 'private' && kind !== 'issue') menu.append(el('small', { class: 'note-action-hint' }, 'Make the issue public first to share a note.'));
       else menu.append(action(isPrivate ? 'Make public' : 'Make private', () => {
         noteConfirmations.set(item.id, { kind, item, issueId, sidebar, action: isPrivate ? 'public' : 'private' }); renderNoteSurfaces(issueId, sidebar); (sidebar ? panel : issuePopup).querySelector(`[data-confirm-note="${item.id}"] button`)?.focus({ preventScroll: true });
@@ -1526,7 +1556,7 @@
     if (previewIssueId !== issue.id) { clearAttachments(); previewIssueId = issue.id; }
     const items = navigationIssues();
     const index = items.findIndex(item => item.id === issue.id);
-    const issueActions = ownsComment(issue) && !editDrafts.has(issue.id) ? c.privateNotes ? noteActions('issue', issue, issue.id) : button('Edit', () => editComment(issue), { class: 'comment-edit', 'aria-label': 'Edit issue' }) : null;
+    const issueActions = (ownsComment(issue) || canShareIssue(issue)) && !editDrafts.has(issue.id) ? c.privateNotes || canShareIssue(issue) ? noteActions('issue', issue, issue.id) : button('Edit', () => editComment(issue), { class: 'comment-edit', 'aria-label': 'Edit issue' }) : null;
     issuePopup.replaceChildren(el('header', { class: 'popup-header' }, statusControl(issue, 'popup-status'), el('span', { class: 'issue-reference' }, 'Issue ' + issue.number), el('div', { class: 'popup-navigation' },
       button(icon('previous'), () => stepIssue(-1), { class: 'fp-icon-button', 'aria-label': 'Previous issue', title: 'Previous issue', 'data-tooltip-shortcut': 'P / ↑', 'aria-keyshortcuts': 'P ArrowUp', disabled: index <= 0 && listPage <= 1 }),
       button(icon('next'), () => stepIssue(1), { class: 'fp-icon-button', 'aria-label': 'Next issue', title: 'Next issue', 'data-tooltip-shortcut': 'N / ↓', 'aria-keyshortcuts': 'N ArrowDown', disabled: index >= items.length - 1 && listPage * 50 >= total }),
@@ -1565,7 +1595,7 @@
     const privateToggle = c.privateNotes && issue.visibility !== 'private' ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', role: 'switch', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = attach.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply or attach images…'; } }), el('span', { class: 'private-switch-track', 'aria-hidden': 'true' }), el('span', { class: 'private-switch-label' }, 'Private note')) : null;
     input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
     issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
-      if (!privateReply.has(issue.id)) return submitReply(event, issue.id);
+      if (!privateReply.has(issue.id)) { event.preventDefault(); return submitReply(event.target, issue.id); }
       event.preventDefault(); if (files.length) { message('Remove queued attachments before leaving a private note.'); return; }
       const body = reply.value, key = crypto.randomUUID(); imageDropJob = null;
       replyDrafts.delete(issue.id); mentionDrafts.delete('reply:' + issue.id); reply.value = '';
@@ -1586,6 +1616,7 @@
     finally { pendingForms.delete(form); form.removeAttribute('aria-busy'); controls.forEach(control => { control.disabled = false; }); }
   }
   function setStatus(issue, status) {
+    if (!name || (!c.userName && !email)) return withIdentity(() => setStatus(issue, status));
     if (selected?.id === issue.id) issue = selected;
     if (issue.pending) return;
     const tail = [...sharedJobs.values()].at(-1);
@@ -1595,12 +1626,12 @@
     }
     enqueueShared('status', `issues/${issue.id}/status`, { author: name, status, revision: issue.revision });
   }
-  function submitReply(event, id) {
-    event.preventDefault(); const form = event.target;
+  function submitReply(form, id) {
     const current = issueCache.get(id)?.issue || selected;
     if (!current || current.pending) return;
     const content = readMentionField(form.elements.body), files = [...(replyFiles.get(id) || [])];
     if (!content.body && !files.length) return;
+    if (!name || (!c.userName && !email)) return withIdentity(() => submitReply(form, id));
     imageDropJob = null;
     replyDrafts.delete(id); mentionDrafts.delete('reply:' + id); replyFiles.delete(id); form.elements.body.value = '';
     const key = replyOperations.get(id)?.key || crypto.randomUUID(); replyOperations.delete(id);
@@ -2286,7 +2317,7 @@
   }
   function beginPinDrag(event, pin, issue) {
     if (busy || lightbox.open || event.button !== 0 || !event.isPrimary) return;
-    if (!name || (!c.userName && !email)) { withIdentity(() => message('Drag the pin to its new location.')); return; }
+    if (!c.reviewSession && (!name || (!c.userName && !email))) { withIdentity(() => message('Drag the pin to its new location.')); return; }
     event.preventDefault(); pin.focus({ preventScroll: true });
     pinDrag = { pin, issue, pointer: event.pointerId, x: event.clientX, y: event.clientY, moved: false, ending: false };
     pin.setPointerCapture(event.pointerId);
@@ -2302,6 +2333,7 @@
     const drag = pinDrag;
     if (!drag || drag.ending || event.pointerId !== drag.pointer) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
+    if (!name || (!c.userName && !email)) { drag.moved = true; cancelPinDrag(); withIdentity(() => message('Drag the pin to its new location.')); return; }
     drag.moved = true; notice.hidden = true; event.preventDefault(); event.stopPropagation(); hideTooltip();
     drag.pin.classList.add('is-dragging'); drag.pin.style.pointerEvents = 'none';
     drag.pin.style.left = event.clientX + 'px'; drag.pin.style.top = event.clientY + 'px';
@@ -2345,7 +2377,7 @@
       if (!point) return;
       let pin = existing.get(issue.id);
       if (!pin) {
-        pin = button(String(issue.number), () => withIdentity(() => showIssue(issue.id)));
+        pin = button(String(issue.number), () => withReadAccess(() => showIssue(issue.id)));
         pin.dataset.pinIssue = issue.id; pin.addEventListener('pointerdown', event => beginPinDrag(event, pin, pin.feedbackpressIssue)); pins.append(pin);
       }
       retained.add(issue.id); pin.feedbackpressIssue = issue; pin.style.pointerEvents = '';
@@ -2598,10 +2630,10 @@
     }
     renderJobs();
   }
-  addEventListener('hashchange', () => { const linked = location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1]; if (linked) withIdentity(() => showIssue(linked)); });
+  addEventListener('hashchange', () => { const linked = location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1]; if (linked) withReadAccess(() => showIssue(linked)); });
   const id = location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1];
-  if (id) withIdentity(() => showIssue(id));
-  else if (resumeOpen || new URLSearchParams(location.search).get('feedbackpress') === 'open') withIdentity(() => toggle(true));
+  if (id) withReadAccess(() => showIssue(id));
+  else if (resumeOpen || new URLSearchParams(location.search).get('feedbackpress') === 'open') withReadAccess(() => toggle(true));
   if (name && !c.userName) remember(name);
   let syncTimer = null, syncBusy = false, syncAttempt = 0, lastActivity = Date.now(), syncCursor = c.cursor || 0;
   function activity() {

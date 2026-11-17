@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 — November 17, 2026
+
+- Match the identity prompt gap to the launcher-button gaps and remove excess visual space above its heading.
+- Add administrator-only Copy magic link actions for shared issues in card/sidebar menus, targeting the exact issue and page. Prefer site login in the identity prompt, with guest name/email as an alternative; preserve native WordPress identity when a review link is present.
+- Let magic-link visitors read issues and view attachments without entering their name/email. Prompt when replying or creating feedback, preserve reply drafts/files when cancelled, and retain identity checks for other changes.
+
 ## 0.3.8 — November 17, 2026
 
 - Capture automatic screenshots at the page's normal scale while the sidebar is open, without blank sidebar space. Preserve the clicked location, fixed headers and the live page's scale and scroll position.

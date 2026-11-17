@@ -4,14 +4,14 @@
  * Plugin URI: https://github.com/jonschr/feedbackpress
  * Update URI: https://github.com/jonschr/feedbackpress
  * Description: On-page client feedback, screenshots, and central project storage.
- * Version: 0.3.8
+ * Version: 0.3.9
  * Requires at least: 6.6
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  */
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-const VERSION = '0.3.8';
+const VERSION = '0.3.9';
 require_once __DIR__ . '/includes/service.php';
 require_once __DIR__ . '/includes/review-access.php';
 require_once __DIR__ . '/includes/api.php';
@@ -33,7 +33,7 @@ add_action('admin_enqueue_scripts', [Admin::class, 'assets']);
 add_action('template_redirect', function () { if (is_user_logged_in() || ReviewAccess::grant()) { if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true); nocache_headers(); } });
 function asset_version(): string { return VERSION . '.' . max(filemtime(__DIR__ . '/assets/review.js'), filemtime(__DIR__ . '/assets/review.css')); }
 function frontend_config(): array {
-    return ['reviewAccess' => true, 'api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => wp_create_nonce('wp_rest'), 'home' => untrailingslashit(home_url()), 'environment' => 'central', 'maxBytes' => API::MAX_FILE, 'css' => plugins_url('assets/review.css', __FILE__) . '?ver=' . asset_version(), 'activitySync' => true, 'network' => Service::connection()['project'], 'cursor' => '0', 'privateNotes' => is_user_logged_in(), 'authorId' => is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : '', 'userName' => is_user_logged_in() ? wp_get_current_user()->display_name : '', 'reviewSession' => (bool) ReviewAccess::grant()];
+    return ['loginUrl' => wp_login_url(), 'canShareReviewLinks' => current_user_can('manage_options'), 'reviewAccess' => true, 'api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => wp_create_nonce('wp_rest'), 'home' => untrailingslashit(home_url()), 'environment' => 'central', 'maxBytes' => API::MAX_FILE, 'css' => plugins_url('assets/review.css', __FILE__) . '?ver=' . asset_version(), 'activitySync' => true, 'network' => Service::connection()['project'], 'cursor' => '0', 'privateNotes' => is_user_logged_in(), 'authorId' => is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : '', 'userName' => is_user_logged_in() ? wp_get_current_user()->display_name : '', 'reviewSession' => (bool) ReviewAccess::grant()];
 }
 add_action('wp_enqueue_scripts', function () {
     if (is_feed()) return;

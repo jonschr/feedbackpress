@@ -189,3 +189,10 @@ Thumbnail loading: keep the reserved 24px row tile / 56×38px card image placeho
 Adaptive issue-card comparison: use stacked original/replacement rows when both versions are at most 10 whitespace-delimited words; use a single inline diff if either version is longer. Exactly 10 stays stacked. Preserve word-level emphasis and full plain-text Copy in both layouts. This only selects the open-card presentation; on-page changed-word highlights stay unchanged.
 
 Release check: derive narrow-screen background-work and identity-prompt clearance from the live launcher stack height, including Change text. Recompute on toolbar resize; cap work-panel height to the remaining viewport. Keep the 12px gap and existing desktop placement.
+
+
+Reviewer identity prompt (Operate): retain the existing panel, typography and tokens. Lead with one filled Log in to this site link; place Or continue as a guest above persistently labeled Name/Email fields and a quiet Continue action. Focus the login action first. Keep the choices on the same surface, support narrow light/dark layouts without horizontal scrolling, and preserve guest reply text/files when the prompt is dismissed.
+
+Shared issue actions (Operate): administrators see Copy magic link in the existing card/sidebar ellipsis menu. For a shared issue authored by someone else, show only copying, preserving author edit/privacy/delete permissions. No magic-link action for private issues/notes or non-administrators. Show a readonly selected URL only if automatic copying fails; never announce a successful copy on failure.
+
+Identity prompt spacing: use the same 8px launcher-gap token above the first launcher and between launchers. Position the prompt from the actual launcher stack top so desktop/mobile toolbar offsets do not change the gap. Keep 16px panel padding and a 24px header/close control to avoid inflating space above the title. Keep background-work clearance unchanged.

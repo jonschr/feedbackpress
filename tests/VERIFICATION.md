@@ -1,3 +1,26 @@
+# 0.3.9 release candidate — November 17, 2026
+
+- Final release checks pass all nine intercepted browser suites: anonymous-review, issue-review-links, review-access, note-actions, sidebar-actions, review-pause, navigation-shortcuts, write-queue and pin-drag. Native reviewer-config completes successfully with login precedence, administrator-only sharing and guest/private separation. Plugin PHP, changed JS and whitespace checks pass.
+- Includes anonymous magic-link reading, attributed reply/new-ticket continuation, any connected-site WordPress administrator copying direct shared-ticket links, preferred native login and consistent identity/launcher spacing. Actual password/SSO login and Safari clipboard were not exercised; the readonly clipboard fallback remains tested. Core service runtime is unchanged.
+
+# Pending identity prompt spacing — 2026-11-17
+
+- Anonymous-review fixture measures an 8px prompt-to-launcher gap matching the button gaps at 1280px light, 390px light and 320px dark. Header height equals title height and all four panel paddings remain 16px. Full viewport renders inspected. Existing login/anonymous-read/draft/identity assertions pass, as does navigation-shortcuts with stable launcher positions.
+- Prompt clearance uses the actual launcher top and shared 8px CSS token; its 24px close control no longer inflates the header. Background-work clearance is unchanged. JavaScript syntax/whitespace pass. Only review.js/review.css were patched locally on Harrison/Alliance, with prior assets backed up privately. No feedback/settings/service change or plugin publication.
+
+# Pending ticket magic links and preferred login — 2026-11-17
+
+- `issue-review-links.cjs` passes administrator card/sidebar copying, non-owner copy-only controls, private/non-admin exclusions, native permission denial without losing readable tickets, clipboard fallback and exact subdirectory/query/ticket targeting. All grants/clipboard/API operations are synthetic.
+- `reviewer-config.php` passes under a native WordPress bootstrap: logged-in identity wins over a concurrent synthetic review grant/guest attribution, only administrators receive sharing capability, the filtered WordPress login URL is exposed, and guests remain unable to access private identity. HTTP is blocked and no options/users/feedback are saved. The initial fixture printed PASS then failed in an unrelated shutdown HTTP request; its HTTP blocker now returns WP_Error, and the complete CLI run exits zero.
+- Anonymous-review still passes with the preferred login link, exact return URL, initial login focus, desktop/390px light and 320px dark layout bounds and all prior draft/identity checks. Renders inspected. Existing note-actions, sidebar-actions and review-access pass. PHP/JS syntax and whitespace pass. Actual password/SSO login and Safari clipboard were not exercised; the native link and readonly clipboard fallback are retained.
+- Installed only the tested review.js/review.css/frontend-config patch locally on physical Harrison and Alliance's existing link, with originals backed up privately. No core service runtime change or plugin publication. All changes remain uncommitted for the next plugin release.
+
+# Pending anonymous magic-link reading — 2026-11-17
+
+- `anonymous-review.cjs` passes desktop/mobile direct links, fragment changes, sidebar, pins, resumed sidebar and attachment previews without identity prompts or identity writes. Submitting a reply prompts, cancelling retains text/files, and identification submits once with the correct author/email. New-ticket button/C/T, actual ticket creation after identification, status button/key, author change and pin-drag guards pass. Ordinary non-link guests retain the prior viewing prompt.
+- Existing intercepted review-access, navigation-shortcuts, review-pause, write-queue and pin-drag fixtures pass. Review-access retains invalid/session-end/disabled access, fragment/query restoration, stale nonce and plain REST coverage. Updated installed acceptance to identify on reply; it was not run against real projects. Pin-drag's final URL expectation now reflects the already-released explicit-ticket fragment behavior.
+- JavaScript syntax and whitespace pass. All browser requests were intercepted, with no real feedback, email, connection or API-access change. The reply continuation retains the form rather than an expired Shadow DOM event target. Only review-session reading skips the identity prompt; mutation guards and server/private permissions remain intact. No service runtime change. Uncommitted/unreleased local plugin change.
+
 # 0.3.8 full-size screenshot capture — 2026-11-17
 
 - Reproduced the scaled capture/pin mismatch with the real bundled renderer before the fix. Screenshot capture now removes only FeedbackPress page-fit styles in the temporary clone, translates scroll/pin coordinates and retains the clicked content's vertical position.
