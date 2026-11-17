@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6 — November 16, 2026
+
+- Preserve the issue sidebar across ordinary page navigation without automatically reopening the last selected ticket.
+- Continue opening tickets for explicit issue links, cross-page issue selection and copied issue URLs; preserve cached rows and list/thread positions.
+
 ## 0.3.5 — November 16, 2026
 
 - Add a project owner email setting for shared-feedback summaries after ten minutes without new client comments. New projects default to their creator’s WordPress administrator email.

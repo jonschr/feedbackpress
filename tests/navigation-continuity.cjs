@@ -36,7 +36,7 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
         return route.fulfill({ json: items.find(i => endpoint === 'issues/' + i.id) || {} });
       }
       return route.fulfill({ contentType: 'text/html', body: `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
-        <style>body{margin:0;min-height:1600px}#target{margin:180px 40px;width:300px;height:200px}</style><a id="ordinary" href="/third/">Other page</a><div id="target">Target</div>
+        <style>body{margin:0;min-height:1600px}#target{margin:180px 40px;width:300px;height:200px}</style><a id="ordinary" href="/third/">Other page</a><a id="return" href="${destination}">Return normally</a><div id="target">Target</div>
         <script>{const now=Date.now;window.fixtureClock=${clock};Date.now=()=>now()+window.fixtureClock;}window.FeedbackPressConfig={home:'${base}',api:'${base}/api/',css:'${base}/review.css',nonce:'fixture',network:'${network}',authorId:'${actor}',userName:'Reviewer',privateNotes:true,maxBytes:5242880}</script>
         <script>${fs.readFileSync('assets/review.js', 'utf8')}</script>${observe}` });
     });
@@ -99,6 +99,19 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
     assert.equal(await page.evaluate(() => document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-list').scrollTop), 700); assert.equal(await popup.isVisible(), false);
     assert.equal(await list.locator('.is-selected').count(), 1);
     await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(base + destination + '#feedbackpress=' + selectedId); await paint();
+    // Normal links back to the last issue's page must carry only sidebar state, never its card.
+    await page.locator('#ordinary').click(); await page.waitForURL(base + '/third/'); await paint();
+    assert.equal(await popup.isVisible(), false);
+    await page.locator('#return').click(); await page.waitForURL(base + destination); await paint(); await ready();
+    assert.equal(await popup.isVisible(), false); assert.equal(await list.locator('.is-selected').count(), 0);
+    assert.equal(await panel.isVisible(), true); assert.equal(await list.evaluate(node => node.scrollTop), 700);
+    await page.reload(); await paint(); await ready(); assert.equal(await popup.isVisible(), false);
+    await page.keyboard.press('Escape'); await page.locator('#ordinary').click(); await page.waitForURL(base + '/third/');
+    assert.equal(await panel.isVisible(), false); assert.equal(await popup.isVisible(), false);
+    await page.locator('#return').click(); await page.waitForURL(base + destination);
+    assert.equal(await panel.isVisible(), false); assert.equal(await popup.isVisible(), false);
+    await page.keyboard.press('v'); await paint(); await ready();
     await page.goto(base + destination + '#feedbackpress=' + selectedId); await paint();
     // Restore real rows during a temporary outage; refresh failure must not replace them with placeholders.
     fail = true; await page.reload(); await paint();

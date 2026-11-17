@@ -125,7 +125,7 @@
   const issueCache = new Map(), issueReads = new Map(), privateIssueIds = new Set();
   const cacheKey = 'feedbackpress-shared-cache:' + c.home + ':' + (c.network || '') + ':' + (c.authorId || c.userName || 'guest');
   const cacheLifetime = 30000;
-  let cacheSaveTimer = null, restoringList = false, restoredSelection = null, restoredDetails = false, cacheDenied = false, knownIssues = null, loadedListSignature = null;
+  let cacheSaveTimer = null, restoringList = false, cacheDenied = false, knownIssues = null, loadedListSignature = null;
   const listSignature = () => JSON.stringify([sort, grouping, scope, scope === 'current' ? pagePath : '', search, filter, listPage]);
   const freshCache = at => Number.isFinite(at) && Date.now() - at >= 0 && Date.now() - at < cacheLifetime;
   function scheduleCacheSave() { if (!cacheDenied && cacheSaveTimer === null) cacheSaveTimer = setTimeout(persistIssueCache, 0); }
@@ -171,8 +171,8 @@
         issues = view.ids.map(id => issueCache.get(id).issue); total = view.total;
         listLoaded = true; listLoading = false; restoringList = true; loadedListSignature = view.signature;
         keepListOrder = performance.getEntriesByType('navigation')[0]?.type !== 'reload';
-        restoredSelection = view.selected; restoredDetails = view.detailOpen === true;
-        selected = issueCache.get(restoredSelection)?.issue || null;
+        // Only an explicit issue URL restores a card; ordinary navigation carries the list alone.
+        selected = issueCache.get(location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1])?.issue || null;
         pageIssues = [...issueCache.values()].map(entry => entry.issue).filter(issue => issue.path === pagePath && matchesView(issue));
       }
     }
@@ -2566,7 +2566,6 @@
   addEventListener('hashchange', () => { const linked = location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1]; if (linked) withIdentity(() => showIssue(linked)); });
   const id = location.hash.match(/^#feedbackpress=([a-f0-9-]{36})$/)?.[1];
   if (id) withIdentity(() => showIssue(id));
-  else if (resumeOpen && restoredDetails && restoredSelection && selected?.path === pagePath) withIdentity(() => { open = true; showIssue(restoredSelection, false); });
   else if (resumeOpen || new URLSearchParams(location.search).get('feedbackpress') === 'open') withIdentity(() => toggle(true));
   if (name && !c.userName) remember(name);
   let syncTimer = null, syncBusy = false, syncAttempt = 0, lastActivity = Date.now(), syncCursor = c.cursor || 0;
