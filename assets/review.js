@@ -279,6 +279,7 @@
   const pauseState=el('p',{class:'review-pause-state subtle',hidden:true});sidebarUtilities.append(pauseControl);
   function applyReviewAccess(state) {
     if(typeof state.paused!=='boolean'||typeof state.account_owner!=='boolean'||typeof state.can_create!=='boolean')return;
+    if(state.paused===reviewAccess.paused&&state.account_owner===reviewAccess.account_owner&&state.can_create===reviewAccess.can_create)return;
     reviewAccess=state;pauseControl.hidden=!state.account_owner;pauseControl.replaceChildren(icon(state.paused?'doing':'pause'));
     pauseControl.setAttribute('aria-label',state.paused?'Resume new client tickets':'Pause new client tickets');pauseControl.setAttribute('aria-pressed',String(state.paused));
     pauseState.hidden=!state.paused;pauseState.textContent=state.account_owner?'New client tickets are paused.':'New tickets are paused. You can still reply and attach files.';
