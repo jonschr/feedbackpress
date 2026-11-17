@@ -40,6 +40,8 @@ final class API {
             }]);
         };
         $read = [self::class, 'read']; $id = '/issues/(?P<id>[a-f0-9-]{36})';
+        $route('/review-access', 'GET', fn() => Service::request('GET', '/review-access'), $read);
+        $route('/review-access', 'POST', fn($r) => Service::request('POST', '/review-access', ['paused' => $r->get_param('paused')]), fn($r) => self::privateWrite($r));
         $route('/issues', 'GET', [self::class, 'listing'], $read);
         $route('/issues', 'POST', function ($r) {
             $body = ['title' => $r->get_param('title'), 'body' => $r->get_param('body') ?? '', 'mentions' => $r->get_param('mentions') ?? [], 'path' => $r->get_param('path'), 'target' => $r->get_param('target'), 'status' => $r->get_param('status') ?? 'todo', 'author' => Identity::request($r)];

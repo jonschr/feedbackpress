@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.7 — November 17, 2026
+
+- Add account-owner controls to pause or resume new client tickets across a project. Existing client replies, attachments and ticket permissions remain available.
+- Verify ownership with the original subscription/account key, rather than granting every WordPress administrator owner access. Owners can still create issues, and agent/private notes keep working.
+- Show paused creation controls without discarding drafts. Pausing is off by default. Existing owners can reconnect with their original key once to verify ownership.
+
 ## 0.3.6 — November 16, 2026
 
 - Preserve the issue sidebar across ordinary page navigation without automatically reopening the last selected ticket.

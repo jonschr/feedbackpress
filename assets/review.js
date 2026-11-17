@@ -37,6 +37,7 @@
     for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'text' ? 'M7 4h10M7 20h10M12 4v16M4 8v8M2 8h4M2 16h4' : kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12.5l4.5 4.5L19 7' : kind === 'todo' ? 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M10 3h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 11h6M9 15h6' : kind === 'needs_info' ? 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6ZM9 3v15M15 6v15' : kind === 'doing' ? 'M8.5 5.5v13L19 12 8.5 5.5Z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18s-9.5-6-9.5-6ZM14.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0Z' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
+    if (kind === 'pause') path.setAttribute('d','M8 5v14M16 5v14');
     if (kind === 'copy') path.setAttribute('d', 'M8 8h12v13H8zM16 8V3H3v13h5');
     if (kind === 'download') path.setAttribute('d', 'M12 3v12M7 10l5 5 5-5M5 17v4h14v-4');
     if (kind === 'more') { path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01'); svg.setAttribute('stroke-width', '3'); }
@@ -66,6 +67,7 @@
     } catch (_) { /* Identity can still be entered when browser storage is disabled. */ }
   }
   const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
+  let reviewAccess = {paused:false,account_owner:false,can_create:true};
   let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'page', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
   const collapsedPages = new Set(), sharedPagePaths = new Set();
@@ -271,13 +273,30 @@
     appearanceControl.setAttribute('aria-label', label); appearanceControl.dataset.tooltip = label;
   }
   updateAppearanceControl(); sidebarUtilities.append(appearanceControl);
+  const pauseControl = button('', event => perform(event.currentTarget,async()=>{
+    const state=await (await api('review-access',{method:'POST',body:{paused:!reviewAccess.paused}})).json();applyReviewAccess(state);
+  }),{class:'fp-icon-button','aria-label':'Pause new client tickets',hidden:true});
+  const pauseState=el('p',{class:'review-pause-state subtle',hidden:true});sidebarUtilities.append(pauseControl);
+  function applyReviewAccess(state) {
+    if(typeof state.paused!=='boolean'||typeof state.account_owner!=='boolean'||typeof state.can_create!=='boolean')return;
+    reviewAccess=state;pauseControl.hidden=!state.account_owner;pauseControl.replaceChildren(icon(state.paused?'doing':'pause'));
+    pauseControl.setAttribute('aria-label',state.paused?'Resume new client tickets':'Pause new client tickets');pauseControl.setAttribute('aria-pressed',String(state.paused));
+    pauseState.hidden=!state.paused;pauseState.textContent=state.account_owner?'New client tickets are paused.':'New tickets are paused. You can still reply and attach files.';
+    if(!state.can_create){cancelPick();if(draft)message('New client tickets are paused. Your draft is kept.');}
+    composer.querySelectorAll('[type=submit]').forEach(button=>{button.disabled=!state.can_create;});
+    if(open)render();if(selected&&!issuePopup.hidden)renderIssue();updateChrome();
+  }
+  async function refreshReviewAccess() {
+    if(!c.reviewAccess)return;
+    try{applyReviewAccess(await (await api('review-access')).json());}catch(error){message(error.message);}
+  }
   const textPreviewControl = button(icon('review'), () => {
     showTextChanges = !showTextChanges; try { localStorage.setItem('feedbackpress-text-preview',showTextChanges?'on':'off'); } catch (_) {} textPreviewControl.setAttribute('aria-pressed',String(showTextChanges)); drawPins(); positionDraft();
   }, {class:'fp-icon-button','aria-label':'Show text changes','aria-pressed':String(showTextChanges)});
   sidebarUtilities.append(textPreviewControl);
 
   if (c.reviewSession) sidebarUtilities.append(button(icon('logout'), event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-icon-button', 'aria-label': 'End review session' }));
-  panel.append(panelContents, sidebarSettings);
+  panel.append(panelContents,pauseState,sidebarSettings);
   const placementCursorStyle = document.createElement('style');
   placementCursorStyle.dataset.feedbackpressCursor = '';
   document.head.append(placementCursorStyle);
@@ -348,7 +367,7 @@
   const launchers = el('div', { class: 'launcher' }, launcher, textLauncher, viewButton);
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
-    launchers.hidden = open;
+    launchers.hidden = open;launcher.hidden=textLauncher.hidden=!reviewAccess.can_create;
     const clearance=(open?0:launchers.getBoundingClientRect().height)+26;
     if(host.style.getPropertyValue('--fp-launcher-clearance')!==clearance+'px')host.style.setProperty('--fp-launcher-clearance',clearance+'px');
     sidebarSettings.querySelectorAll('fieldset').forEach(group => { group.disabled = innerWidth < 900; });
@@ -530,6 +549,7 @@
   async function api(path, options = {}) {
     const headers = { 'X-WP-Nonce': c.nonce, ...(c.authorId ? { 'X-FeedbackPress-Expected-Actor': c.authorId } : {}), ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
     const writes = options.method && options.method !== 'GET';
+    if(writes&&!reviewAccess.can_create&&path==='issues')throw Error('New client tickets are paused. You can still reply to existing tickets.');
     const paced = writes && !path.startsWith('sync/');
     let signature;
     if (writes) {
@@ -845,7 +865,7 @@
     const order = el('select', { 'aria-label': 'Order issues', 'data-tooltip': 'Order issues: ' + sortLabels[sort], onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
     const orderControl = el('span', { class: 'order-control' }, icon('sort'), order);
     const heading = el('header', { class: 'panel-header' }, el('div', { class: 'panel-heading', 'aria-live': 'polite', 'aria-atomic': 'true' }, el('h2', { class: 'open-issue-count' }, projectCountLabel('open')), el('span', { class: 'issue-count closed-issue-count', hidden: !projectCounts }, projectCountLabel('closed'))),
-      el('div', { class: 'panel-actions' }, orderControl, button(icon('plus'), () => withIdentity(startPick), { class: 'fp-icon-button', 'aria-label': 'Leave feedback', title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' }), button(icon('text'),()=>withIdentity(()=>startPick(true)),{class:'fp-icon-button','aria-label':'Change text',title:'Change text','data-tooltip-shortcut':'T','aria-keyshortcuts':'T'}), button(icon('close'), () => toggle(false), { class: 'fp-icon-button', 'aria-label': 'Dismiss issues', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' })));
+      el('div', { class: 'panel-actions' }, orderControl, button(icon('plus'), () => withIdentity(startPick), { class: 'fp-icon-button', 'aria-label': 'Leave feedback', title: 'Leave feedback', disabled:!reviewAccess.can_create, 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' }), button(icon('text'),()=>withIdentity(()=>startPick(true)),{class:'fp-icon-button','aria-label':'Change text',title:'Change text',disabled:!reviewAccess.can_create,'data-tooltip-shortcut':'T','aria-keyshortcuts':'T'}), button(icon('close'), () => toggle(false), { class: 'fp-icon-button', 'aria-label': 'Dismiss issues', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' })));
     const searchField = el('input', { type: 'search', class: 'issue-search', 'aria-label': 'Search issues and replies', placeholder: 'Search…', value: search, oninput: event => {
       search = event.target.value; listPage = 1; resetListScroll(); saveView(); requestNumber++;
       clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 200);
@@ -1788,6 +1808,7 @@
   }
   function closeDraft() { stopTextSession(); closeMentionMenu(); mentionDrafts.delete(composer.querySelector('[name=body]')?.feedbackpressMentionState?.key); draft = null; screenshot = null; composer.hidden = true; draftPin.hidden = true; tether.hidden = true; drawPins(); }
   function newDraft(target, selection = null) {
+    if(!reviewAccess.can_create){message('New client tickets are paused. You can still reply to existing tickets.');return;}
     cancelLocate();
     if (busy) return;
     imageDropJob = null; clearImageDrop();
@@ -1849,6 +1870,7 @@
     positionMentionMenu();
   }
   function submitDraft(e) {
+    if(!reviewAccess.can_create){e.preventDefault();message('New client tickets are paused. Your draft is kept.');return;}
     e.preventDefault(); const form = e.target, data = new FormData(form), files = [...form.feedbackpressFiles];
     if (files.some(file => file.size > c.maxBytes)) return message('Each attachment must be 5 MB or smaller.');
     const change = form.feedbackpressTextChange;
@@ -1900,7 +1922,7 @@
     }
     return parts.join(' > ') || 'body';
   }
-  function startPick(textOnly = false) { if (busy) return; textPicking = textOnly === true; for(const [node,preview] of textPreviews) restoreTextPreview(node,preview); cancelLocate(); captureListScroll(); closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; updatePlacementCursor(); panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message(textPicking?'Select a text block to edit. T exits; Escape closes review.':'Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
+  function startPick(textOnly = false) { if (!reviewAccess.can_create) {message('New client tickets are paused. You can still reply to existing tickets.');return;} if (busy) return; textPicking = textOnly === true; for(const [node,preview] of textPreviews) restoreTextPreview(node,preview); cancelLocate(); captureListScroll(); closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; updatePlacementCursor(); panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message(textPicking?'Select a text block to edit. T exits; Escape closes review.':'Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
   function stopPlacement() {
     uiSession++; issueRequest++; openingIssue = 0; cancelPick(); closeDraft(); identity.hidden = true; notice.hidden = true;
     prepareListReveal(); panel.hidden = !open; updateChrome(); if (open) render(); drawPins();
@@ -2529,6 +2551,7 @@
   }
   const executingJobs = new Set();
   async function restoreJob(job) {
+    if(job.kind==='create'&&!reviewAccess.can_create){message('New client tickets are paused. Your queued draft is kept.');return;}
     if (job.issuePath && job.issuePath !== pagePath) {
       job.restoreRequested = true; await storeJob(job);
       captureListScroll(); saveView(); location.assign(c.home + job.issuePath + (job.issueId ? '#feedbackpress=' + job.issueId : '')); return;
@@ -2581,6 +2604,7 @@
     if (wait > 0) { syncTimer = setTimeout(syncActivity, wait + 50); return; }
     syncBusy = true; syncAttempt = Date.now(); const writeVersion = localWriteVersion;
     try {
+      await refreshReviewAccess();
       if (selected && c.privateNotes) loadNotes(selected.id);
       const data = await (await api('sync/activity', { method: 'POST', body: { since: syncCursor } })).json();
       if (c.network && data.network !== c.network) { message('The feedback network changed. Reload this page to continue.'); return; }
@@ -2627,6 +2651,6 @@
   window.addEventListener('keydown', event => { if (['c', 'v', 't'].includes(event.key.toLowerCase()) && !event.composedPath().some(node => node instanceof Element && (node.matches('input, textarea, select') || node.isContentEditable))) activity(); });
   document.addEventListener('visibilitychange', () => { clearTimeout(syncTimer); syncTimer = null; if (!document.hidden) activity(); });
   resumeJobs().catch(() => message('Queued browser work could not be restored. Keep this page open and retry.'));
-  if (c.activitySync) syncActivity();
+  if (c.activitySync) syncActivity(); else refreshReviewAccess();
   if (!requestNumber) load();
 })();

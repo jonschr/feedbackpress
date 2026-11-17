@@ -39,3 +39,9 @@ In **Settings → FeedbackPress**, set **Project owner email** and select **Save
 ### Notification links
 
 Under **Settings → FeedbackPress → Sites in this project**, use **Notification link destination**. Automatic chooses the first connected public HTTPS copy. Choose a staging or production URL to override it, then **Save link destination**. This is shared across all copies of the project. Known local/private addresses are excluded using URL and DNS/IP checks; arbitrary words such as “staging” are not used to guess the preferred environment. If all copies are local, connect a public copy before notification links become available. Owner summaries use Resend when enabled by the service; other mention delivery remains separately controlled.
+
+## Pause new client tickets
+
+The subscription/account-key owner can use **Pause new client tickets** in the issue sidebar's bottom controls. The pause applies to every site in that project. Clients can still read issues, reply and attach files to existing tickets; only new client tickets are blocked. Owners can keep creating tickets, and existing private/agent-note access is unchanged. **Resume new client tickets** restores client creation. New projects start unpaused.
+
+Account owners who connected before this feature can reconnect once in Settings → FeedbackPress using their existing subscription/account key. This verifies the current logged-in WordPress identity without a separate email field or changing the project connection. Saved site/manager credentials and an administrator role alone do not establish ownership.

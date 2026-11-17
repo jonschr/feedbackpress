@@ -563,3 +563,5 @@ header { justify-content: space-between; margin-bottom: 12px; }
 .text-change-original del { text-decoration:line-through; background:color-mix(in srgb,var(--fp-diff-removed) 16%,transparent); }
 .text-change-proposed ins { text-decoration:none; font-weight:var(--fp-weight-strong); background:color-mix(in srgb,var(--fp-diff-added) 16%,transparent); }
 @media (forced-colors:active) { .text-change-original,.text-change-proposed { color:CanvasText; background:Canvas; } .text-change-proposed ins { text-decoration:underline; } }
+
+.review-pause-state { margin:0; padding:8px 16px; }
