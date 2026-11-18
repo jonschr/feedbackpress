@@ -412,3 +412,8 @@ Equalized invite-bar outer padding to 8px. Replaced the native datalist popup wi
 ## Environment magic access — November 18, 2026
 
 Environment links always carry destination-specific review grants. Ten browser scenarios pass, including absent/cross-origin grant rejection with no ordinary-link fallback; existing review-access fragment/guest/bootstrap cases pass. Native owner environment forwarding passes with intercepted service responses. Actual Harrison service read returns two destination grants and validates its own current-site grant without changing cookies or feedback. Service check/test pipeline passes 52/52 on isolated PostgreSQL. Core ec568d99a77a is deployed; ready/health pass and protected configuration/other services are unchanged. Plugin source/runtime patch installed on local Harrison/Alliance; release pending. No test email sent; Safari/Firefox not rerun.
+
+
+## 0.3.11 / service 0.1.2 release — November 18, 2026
+
+All 13 selected Chrome correctness fixtures pass, including overlay sharing, environments, settings, guest review access, issue links, sidebar layout/scrolling, tooltips, mentions, pause, menus and keyboard navigation. Fixed two fixture assumptions: no disclosures applies to the footer layout group; invitation busy state uses a controlled response instead of an 80ms timer. Service verification passes 52/52 on isolated Linux PostgreSQL. Four native permission/setup fixtures, normal/AJAX/live updater, source syntax and actual HTTPS asset checks pass. Published assets were downloaded/byte-verified before the update feed advanced. Seven native local copies have matching files, unchanged connection/settings and complete feedback snapshots. Existing Chrome first-open performance limitation retained; Safari/Firefox not rerun.
