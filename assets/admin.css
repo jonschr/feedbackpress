@@ -18,9 +18,6 @@
 .fp-field-actions { display:flex; align-items:flex-start; gap:8px; width:100%; }
 .fp-field-actions > select, .fp-field-actions > input { flex:1; min-width:0; }
 .fp-field-actions > .button { flex:none; }
-.fp-invite-custom { display:flex; flex-direction:column; gap:8px; width:100%; }
-#fp-review-link-result { margin-top:12px; max-width:var(--fp-admin-control-width); }
-#fp-review-link-result label { display:block; margin-bottom:6px; }
 @media(max-width:782px) { .fp-settings { padding-inline-end:0; } .fp-section { padding:20px; } }
 @media(max-width:480px) { .fp-field-actions { flex-direction:column; align-items:flex-start; } .fp-field-actions > select, .fp-field-actions > input { flex:auto; } }
 .fp-project-choice { display:flex; align-items:center; gap:12px; max-width:640px; margin-top:16px; }

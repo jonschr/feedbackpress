@@ -12,7 +12,7 @@
     if (busy) return; busy = true;
     const controls = [...document.querySelectorAll('.fp-settings button,.fp-settings input,.fp-settings select')].filter(node => !node.disabled);
     controls.forEach(node => node.disabled = true); form?.setAttribute('aria-busy', 'true');
-    try { await action(); } catch (error) { show(error.message, true); } finally { controls.forEach(node => { if (node.isConnected) node.disabled = false; }); form?.removeAttribute('aria-busy'); busy = false; syncInviteFields(); if ($('fp-invite-send')) $('fp-invite-send').disabled = !capabilities.invitations; }
+    try { await action(); } catch (error) { show(error.message, true); } finally { controls.forEach(node => { if (node.isConnected) node.disabled = false; }); form?.removeAttribute('aria-busy'); busy = false; }
   }
   let capabilities = {free_signup:false,upgrade:false};
   async function refreshPlan() {
@@ -24,7 +24,6 @@
   }
   api('capabilities').then(async next => {
     capabilities = next;
-    if ($('fp-invite-send')) { $('fp-invite-send').disabled = !next.invitations; $('fp-invite-state').hidden = Boolean(next.invitations); $('fp-invite-state').textContent = 'Email invitations are unavailable right now.'; }
     if ($('fp-start-free')) { $('fp-start-free').hidden = !next.free_signup; $('fp-free-state').hidden = next.free_signup; $('fp-free-state').textContent = 'Free signup is not available on this service yet. You can connect an existing account below.'; }
     await refreshPlan();
   }).catch(() => {});
@@ -61,12 +60,10 @@
   }
   async function refresh(next) {
     const nextState = next || await api('connection'); const nextProjects = await api('projects');
-    if (state?.project?.id !== nextState.project?.id) { if ($('fp-review-link-result')) $('fp-review-link-result').hidden = true; if ($('fp-review-link-url')) $('fp-review-link-url').value = ''; }
     state = nextState; projects = nextProjects;
     search.disabled = false; $('fp-project-picker').setAttribute('aria-busy', 'false'); closePicker();
     $('fp-project-state').textContent = state.disconnected ? 'This site is disconnected. Choose a project to reconnect.' : state.project ? '' : 'No project connected.';
     $('fp-project-state').hidden = Boolean(state.project && !state.disconnected);
-    if ($('fp-review-links')) $('fp-review-links').hidden = !state.project || Boolean(state.disconnected);
     const section = $('fp-connected-sites'), notificationOpen = section.querySelector('.fp-notifications')?.open; section.replaceChildren(); const heading = document.createElement('h3'); heading.textContent = 'Connected sites'; section.append(heading);
     section.hidden = !state.project || !$('fp-create-project').hidden;
     if (!state.project) return;
@@ -122,26 +119,6 @@
   $('fp-cancel-project')?.addEventListener('click', () => { creatingProject(false); $('fp-project-name').value = ''; $('fp-new-project').focus(); });
   $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); creatingProject(false); $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
   $('fp-access')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('settings', { mode: $('fp-mode').value }); show('Review access saved.'); }); });
-  let invitationRequest = null;
-  function syncInviteFields() {
-    if (!$('fp-invite-user')) return;
-    const custom = $('fp-invite-user').value === 'custom';
-    $('fp-invite-custom').hidden = !custom; $('fp-invite-email').disabled = busy || !custom;
-  }
-  $('fp-invite-user')?.addEventListener('change', () => { syncInviteFields(); if ($('fp-invite-user').value === 'custom') $('fp-invite-email').focus(); });
-  $('fp-invite')?.addEventListener('submit', event => {
-    event.preventDefault(); const user_id = $('fp-invite-user').value, email = user_id === 'custom' ? $('fp-invite-email').value.trim() : '', project = state?.project?.id || c.project, signature = JSON.stringify([project, user_id, email.toLowerCase()]);
-    if (!invitationRequest || invitationRequest.signature !== signature) invitationRequest = { signature, id: crypto.randomUUID(), issued_at: Math.floor(Date.now() / 1000) };
-    run(event.currentTarget, async () => { const result = await api('invite', { email, user_id: user_id === 'custom' ? 0 : Number(user_id), project, issued_at: invitationRequest.issued_at }, invitationRequest.id); invitationRequest = null; $('fp-invite-email').value = ''; $('fp-invite-user').value = ''; show(result.captured ? 'Test invitation prepared. No email sent.' : 'Invitation sent.'); });
-  });
-  $('fp-review-link-copy')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => {
-    const link = await api('review-link');
-    const destination = new URL(link.url); destination.searchParams.set('feedbackpress', 'open'); link.url = destination.href;
-    $('fp-review-link-url').value = link.url; $('fp-review-link-result').hidden = false;
-    try { await navigator.clipboard.writeText(link.url); show('Review link copied. Share it with your client.'); }
-    catch (_) { show('Select and copy the review link.'); }
-    requestAnimationFrame(() => { $('fp-review-link-url').focus(); $('fp-review-link-url').select(); });
-  }));
   $('fp-disconnect')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { const result = await api('disconnect', {}); const url = new URL(location.href); url.searchParams.set('disconnected', result.remote_removed ? '1' : 'unconfirmed'); location.assign(url); }));
   $('fp-diagnostics')?.addEventListener('toggle', async event => { if (!event.currentTarget.open) return; try { const log = await api('log'); $('fp-log').textContent = log.length ? log.map(row => `${row.utc}  ${row.operation}  ${row.status || 'connection failed'}  ${row.ms} ms`).join('\n') : 'No requests yet.'; } catch (error) { $('fp-log').textContent = error.message; } });
   if (search) refresh().catch(error => { $('fp-project-state').textContent = 'Could not load projects.'; show(error.message, true); });

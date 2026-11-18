@@ -20,6 +20,10 @@ add_filter('pre_http_request', function ($pre, $args, $url) use (&$calls, &$visi
     return ['headers' => [], 'response' => ['code' => 200, 'message' => 'OK'], 'body' => wp_json_encode($data)];
 }, 10, 3);
 $check = function ($value) { if (!$value) throw new RuntimeException('Ticket magic-link assertion failed'); };
+$reviewers = new WP_REST_Request('GET', '/feedbackpress/v1/admin/reviewers');
+$people = rest_do_request($reviewers); $check($people->get_status() === 200);
+$native = array_values(array_filter($people->get_data()['users'], fn($user) => $user['id'] === $admin->ID));
+$check(count($native) === 1 && $native[0]['email'] === $admin->user_email && $native[0]['name'] === $admin->display_name && count($calls) === 0);
 $request = new WP_REST_Request('GET', '/feedbackpress/v1/issues/' . $id . '/review-link');
 $response = rest_do_request($request); $check($response->get_status() === 200); $link = $response->get_data()['url'];
 $check(str_starts_with($link, FeedbackPress\Service::home() . $path . '#fp-review='));
@@ -37,7 +41,7 @@ $invite->set_param('project', '22222222-2222-4222-8222-222222222222'); $beforeIn
 $visibility = 'private'; $check(rest_do_request($request)->get_status() === 403 && is_wp_error($ability->execute(['issue_id' => $id]))); $visibility = 'shared';
 $path = '//other.example.test/'; $check(rest_do_request($request)->get_status() === 409); $path = '/test/';
 $before = count($calls); $mode = 'disabled'; $check(rest_do_request($request)->get_status() === 403 && rest_do_request($invite)->get_status() === 403 && count($calls) === $before);
-$mode = 'everyone'; wp_set_current_user(0); $check(rest_do_request($invite)->get_status() === 403 && rest_do_request($request)->get_status() === 403 && is_wp_error($ability->execute(['issue_id' => $id])) && count($calls) === $before);
+$mode = 'everyone'; wp_set_current_user(0); $check(rest_do_request($reviewers)->get_status() === 403 && count($calls) === $before); $check(rest_do_request($invite)->get_status() === 403 && rest_do_request($request)->get_status() === 403 && is_wp_error($ability->execute(['issue_id' => $id])) && count($calls) === $before);
 wp_set_current_user($admin->ID);
 $guide = FeedbackPress\Agent::guidance(); $check(str_contains($guide['ticket_references'], 'chat with the user') && isset($guide['interfaces']['cli']['ticket_link']));
 echo "PASS native REST/MCP/CLI direct ticket magic links, query/path preservation, fresh issue reads, private/disabled/guest denial agent chat guidance and administrator-only invitation actor/project/key boundaries. No actual HTTP, feedback or account changes.\n";

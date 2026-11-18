@@ -42,6 +42,13 @@ final class ReviewAccess {
     public static function routes(callable $route): void {
         $admin = fn() => current_user_can('manage_options') ? true : API::error('Administrator access required.', 403);
         $route('/admin/review-link', 'GET', fn() => self::link(), $admin);
+        $route('/admin/environments', 'GET', function ($r) {
+            $allowed = API::read($r); if (is_wp_error($allowed)) return $allowed;
+            $connection = Service::connection();
+            if ((Service::request('GET', '/review-access', connection: $connection)['account_owner'] ?? false) !== true) throw new \RuntimeException('Only the FeedbackPress account owner can view environments.', 403);
+            return Service::request('GET', '/environment-links', connection: $connection);
+        }, $admin);
+        $route('/admin/reviewers', 'GET', fn() => ['users' => array_map(fn($user) => ['id' => (int) $user->ID, 'name' => $user->display_name, 'email' => $user->user_email], get_users(['blog_id' => get_current_blog_id(), 'fields' => ['ID', 'display_name', 'user_email'], 'orderby' => 'display_name']))], $admin);
         $route('/admin/invite', 'POST', function ($r) {
             if (settings()['mode'] === 'disabled') throw new \RuntimeException('Enable review access before inviting a reviewer.', 403);
             if ($r->get_param('project') !== (Service::connection()['project'] ?? null)) throw new \RuntimeException('The project changed. Reload before sending an invitation.', 409);

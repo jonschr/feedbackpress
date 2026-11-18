@@ -41,6 +41,10 @@
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'text' ? 'M7 4h10M7 20h10M12 4v16M4 8v8M2 8h4M2 16h4' : kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12.5l4.5 4.5L19 7' : kind === 'todo' ? 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M10 3h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 11h6M9 15h6' : kind === 'needs_info' ? 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6ZM9 3v15M15 6v15' : kind === 'doing' ? 'M8.5 5.5v13L19 12 8.5 5.5Z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18s-9.5-6-9.5-6ZM14.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0Z' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
     if (kind === 'pause') path.setAttribute('d','M8 5v14M16 5v14');
+    if (kind === 'globe') path.setAttribute('d', 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM3 12h18M12 3a18 18 0 0 1 0 18 18 18 0 0 1 0-18Z');
+    if (kind === 'share') path.setAttribute('d', 'M15 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8.6 10.5l3.8-4M8.6 13.5l6.8 4');
+    if (kind === 'send') path.setAttribute('d', 'm21 3-7 18-4-7-7-4 18-7ZM10 14 21 3');
+    if (kind === 'link') path.setAttribute('d', 'M10 13a5 5 0 0 0 7 .4l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7-.4l-3 3a5 5 0 0 0 7 7l1.7-1.7');
     if (kind === 'copy') path.setAttribute('d', 'M8 8h12v13H8zM16 8V3H3v13h5');
     if (kind === 'download') path.setAttribute('d', 'M12 3v12M7 10l5 5 5-5M5 17v4h14v-4');
     if (kind === 'more') { path.setAttribute('d', 'M5 12h.01M12 12h.01M19 12h.01'); svg.setAttribute('stroke-width', '3'); }
@@ -287,6 +291,7 @@
   function applyReviewAccess(state) {
     if(typeof state.paused!=='boolean'||typeof state.account_owner!=='boolean'||typeof state.can_create!=='boolean')return;
     if(state.paused===reviewAccess.paused&&state.account_owner===reviewAccess.account_owner&&state.can_create===reviewAccess.can_create)return;
+    if (!state.account_owner) clearEnvironments(); else environmentSwitcher.hidden = !c.canShareReviewLinks;
     reviewAccess=state;pauseControl.hidden=!state.account_owner;pauseControl.replaceChildren(icon(state.paused?'doing':'pause'));
     pauseControl.setAttribute('aria-label',state.paused?'Resume new client tickets':'Pause new client tickets');pauseControl.setAttribute('aria-pressed',String(state.paused));
     pauseState.hidden=!state.paused;pauseState.textContent=state.account_owner?'New client tickets are paused.':'New tickets are paused. You can still reply and attach files.';
@@ -303,8 +308,157 @@
   }, {class:'fp-icon-button','aria-label':'Show text changes','aria-pressed':String(showTextChanges)});
   sidebarUtilities.append(textPreviewControl);
 
+  let environmentRequest = 0;
+  const environmentLinks = el('nav', { class: 'environment-links', 'aria-label': 'Connected environments' });
+  const environmentSummary = el('summary', {}, icon('globe'), el('span', {}, 'Environments'), el('span', { class: 'environment-host' }, new URL(c.home).host + homePath), icon('chevron'));
+  const environmentSwitcher = el('details', { class: 'environment-switcher', hidden: true, ontoggle: () => {
+    queueScrollCues();
+    if (environmentSwitcher.open) { setSharing(false, false); loadEnvironments(); }
+    else { environmentRequest++; environmentLinks.replaceChildren(); }
+  } }, environmentSummary, environmentLinks);
+  function clearEnvironments() {
+    environmentRequest++; environmentSwitcher.open = false; environmentSwitcher.hidden = true; environmentLinks.replaceChildren();
+  }
+  async function loadEnvironments() {
+    const request = ++environmentRequest;
+    environmentLinks.replaceChildren(el('p', { class: 'subtle', role: 'status' }, 'Loading environments…'));
+    try {
+      const data = await (await api('admin/environments')).json();
+      if (request !== environmentRequest || cacheDenied || !reviewAccess.account_owner) return;
+      const seen = new Set(), sites = [];
+      for (const site of data.sites) {
+        const url = new URL(site.url);
+        if (url.protocol !== 'https:' || url.username || url.password || url.hash || url.search || url.href.replace(/\/$/, '') === c.home.replace(/\/$/, '') || seen.has(url.href)) continue;
+        const link = new URL(site.review_url);
+        if (link.origin !== url.origin || link.pathname !== url.pathname.replace(/\/$/, '') + '/' || link.search || !/^#fp-review=[a-f0-9-]{36}\.[A-Za-z0-9_-]{43}$/.test(link.hash)) throw Error('Could not create a magic link for this environment. Try again.');
+        seen.add(url.href); sites.push({url, link});
+      }
+      environmentLinks.replaceChildren(...sites.map(({url, link}) => {
+        const label = url.host + url.pathname.replace(/\/$/, ''); link.searchParams.set('feedbackpress', 'open');
+        return el('a', { href: link.href, target: '_blank', rel: 'noopener noreferrer', 'aria-description': 'Opens feedback in a new tab' }, el('span', {}, label), icon('next'));
+      }));
+      if (!sites.length) environmentLinks.append(el('p', { class: 'subtle' }, 'No other environments connected.'));
+    } catch (error) {
+      if (request !== environmentRequest) return;
+      if (error.status === 403) { clearEnvironments(); message(error.message); }
+      else environmentLinks.replaceChildren(el('p', { class: 'subtle', role: 'status' }, error.message), button('Try again', loadEnvironments, { class: 'fp-quiet' }));
+    }
+    queueScrollCues();
+  }
+
+  let sharingBusy = false, invitationRequest = null, reviewers = [], sharingLoaded = false, sharingLoading = false, invitationsAvailable = false;
+  const shareEmail = el('input', { type: 'email', required: true, maxlength: 254, autocomplete: 'off', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': 'fp-reviewers', placeholder: 'Invite by email…', 'aria-label': 'Reviewer email address' });
+  let shareMatches = [], shareActive = -1;
+  const shareSuggestions = el('div', { id: 'fp-reviewers', class: 'share-suggestions', role: 'listbox', 'aria-label': 'Site reviewers', popover: 'manual' });
+  const shareRecipient = el('div', { class: 'share-recipient' }, shareEmail, shareSuggestions);
+  const shareState = el('p', { class: 'share-state', role: 'status', 'aria-live': 'polite', hidden: true });
+  const shareFallback = el('input', { readonly: true, 'aria-label': 'Magic review link', hidden: true });
+  const shareSend = el('button', { type: 'submit', class: 'fp-icon-button', 'aria-label': 'Send invitation', title: 'Send invitation', disabled: true }, icon('send'));
+  const shareCopy = button(icon('link'), copyReviewLink, { class: 'fp-icon-button', 'aria-label': 'Copy magic link' });
+  const shareForm = el('form', { class: 'share-row', onsubmit: sendInvitation }, shareRecipient, shareSend, shareCopy);
+  const shareBar = el('section', { id: 'fp-share-review', class: 'share-bar', 'aria-label': 'Invite reviewers', hidden: true }, shareForm, shareState, shareFallback);
+  const shareControl = button(icon('share'), () => setSharing(shareBar.hidden), { class: 'fp-icon-button', 'aria-label': 'Invite reviewers', 'aria-expanded': 'false', 'aria-controls': 'fp-share-review' });
+  if (c.canShareReviewLinks) sidebarUtilities.prepend(shareControl);
+  function closeShareSuggestions() {
+    if (shareSuggestions.matches(':popover-open')) shareSuggestions.hidePopover();
+    shareEmail.setAttribute('aria-expanded', 'false'); shareEmail.removeAttribute('aria-activedescendant'); shareActive = -1;
+  }
+  function chooseShareRecipient(index) {
+    const user = shareMatches[index]; if (!user) return;
+    shareEmail.value = user.email; closeShareSuggestions(); shareEmail.focus({ preventScroll: true });
+  }
+  function showShareSuggestions() {
+    if (sharingBusy || shareBar.hidden || root.activeElement !== shareEmail) return closeShareSuggestions();
+    const query = shareEmail.value.trim().toLowerCase();
+    shareMatches = reviewers.filter(user => (user.name + ' ' + user.email).toLowerCase().includes(query)).slice(0, 8); shareActive = -1;
+    shareSuggestions.replaceChildren(...shareMatches.map((user, index) => el('button', { type: 'button', role: 'option', id: 'fp-reviewer-' + index, class: 'share-option', tabindex: '-1', 'aria-selected': 'false', onpointerdown: event => event.preventDefault(), onclick: () => chooseShareRecipient(index) }, el('span', { class: 'share-option-name' }, user.name), el('span', { class: 'share-option-email' }, user.email))));
+    shareEmail.removeAttribute('aria-activedescendant');
+    if (!shareMatches.length) return closeShareSuggestions();
+    const box = shareEmail.getBoundingClientRect(), viewport = visualViewport, left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0, width = viewport?.width || innerWidth, bottom = top + (viewport?.height || innerHeight);
+    const popupWidth = Math.min(Math.max(box.width, 280), width - 16), above = box.top - top - 12, below = bottom - box.bottom - 12;
+    shareSuggestions.style.width = popupWidth + 'px'; shareSuggestions.style.maxHeight = Math.max(0, Math.min(240, Math.max(above, below))) + 'px';
+    shareSuggestions.style.left = Math.max(left + 8, Math.min(box.left, left + width - popupWidth - 8)) + 'px';
+    shareSuggestions.showPopover(); shareEmail.setAttribute('aria-expanded', 'true');
+    const height = shareSuggestions.getBoundingClientRect().height;
+    shareSuggestions.style.top = (above >= below ? box.top - height - 4 : box.bottom + 4) + 'px';
+  }
+  shareEmail.addEventListener('focus', showShareSuggestions);
+  shareEmail.addEventListener('click', showShareSuggestions);
+  shareEmail.addEventListener('input', showShareSuggestions);
+  shareEmail.addEventListener('blur', closeShareSuggestions);
+  shareEmail.addEventListener('keydown', event => {
+    if (sharingBusy || event.isComposing) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (!shareSuggestions.matches(':popover-open')) showShareSuggestions();
+      if (!shareMatches.length) return;
+      event.preventDefault();
+      shareActive = shareActive < 0 ? (event.key === 'ArrowDown' ? 0 : shareMatches.length - 1) : (shareActive + (event.key === 'ArrowDown' ? 1 : -1) + shareMatches.length) % shareMatches.length;
+      [...shareSuggestions.children].forEach((option, index) => option.setAttribute('aria-selected', String(index === shareActive)));
+      shareEmail.setAttribute('aria-activedescendant', 'fp-reviewer-' + shareActive); shareSuggestions.children[shareActive].scrollIntoView({ block: 'nearest' });
+    } else if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && shareSuggestions.matches(':popover-open') && shareActive >= 0) { event.preventDefault(); chooseShareRecipient(shareActive); }
+  });
+  addEventListener('pointerdown', event => { if (!event.composedPath().includes(shareRecipient)) closeShareSuggestions(); }, true);
+  addEventListener('resize', closeShareSuggestions);
+  window.visualViewport?.addEventListener('resize', closeShareSuggestions);
+  window.visualViewport?.addEventListener('scroll', closeShareSuggestions);
+  function sharingMessage(text, error = false) {
+    shareState.textContent = text; shareState.hidden = !text; shareState.dataset.error = String(error);
+  }
+  function syncSharingControls() {
+    if (sharingBusy) closeShareSuggestions();
+    shareEmail.readOnly = sharingBusy; shareSend.disabled = sharingBusy || !invitationsAvailable;
+    shareCopy.disabled = sharingBusy; shareForm.setAttribute('aria-busy', String(sharingBusy));
+  }
+  function setSharing(show, focus = true) {
+    shareBar.hidden = !show; shareControl.setAttribute('aria-expanded', String(show)); shareControl.setAttribute('aria-pressed', String(show));
+    if (show) { environmentSwitcher.open = false; if (!sharingLoaded && !sharingLoading) loadSharing(); if (focus) shareEmail.focus({ preventScroll: true }); }
+    else { closeShareSuggestions(); shareFallback.value = ''; shareFallback.hidden = true; if (focus) shareControl.focus({ preventScroll: true }); }
+    queueScrollCues();
+  }
+  function clearSharing() {
+    setSharing(false, false); reviewers = []; shareSuggestions.replaceChildren(); shareEmail.value = ''; invitationRequest = null; invitationsAvailable = false; sharingLoaded = false; shareControl.hidden = true;
+  }
+  async function loadSharing() {
+    sharingLoading = true; sharingMessage('Loading invitation options…');
+    try {
+      const [people, capabilities] = await Promise.all([api('admin/reviewers').then(response => response.json()), api('admin/capabilities').then(response => response.json())]);
+      if (cacheDenied) return;
+      reviewers = people.users; showShareSuggestions();
+      invitationsAvailable = capabilities.invitations === true; sharingLoaded = true;
+      sharingMessage(invitationsAvailable ? '' : 'Email invites are unavailable. You can still copy a magic link.');
+    } catch (error) { sharingMessage(error.message + ' Close and reopen to retry.', true); }
+    finally { sharingLoading = false; syncSharingControls(); }
+  }
+  async function sendInvitation(event) {
+    event.preventDefault(); if (sharingBusy || !invitationsAvailable || !shareForm.reportValidity()) return;
+    const address = shareEmail.value.trim(), user = reviewers.find(user => user.email.toLowerCase() === address.toLowerCase());
+    const signature = JSON.stringify([c.network, address.toLowerCase(), user?.id || 0]);
+    if (!invitationRequest || invitationRequest.signature !== signature) invitationRequest = { signature, id: crypto.randomUUID(), issued_at: Math.floor(Date.now() / 1000) };
+    sharingBusy = true; syncSharingControls(); sharingMessage('Sending invitation…');
+    try {
+      const result = await (await api('admin/invite', { method: 'POST', requestId: invitationRequest.id, body: { project: c.network, user_id: user?.id || 0, email: user ? '' : address, issued_at: invitationRequest.issued_at } })).json();
+      invitationRequest = null; shareEmail.value = ''; sharingMessage(result.captured ? 'Test invitation prepared. No email sent.' : 'Invitation sent to ' + address + '.');
+    } catch (error) { sharingMessage(error.message, true); }
+    finally { sharingBusy = false; syncSharingControls(); }
+  }
+  async function copyReviewLink() {
+    if (sharingBusy) return;
+    sharingBusy = true; syncSharingControls(); shareFallback.hidden = true; shareFallback.value = ''; sharingMessage('Creating magic link…');
+    try {
+      const result = await (await api('admin/review-link')).json(), link = new URL(result.url);
+      if (link.origin !== new URL(c.home).origin || !link.hash.startsWith('#fp-review=')) throw Error('Could not create a review link for this site.');
+      link.searchParams.set('feedbackpress', 'open');
+      try { await navigator.clipboard.writeText(link.href); sharingMessage('Magic link copied. Anyone with it can view shared feedback.'); }
+      catch (_) {
+        sharingMessage('Select and copy the magic link.');
+        if (!shareBar.hidden && !cacheDenied) { shareFallback.value = link.href; shareFallback.hidden = false; shareFallback.focus(); shareFallback.select(); }
+      }
+    } catch (error) { sharingMessage(error.message, true); }
+    finally { sharingBusy = false; syncSharingControls(); }
+  }
+
   if (c.reviewSession) sidebarUtilities.append(button(icon('logout'), event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-icon-button', 'aria-label': 'End review session' }));
-  panel.append(panelContents,pauseState,sidebarSettings);
+  panel.append(panelContents,pauseState,environmentSwitcher,...(c.canShareReviewLinks ? [shareBar] : []),sidebarSettings);
   const placementCursorStyle = document.createElement('style');
   placementCursorStyle.dataset.feedbackpressCursor = '';
   document.head.append(placementCursorStyle);
@@ -376,6 +530,7 @@
   const launchers = el('div', { class: 'launcher' }, launcher, textLauncher, viewButton);
   const toolbar = el('div', { class: 'feedback-toolbar' }, notice, launchers);
   function updateChrome() {
+    if (panel.hidden) closeShareSuggestions();
     launchers.hidden = open;launcher.hidden=textLauncher.hidden=!reviewAccess.can_create;
     const launcherRect=launchers.getBoundingClientRect();
     const clearance=(open?0:launcherRect.height)+26;
@@ -602,7 +757,7 @@
     if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
       c.privateNotes = false; ownRevisions.clear(); privateIssueIds.clear(); pendingRequests.clear(); try { sessionStorage.removeItem(revisionsKey); } catch (_) {} for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateReplyCounts.clear(); replyCountRequest++; privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
       projectCounts = null; statusCounts = null; countedStatuses.clear(); issueCache.clear(); issues = []; pageIssues = []; selected = null; collapsedPages.clear(); sharedPagePaths.clear(); cacheDenied = true; notesRequest++;
-      clearAttachments(true); dismissInterface(); issuePopup.replaceChildren();
+      clearAttachments(true); clearEnvironments(); clearSharing(); dismissInterface(); issuePopup.replaceChildren();
       try { sessionStorage.removeItem(cacheKey); } catch (_) {}
       const error = new Error('Your WordPress identity changed. Reload this page to continue.'); error.status = 403; message(error.message); throw error;
     }
@@ -612,14 +767,14 @@
       if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
       const creationPaused=data.code==='feedback_paused', ownerDenied=route==='review-access'&&data.code==='account_owner_required';
       if(creationPaused||ownerDenied)applyReviewAccess({paused:creationPaused||reviewAccess.paused,account_owner:false,can_create:!creationPaused&&!reviewAccess.paused});
-      if ([401, 403].includes(response.status) && !route.includes('/notes') && route !== 'reply-counts' && !creationPaused && !ownerDenied && !(route === 'admin/review-link' && response.status === 403)) {
+      if ([401, 403].includes(response.status) && !route.includes('/notes') && route !== 'reply-counts' && !creationPaused && !ownerDenied && !(route.startsWith('admin/') && response.status === 403)) {
         cancelLocate(); issueCache.clear(); collapsedPages.clear(); sharedPagePaths.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
         issues = []; pageIssues = []; selected = null; statusCounts = null; projectCounts = null; countedStatuses.clear(); knownIssues = null; notesRequest++; privateNotes.clear(); privateReplyCounts.clear(); replyCountRequest++; privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); threadScrolls.clear(); issuePopup.replaceChildren();
         listLoading = false; listError = data.message || 'Feedback access changed. Refresh this page.';
         mentionData = null; closeMentionMenu();
-        sidebarSettings.querySelector('.review-link-result')?.replaceChildren();
+        clearEnvironments(); clearSharing();
         restoringList = false; listLoaded = false; total = 0; issuePopup.hidden = true; tether.hidden = true;
         if (open) render(); drawPins();
       }
@@ -672,7 +827,7 @@
   }
   function toggle(value) {
     if (busy) return;
-    if (!value) imageDropJob = null; clearImageDrop();
+    if (!value) { imageDropJob = null; environmentSwitcher.open = false; setSharing(false, false); } clearImageDrop();
     captureListScroll();
     issueRequest++; openingIssue = 0; if (!value) closeStatusFilter(); closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
     if (value) prepareListReveal(); panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
@@ -2101,6 +2256,7 @@
   }, true);
   function dismissInterface() {
     deferredIssueRender = deferredListRender = false;
+    environmentSwitcher.open = false; setSharing(false, false);
     finishIssueWindowDrag();
     root.querySelectorAll('.note-actions:popover-open').forEach(menu => menu.hidePopover());
     cancelLocate();
@@ -2125,6 +2281,9 @@
       if (confirmation) { consume(); if (!deletingIssues.has(confirmation.dataset.confirmNote)) confirmation.querySelector('button[type=button]')?.click(); return; }
       if (pinDrag && !pinDrag.ending) { consume(); cancelPinDrag(); return; }
       if (lightbox.open) { consume(); closeLightbox(); }
+      else if (shareSuggestions.matches(':popover-open')) { consume(); closeShareSuggestions(); }
+      else if (environmentSwitcher.open) { consume(); environmentSwitcher.open = false; environmentSummary.focus({ preventScroll: true }); }
+      else if (!shareBar.hidden) { consume(); setSharing(false); }
       else if (filterOpen) { consume(); closeStatusFilter(true); }
       else if (openingIssue || picking || draft || selected || open || !identity.hidden || !notice.hidden) { consume(); dismissInterface(); }
       return;

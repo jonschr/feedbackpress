@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.11 — November 18, 2026
+
+- Add an owner-only Environments switcher in the sidebar for opening other connected project sites through their own magic review links.
+- Move email invitations and magic-link copying from settings into a compact sidebar share bar, with existing-user email suggestions, independent copying and safe retries.
+
+- Give the invite bar equal padding and a themed, keyboard/touch-accessible name-and-email picker.
+
+Known limitation: intermittent Chrome first-open latency remains unresolved, as documented in 0.3.10.
+
 ## 0.3.10 — November 18, 2026
 
 Known limitation: the strict Chrome first-open timing check remains intermittent on the release Mac. Final runs measured about 1.5–2.5 seconds; the published 0.3.9 comparison also missed the 100ms target. Browser correctness checks pass, but universal instantaneous first-open performance is not claimed.

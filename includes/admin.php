@@ -118,18 +118,7 @@ final class Admin {
             <section class="fp-section">
                 <h2>Review access</h2>
                 <form id="fp-access" method="post"><label for="fp-mode">Access without a review link</label><div class="fp-field-actions"><select id="fp-mode" aria-describedby="fp-access-help"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></div><p class="description" id="fp-access-help">Private notes require the owner’s WordPress login. Nobody also disables review links.</p></form>
-                <?php if (!empty($c['manager']) || !empty($c['token'])): ?><div id="fp-review-links" class="fp-subsection" <?php if (empty($c['token'])) echo 'hidden'; ?>>
-                    <h3>Invite a reviewer</h3>
-                    <p class="description">Anyone with the magic link can view shared feedback.</p>
-                    <form id="fp-invite" method="post"><label for="fp-invite-user">Reviewer</label>
-                        <select id="fp-invite-user" required><option value="">Choose a site user…</option><?php foreach (get_users(['blog_id' => get_current_blog_id(), 'fields' => ['ID', 'display_name', 'user_email'], 'orderby' => 'display_name']) as $reviewer): ?><option value="<?php echo (int) $reviewer->ID; ?>"><?php echo esc_html($reviewer->display_name . ' — ' . $reviewer->user_email); ?></option><?php endforeach; ?><option value="custom">Use another email address…</option></select>
-                        <div id="fp-invite-custom" class="fp-invite-custom" hidden><label for="fp-invite-email">Email address</label><input id="fp-invite-email" type="email" required disabled autocomplete="email"></div>
-                        <div class="fp-field-actions">
-                        <button type="submit" class="button button-primary" id="fp-invite-send" disabled>Send invitation</button>
-                        <button type="button" class="button" id="fp-review-link-copy">Copy magic link</button>
-                    </div></form><p id="fp-invite-state" class="description" hidden></p>
-                    <div id="fp-review-link-result" hidden><label for="fp-review-link-url">Review link</label><input id="fp-review-link-url" readonly autocomplete="off" data-1p-ignore></div>
-                </div><?php endif; ?>
+                <?php if (!empty($c['token'])): ?><p class="description"><a href="<?php echo esc_url(add_query_arg('feedbackpress', 'open', home_url('/'))); ?>">Open feedback to invite reviewers</a></p><?php endif; ?>
             </section>
             <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Account connection</summary>
                 <?php self::accountForm(); ?>

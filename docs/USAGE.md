@@ -61,3 +61,6 @@ Opening or navigating to an issue updates the address to `#feedbackpress=<issue-
 Drag an issue window by its header to move it independently of its marker. The dock icon places it beside the desktop sidebar; dragging undocks it. Drafts stay intact and floating positions reset on reload. Focus the Issue N handle for arrow-key movement or Home to reset.
 
 Use **Change text** or **T** for wording suggestions. Clicking a label/paragraph’s padding selects its full text; clicking between characters places the caret. Button-styled links and simple nested labels keep their icons/link attributes. Saving creates a suggestion; WordPress publication remains separate.
+
+
+Subscription owners who are logged in as a site administrator can open **Environments** above the sidebar footer. Choose another connected copy to open its homepage in a new tab with feedback requested. Every environment link includes its own magic review grant and opens the sidebar. An existing WordPress login takes precedence; private notes still require that login.
