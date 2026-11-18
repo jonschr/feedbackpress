@@ -2,7 +2,7 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
-**0.3.9** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
+**0.3.10** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
 
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images or PDFs.
@@ -10,6 +10,7 @@ Visual feedback for WordPress, backed by one central FeedbackPress service.
 - Follow system light/dark appearance or choose it in the sidebar.
 - Track To do, Information needed, Doing, Review, and Done statuses.
 - Search feedback, connect site copies, and work through REST or WP-CLI.
+- Read built-in [agent guidance](docs/CENTRAL-TESTING.md#built-in-agent-workflow) through WordPress MCP/Abilities, REST or WP-CLI.
 
 ## Get started
 

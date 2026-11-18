@@ -49,3 +49,22 @@ While a floating issue conversation is open, N opens the next issue and P the pr
 ## 0.3.0 performance acceptance
 
 Use NODE_PATH="$HOME/Library/Application Support/FeedbackPress/test-tools/node_modules" with node tests/instant-interactions.cjs, tests/write-queue.cjs and tests/scroll-focus.cjs. Run the strict latency fixture directly and alone after other browser checks; it measures a double-frame paint boundary with 200 issues, 600 content sections, a real font, fit mode and theme noise. Final three runs: 16.9/31.1/31.2/22.6ms, 16.7/18.1/31.0/24.2ms and 16.5/18.5/30.9/23.9ms. Earlier slow candidate/captured-run measurements remain recorded; no universal scheduling guarantee. All 39 intercepted browser fixtures pass across broad/focused runs, including final nine geometry/queue regressions. Native updater tests cover legacy/beta offers through the existing update.json. See UPDATE-REVIEW.md for exact scope and the blocked fresh PostgreSQL rerun.
+
+## Built-in agent workflow
+
+Start with **feedbackpress/agent-guidance** through WordPress Abilities/MCP, **GET feedbackpress/v1/agent-guidance** through an authorized REST connection, or **wp feedbackpress guidance** locally. The plugin registers a discoverable read-only tool when the WordPress Abilities API and a compatible MCP adapter are available; older WordPress copies still have REST/WP-CLI guidance. MCP exposure does not bypass the existing review-access permission check. It does not create a separate service account or require project keys.
+
+Local agents select the authorized native user for work: `wp --user=<login-or-ID> feedbackpress ...`. A local hostname alone grants no REST or private-note permission. Remote agents use their connected WordPress identity. The guidance identifies that native user without exposing their email, account keys or project credentials.
+
+- Read the issue/current revision and relevant discussion, do the actual work and verify it. Use **Doing** while working.
+- Use **Information needed** (`needs_info`) for a specific missing answer; ask one short actionable question.
+- Use **Review** (`review`) for work needing human feedback, approval or subjective confirmation.
+- Use **Done** (`done`) only for objectively verified completion. Changing status does not prove the fix.
+- A note is optional. When useful, write one or two short sentences about the result, blocker or question. No activity diary, long reasoning or pasted logs.
+- A connection confirmed to represent a real human may use private agent notes for that native WordPress email. Dedicated agent-only connections use short, safe public replies. If human ownership is uncertain, use a safe summary or omit the note, and never publish private details. Account type is guidance-based; no profile flag or new privacy authorization has been added.
+- `note` writes privately; `reply` is explicitly shared and requires the current revision. Use the right operation intentionally. Do not convert private notes to shared without explicit authorization. Existing private access checks remain unchanged.
+- For proposed copy, use `target.text_change` with the full original/proposed paragraph or heading and a selector. The UI generates the word diff. Use regular notes for context/results. Saving a suggestion or marking it Done does not apply it to WordPress; applying/publishing is a separate authorized action.
+
+Mutations use the current revision and an idempotency UUID; retry identical bytes with the same key, respect Retry-After and avoid repeated writes. The guide is descriptive and read-only, with no ticket/account mutation or note creation.
+
+When referencing a shared ticket in user chat, retrieve its direct magic link with `feedbackpress/ticket-link` (`issue_id`), `wp --user=<administrator> feedbackpress link <issue-uuid>`, or `GET issues/<uuid>/review-link`. Link the ticket reference to the returned URL. Any connected-site administrator can use this; private tickets cannot be magic-shared. If sharing is unauthorized, use an authenticated issue URL and briefly state that login is needed. Do not invent a grant or read project keys.

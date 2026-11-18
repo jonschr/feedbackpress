@@ -19,6 +19,15 @@ final class ReviewAccess {
         if (settings()['mode'] === 'disabled') throw new \RuntimeException('Enable review access before copying a link.', 403);
         return Service::request('GET', '/review-link');
     }
+    public static function ticketLink(string $id): array {
+        if (!current_user_can('manage_options') || settings()['mode'] === 'disabled') throw new \RuntimeException('Administrator review access required.', 403);
+        if (!Service::uuid($id)) throw new \InvalidArgumentException('Choose a valid issue.');
+        $issue = Service::request('GET', '/issues/' . $id);
+        if (($issue['visibility'] ?? 'shared') === 'private') throw new \RuntimeException('Private issues cannot be shared with a magic link.', 403);
+        $path = $issue['path']; $link = self::link()['url'];
+        if (!str_starts_with($path, '/') || str_starts_with($path, '//') || str_contains($path, '#') || !str_starts_with($link, Service::home() . '/#fp-review=')) throw new \RuntimeException('Could not create a link for this issue.', 409);
+        return ['url' => Service::home() . $path . '#' . wp_parse_url($link, PHP_URL_FRAGMENT) . '&fp-return=' . rawurlencode('feedbackpress=' . $id)];
+    }
     private static function cookies(string $token, int $expires): void {
         $path = rtrim((string) wp_parse_url(home_url(), PHP_URL_PATH), '/') . '/';
         foreach ([self::COOKIE => $token, self::FLAG => $token ? '1' : ''] as $key => $value) {
@@ -33,6 +42,15 @@ final class ReviewAccess {
     public static function routes(callable $route): void {
         $admin = fn() => current_user_can('manage_options') ? true : API::error('Administrator access required.', 403);
         $route('/admin/review-link', 'GET', fn() => self::link(), $admin);
+        $route('/admin/invite', 'POST', function ($r) {
+            if (settings()['mode'] === 'disabled') throw new \RuntimeException('Enable review access before inviting a reviewer.', 403);
+            if ($r->get_param('project') !== (Service::connection()['project'] ?? null)) throw new \RuntimeException('The project changed. Reload before sending an invitation.', 409);
+            $userId = (int) $r->get_param('user_id'); $recipient = $userId ? get_userdata($userId) : null;
+            if ($userId && (!$recipient || !is_user_member_of_blog($userId))) throw new \InvalidArgumentException('Choose a user on this site.');
+            $email = $recipient ? $recipient->user_email : (string) $r->get_param('email');
+            return Service::request('POST', '/invitations', ['email' => $email, 'name' => $recipient ? $recipient->display_name : strstr($email, '@', true), 'issued_at' => $r->get_param('issued_at')], API::key($r), true);
+        }, $admin);
+        $route('/issues/(?P<id>[a-f0-9-]{36})/review-link', 'GET', fn($r) => self::ticketLink($r['id']), $admin);
         $route('/review-session', ['GET', 'POST', 'DELETE'], function ($r) {
             if ($r->get_method() === 'DELETE') { self::cookies('', time() - 3600); return ['ended' => true]; }
             if ($r->get_method() === 'POST') {

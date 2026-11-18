@@ -2,6 +2,28 @@
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
 final class Admin {
+    public static function activate(bool $networkWide = false): void {
+        wp_clear_scheduled_hook('feedbackpress_tick');
+        if ($networkWide || is_network_admin() || wp_doing_ajax() || (defined('WP_CLI') && WP_CLI)
+            || !current_user_can('manage_options') || !empty(Service::connection()['manager'])
+            || isset($_REQUEST['activate-multi']) || in_array('activate-selected', [$_REQUEST['action'] ?? '', $_REQUEST['action2'] ?? ''], true)) return;
+        set_transient('feedbackpress_setup_redirect_' . get_current_user_id(), true, MINUTE_IN_SECONDS);
+    }
+    public static function activationRedirect(): void {
+        if (is_network_admin() || wp_doing_ajax() || (defined('WP_CLI') && WP_CLI) || !current_user_can('manage_options')
+            || !empty($_POST) || isset($_REQUEST['activate-multi']) || in_array('activate-selected', [$_REQUEST['action'] ?? '', $_REQUEST['action2'] ?? ''], true)) return;
+        $key = 'feedbackpress_setup_redirect_' . get_current_user_id();
+        if (!get_transient($key)) return;
+        delete_transient($key);
+        if (!empty(Service::connection()['manager']) || ($_GET['page'] ?? '') === 'feedbackpress') return;
+        if (!headers_sent() && wp_safe_redirect(admin_url('options-general.php?page=feedbackpress'))) exit;
+    }
+    public static function setupNotice(): void {
+        if (is_network_admin() || !current_user_can('manage_options') || !empty(Service::connection()['manager'])) return;
+        echo '<div class="notice notice-warning"><p><strong>License FeedbackPress to get started.</strong>';
+        if (($_GET['page'] ?? '') !== 'feedbackpress') echo ' <a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=feedbackpress')) . '">Set up FeedbackPress</a>';
+        echo '</p></div>';
+    }
     public static function pluginLinks(array $links): array {
         if (current_user_can('manage_options')) array_unshift($links, '<a href="' . esc_url(admin_url('options-general.php?page=feedbackpress')) . '">' . esc_html__('Settings') . '</a>');
         return $links;
@@ -47,7 +69,7 @@ final class Admin {
         $base = dirname(__DIR__) . '/feedbackpress.php';
         wp_enqueue_script('feedbackpress-admin', plugins_url('assets/admin.js', $base), [], VERSION . '.' . filemtime(dirname(__DIR__) . '/assets/admin.js'), true);
         wp_enqueue_style('feedbackpress-admin', plugins_url('assets/admin.css', $base), [], VERSION . '.' . filemtime(dirname(__DIR__) . '/assets/admin.css'));
-        wp_localize_script('feedbackpress-admin', 'FeedbackPressAdmin', ['api' => rest_url('feedbackpress/v1/'), 'nonce' => wp_create_nonce('wp_rest')]);
+        wp_localize_script('feedbackpress-admin', 'FeedbackPressAdmin', ['api' => rest_url('feedbackpress/v1/'), 'nonce' => wp_create_nonce('wp_rest'), 'project' => Service::connection()['project'] ?? null]);
     }
     private static function accountForm(): void {
         $c = Service::connection();
@@ -96,10 +118,16 @@ final class Admin {
             <section class="fp-section">
                 <h2>Review access</h2>
                 <form id="fp-access" method="post"><label for="fp-mode">Access without a review link</label><div class="fp-field-actions"><select id="fp-mode" aria-describedby="fp-access-help"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></div><p class="description" id="fp-access-help">Private notes require the owner’s WordPress login. Nobody also disables review links.</p></form>
-                <?php if (!empty($c['manager'])): ?><div id="fp-review-links" class="fp-subsection" hidden>
-                    <h3>Client review link</h3>
-                    <p class="description">Anyone with this link can use shared feedback without a WordPress login. Copy it from the live or staging site your client will review.</p>
-                    <button type="button" class="button" id="fp-review-link-copy">Copy review link</button>
+                <?php if (!empty($c['manager']) || !empty($c['token'])): ?><div id="fp-review-links" class="fp-subsection" <?php if (empty($c['token'])) echo 'hidden'; ?>>
+                    <h3>Invite a reviewer</h3>
+                    <p class="description">Anyone with the magic link can view shared feedback.</p>
+                    <form id="fp-invite" method="post"><label for="fp-invite-user">Reviewer</label>
+                        <select id="fp-invite-user" required><option value="">Choose a site user…</option><?php foreach (get_users(['blog_id' => get_current_blog_id(), 'fields' => ['ID', 'display_name', 'user_email'], 'orderby' => 'display_name']) as $reviewer): ?><option value="<?php echo (int) $reviewer->ID; ?>"><?php echo esc_html($reviewer->display_name . ' — ' . $reviewer->user_email); ?></option><?php endforeach; ?><option value="custom">Use another email address…</option></select>
+                        <div id="fp-invite-custom" class="fp-invite-custom" hidden><label for="fp-invite-email">Email address</label><input id="fp-invite-email" type="email" required disabled autocomplete="email"></div>
+                        <div class="fp-field-actions">
+                        <button type="submit" class="button button-primary" id="fp-invite-send" disabled>Send invitation</button>
+                        <button type="button" class="button" id="fp-review-link-copy">Copy magic link</button>
+                    </div></form><p id="fp-invite-state" class="description" hidden></p>
                     <div id="fp-review-link-result" hidden><label for="fp-review-link-url">Review link</label><input id="fp-review-link-url" readonly autocomplete="off" data-1p-ignore></div>
                 </div><?php endif; ?>
             </section>

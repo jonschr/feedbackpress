@@ -40,6 +40,7 @@ final class API {
             }]);
         };
         $read = [self::class, 'read']; $id = '/issues/(?P<id>[a-f0-9-]{36})';
+        $route('/agent-guidance', 'GET', [Agent::class, 'guidance'], $read);
         $route('/review-access', 'GET', fn() => Service::request('GET', '/review-access'), $read);
         $route('/review-access', 'POST', fn($r) => Service::request('POST', '/review-access', ['paused' => $r->get_param('paused')]), fn($r) => self::privateWrite($r));
         $route('/issues', 'GET', [self::class, 'listing'], $read);
@@ -90,18 +91,24 @@ final class API {
             $response->header('X-Content-Type-Options', 'nosniff'); $response->header('Content-Security-Policy', "sandbox; default-src 'none'");
             $response->header('X-FeedbackPress-Binary', '1'); $response->set_data($file['body']); return $response;
         }, $read);
-        $route('/sync/activity', 'POST', function () {
+        $route('/sync/activity', 'POST', function ($r) {
             $since = get_transient('feedbackpress_activity_v2');
             if ($since !== false && !is_user_logged_in()) return ['network' => Service::connection()['project'], 'cursor' => (string) $since, 'state' => 'throttled'];
             // Lock before network I/O to coalesce callers on this installation.
             if ((int) get_option('feedbackpress_activity_lock_v2', 0) < time()) delete_option('feedbackpress_activity_lock_v2');
             if (!add_option('feedbackpress_activity_lock_v2', time() + 60, '', false)) return ['state' => 'busy', 'network' => Service::connection()['project']];
             try {
+                $cursor = (string) $r->get_param('since');
+                if ($cursor !== '0' && preg_match('/^\d{1,15}$/', $cursor)) {
+                    $changes = Service::request('GET', '/changes?after=' . $cursor);
+                    if (!$changes['changes']) return ['network' => Service::connection()['project'], 'cursor' => $cursor, 'state' => 'unchanged'];
+                }
                 Service::request('POST', '/sites', ['url' => untrailingslashit(home_url())]);
-                $data = Service::snapshot(); set_transient('feedbackpress_activity_v2', $data['cursor'] ?: '0', 60);
+                $data = Service::snapshot(); set_transient('feedbackpress_activity_v2', $data['cursor'] ?: '0', 30);
                 return $data + ['network' => Service::connection()['project'], 'new_issues' => array_column($data['issues'], 'id')];
             } finally { delete_option('feedbackpress_activity_lock_v2'); }
         }, $read);
+        $route('/reply-counts', 'GET', fn() => Service::request('GET', '/note-counts', null, '', true), fn() => self::privateRead());
         $notes = $id . '/notes';
         $route($notes, 'GET', fn($r) => Service::request('GET', '/issues/' . $r['id'] . '/notes', null, '', true), fn() => self::privateRead());
         $route($notes, 'POST', fn($r) => Service::request('POST', '/issues/' . $r['id'] . '/notes', ['body' => $r->get_param('body'), 'kind' => $r->get_param('kind') ?? 'agent', 'agent' => $r->get_param('agent') ?? 'Agent'], self::key($r), true), fn($r) => self::privateWrite($r));

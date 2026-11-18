@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.10 — November 18, 2026
+
+Known limitation: the strict Chrome first-open timing check remains intermittent on the release Mac. Final runs measured about 1.5–2.5 seconds; the published 0.3.9 comparison also missed the 100ms target. Browser correctness checks pass, but universal instantaneous first-open performance is not claimed.
+
+- Align sidebar page titles and inline URLs, move disclosure chevrons to the right, and make the rest of each header toggle its group with a short reversible animation and reduced-motion support.
+- Keep sidebar and conversation scrolling independent of theme smooth-scroll handlers, including Lenis, without disabling smooth scrolling on the page.
+- Delete tickets and responses immediately from their action menus or keyboard shortcuts, retaining ownership/revision checks, duplicate-request protection and next-ticket focus.
+- Add prepared email invitations alongside Copy magic link in WordPress settings. Email uses the central Resend transport, scoped retries and the existing review grant.
+- Choose existing site users by their login email or enter a custom invitation address. Explain FeedbackPress briefly, offer login and guest access, open the issues sidebar, and make accepted invitees mentionable without subscribing them to unrelated tickets.
+- Give agents a direct-ticket magic-link tool through MCP/Abilities, REST and WP-CLI, and instruct them to use those links when referencing shared tickets in chat.
+
+- Support text changes on links styled as buttons and nested plain-text labels. Select the whole label from padding, place the caret from character clicks, suppress link activation while editing, and preserve icons and link attributes.
+
+- Drag issue windows by their header independently of markers, or dock them beside either sidebar side. Preserve drafts, clamp positions to the viewport, support keyboard/touch movement and reset positions on reload.
+
+- Include readable private human/agent notes in sidebar reply totals, scoped to the current WordPress user. Refresh private counts independently, update after note changes/conversion, and keep them out of shared browser caches.
+
+- Refresh shared statuses and replies every 30 seconds in visible tabs, including idle tabs. Pause checks in hidden tabs, preserve drafts and pending changes, respect rate-limit backoff, and skip full snapshots when the service reports no changes.
+
+- Add read-only agent guidance through WordPress MCP/Abilities, REST and WP-CLI: brief notes, human-bound privacy, dedicated-agent public replies, status criteria and text-change workflow.
+
+- Open FeedbackPress settings after an unconfigured administrator activates the plugin. Show a concise licensing/setup notice until an account is connected, without redirecting connected installations or interrupting bulk/network/CLI activation.
+
 ## 0.3.9 — November 17, 2026
 
 - Match the identity prompt gap to the launcher-button gaps and remove excess visual space above its heading.

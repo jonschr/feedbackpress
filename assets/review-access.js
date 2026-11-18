@@ -6,14 +6,14 @@
     const hash = new URLSearchParams(location.hash.slice(1)), token = hash.get('fp-review');
     // A fragment never enters HTTP/referrer logs; remove it before loading the review UI.
     if (token) history.replaceState(history.state, '', location.pathname + location.search + (hash.get('fp-return') ? '#' + hash.get('fp-return') : ''));
-    return token;
+    return {token, login: Boolean(token && hash.get('fp-login') === '1')};
   }
   const initialToken = invitation();
   const endpoint = new URL(c.api);
   if (endpoint.searchParams.has('rest_route')) endpoint.searchParams.set('rest_route', endpoint.searchParams.get('rest_route').replace(/\/$/, '') + '/review-session');
   else endpoint.pathname = endpoint.pathname.replace(/\/$/, '') + '/review-session';
   const script = src => new Promise((resolve, reject) => { const node = document.createElement('script'); node.src = src; node.onload = resolve; node.onerror = () => reject(new Error('FeedbackPress could not load. Reload this page to try again.')); document.head.append(node); });
-  async function start(token) {
+  async function start({token, login}) {
     try {
       if (!token && !c.nonce && !document.cookie.split('; ').some(value => value === 'feedbackpress_review_active=1')) return;
       const request = nonce => fetch(endpoint, { method: token ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(nonce ? { 'X-WP-Nonce': nonce } : {}) }, ...(token ? { body: JSON.stringify({ token }) } : {}) });
@@ -22,6 +22,12 @@
       if (!response.ok && c.nonce && data.code === 'rest_cookie_invalid_nonce') { response = await request(''); data = await response.json(); }
       if (!response.ok) { if (!token) return; throw new Error(data.message || 'Review access is unavailable. Ask the site administrator for a new link.'); }
       if (token && !document.cookie.split('; ').some(value => value === 'feedbackpress_review_active=1')) throw new Error('Allow site cookies, then open this review link again.');
+      if (token && login && !data.config.privateNotes) {
+        const destination = new URL(data.config.loginUrl, location.href);
+        if (!['http:', 'https:'].includes(destination.protocol)) throw new Error('Site login is unavailable.');
+        destination.searchParams.set('redirect_to', location.href);
+        location.assign(destination.href); return;
+      }
       if (document.getElementById('feedbackpress-root')) return;
       window.FeedbackPressConfig = data.config;
       await script(data.capture); await script(data.script);
@@ -34,6 +40,6 @@
   }
   let pending = Promise.resolve();
   const queue = token => { pending = pending.catch(() => {}).then(() => start(token)); };
-  addEventListener('hashchange', () => { const token = invitation(); if (token) queue(token); });
+  addEventListener('hashchange', () => { const entry = invitation(); if (entry.token) queue(entry); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => queue(initialToken), { once: true }); else queue(initialToken);
 })();

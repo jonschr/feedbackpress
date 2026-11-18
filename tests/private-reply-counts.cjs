@@ -1,0 +1,37 @@
+// Synthetic gateway with actual renderer: no customer data or external requests.
+const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const base='https://feedbackpress.test',id='11111111-1111-4111-8111-111111111111',second='22222222-2222-4222-8222-222222222222';
+ const items=[id,second].map((id,index)=>({id,number:index+1,title:'Issue '+(index+1),body:'Shared description',author:'Reviewer',status:'todo',revision:'1',path:'/',activity:index?[]:[{id:'33333333-3333-4333-8333-333333333333',kind:'reply',created_at:'2026-11-18T12:00:00Z',payload:{body:'Public reply',author:'Client'}}],files:[],target:{selector:'#target',x:.5,y:.5},created_at:'2026-11-18T11:00:00Z'}));
+ let notes=[{id:'44444444-4444-4444-8444-444444444444',issue_id:id,body:'Owner private note',author_kind:'agent',agent:'Codex',author_name:'Reviewer',revision:1,created_at:'2026-11-18T12:01:00Z'}],countReads=0,noteReads=0,denied=false,held=false,release;
+ const makePage=async(privateAccess=true)=>{const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});await context.route(base+'/**',async route=>{const req=route.request(),path=new URL(req.url()).pathname;
+  if(path.endsWith('.css'))return route.fulfill({contentType:'text/css',body:fs.readFileSync('assets/review.css','utf8')});
+  if(path.endsWith('.woff2'))return route.fulfill({contentType:'font/woff2',body:fs.readFileSync('assets/fonts/InterVariable.woff2')});
+  if(path==='/api/reply-counts'){countReads++;const counts=[{issue_id:id,count:notes.length},{issue_id:second,count:2}];if(held)await new Promise(resolve=>release=resolve);return denied?route.fulfill({status:403,json:{message:'Log in again'}}):route.fulfill({json:{counts}})}
+  if(path.endsWith('/notes')&&req.method()==='GET'){noteReads++;return route.fulfill({json:{notes}})}
+  if(path.endsWith('/notes')&&req.method()==='POST'){const note={...notes[0],id:'55555555-5555-4555-8555-555555555555',issue_id:id,body:req.postDataJSON().body,author_kind:'human',author_name:'Reviewer',revision:1};notes.push(note);return route.fulfill({json:note})}
+  if(path.includes('/notes/')&&req.method()==='DELETE'){notes=notes.filter(note=>!path.endsWith(note.id));return route.fulfill({json:{deleted:true}})}
+  if(path.endsWith('/convert')){const note=notes.find(note=>path.includes(note.id));items[0].activity.push({id:note.id,kind:'reply',created_at:note.created_at,payload:{body:note.body,author:'Reviewer'}});notes=notes.filter(n=>n.id!==note.id);return route.fulfill({json:{issue:items[0],visibility:'shared'}})}
+  if(path==='/api/issues')return route.fulfill({json:{issues:items,total:2,page:1}});
+  if(path==='/api/sync/activity')return route.fulfill({json:{state:'unchanged',cursor:'1'}});
+  if(path.startsWith('/api/issues/'))return route.fulfill({json:items.find(item=>path.includes(item.id))});
+  return route.fulfill({contentType:'text/html',body:`<!doctype html><button id="target" style="margin:100px">Content</button><script>window.FeedbackPressConfig={api:'${base}/api/',home:'${base}',css:'${base}/review.css',nonce:'fixture',userName:${JSON.stringify(privateAccess?'Reviewer':'')},privateNotes:${privateAccess},reviewSession:${!privateAccess},activitySync:true}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`});
+ });const page=await context.newPage();page.setDefaultTimeout(6000);await page.clock.install();await page.goto(base);await page.getByRole('button',{name:'View issues',exact:true}).click();return {page,context}};
+ const {page,context}=await makePage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ // Counts are present without opening every card or fetching any note bodies.
+ const first=page.locator(`[data-issue="${id}"] .row-replies`),other=page.locator(`[data-issue="${second}"] .row-replies`);
+ await first.filter({hasText:'2'}).waitFor();assert.equal(await first.getAttribute('aria-label'),'2 replies');assert.equal(await other.textContent(),'2');assert.equal(noteReads,0);assert.equal(countReads,1);
+ const snapshot=await page.evaluate(()=>JSON.stringify([...Array(sessionStorage.length)].map((_,i)=>sessionStorage.getItem(sessionStorage.key(i)))));assert.ok(!snapshot.includes('Owner private note'));assert.ok(!snapshot.includes('privateReplyCounts'));
+ await page.locator(`[data-issue="${id}"] .issue-open`).click();await page.getByText('Owner private note',{exact:true}).waitFor();assert.equal(await first.textContent(),'2');
+ const popup=page.getByRole('region',{name:'Issue details',exact:true});await popup.getByRole('textbox',{name:'Reply',exact:true}).fill('A new private reply');await popup.getByLabel('Private note',{exact:true}).check();await popup.getByRole('button',{name:'Reply',exact:true}).click();await page.clock.runFor(600);await page.getByText('A new private reply',{exact:true}).waitFor();await first.filter({hasText:'3'}).waitFor();
+ const choose=async(note,label,confirm)=>{await popup.locator(`[data-note="${note}"] .note-actions-trigger`).click();await popup.locator('.note-actions:popover-open').getByRole('button',{name:label,exact:true}).click();if(label!=='Delete')await popup.locator(`[data-confirm-note="${note}"]`).getByRole('button',{name:confirm,exact:true}).click();else assert.equal(await popup.locator(`[data-confirm-note="${note}"]`).count(),0);await page.clock.runFor(600)};
+ await choose(notes[0].id,'Make public','Make public');await first.filter({hasText:'3'}).waitFor();assert.equal(notes.length,1);assert.equal(items[0].activity.length,2);
+ await choose(notes[0].id,'Delete','Delete note');await first.filter({hasText:'2'}).waitFor();assert.equal(notes.length,0);
+ await popup.getByRole('button',{name:'Dismiss issue',exact:true}).click();
+ // Background count changes arrive even without shared issue changes, and focus is retained.
+ notes.push({id:'66666666-6666-4666-8666-666666666666',issue_id:id,body:'Remote private',author_kind:'agent',agent:'Codex',author_name:'Reviewer',revision:1});await first.focus();await page.clock.fastForward(30100);await first.filter({hasText:'3'}).waitFor();assert.ok(await first.evaluate(node=>node===node.getRootNode().activeElement));
+ // Denial clears every private count and ignores a delayed earlier response.
+ held=true;await page.clock.fastForward(30100);await new Promise(resolve=>setTimeout(resolve,70));assert.equal(typeof release,'function');held=false;denied=true;await page.clock.fastForward(30100);await first.filter({hasText:'2'}).waitFor();await other.waitFor({state:'detached'});release();await new Promise(resolve=>setTimeout(resolve,70));assert.equal(await first.textContent(),'2');
+ await context.close();denied=false;const before=countReads,guest=await makePage(false);await guest.page.locator(`[data-issue="${id}"] .row-replies`).filter({hasText:'2'}).waitFor();assert.equal(countReads,before);assert.equal(await guest.page.locator(`[data-issue="${second}"] .row-replies`).count(),0);await guest.context.close();
+ assert.deepEqual(errors,[]);console.log('PASS unread-card private reply totals, shared/private combined counts, private add/delete/conversion without double-counting, background private-only updates, stable focus, denial/stale-response clearing, guest isolation and no private body/cache exposure.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

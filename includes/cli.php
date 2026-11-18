@@ -4,10 +4,11 @@ defined('ABSPATH') || exit;
 if (defined('WP_CLI') && WP_CLI) {
     /** FeedbackPress commands use the explicitly selected WordPress user's identity. */
     \WP_CLI::add_command('feedbackpress', function ($args, $flags) {
-        if (!is_user_logged_in()) \WP_CLI::error('Select a WordPress user with --user=<login|ID|email>.');
+        if (($args[0] ?? '') === 'guidance') { \WP_CLI::line(wp_json_encode(Agent::guidance(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); return; }
+        if (!is_user_logged_in()) \WP_CLI::error('Select a WordPress user with --user=<login|ID|email>. Run wp feedbackpress guidance for the agent workflow.');
         $command = $args[0] ?? 'help'; $id = $args[1] ?? ''; $method = 'GET'; $body = [];
         try {
-            if ($command === 'help') { \WP_CLI::line('list | get <issue> | status <issue> --status=done --revision=N | reply <issue> --body=TEXT --revision=N | note <issue> --body=TEXT [--agent=NAME] | notes <issue> | convert <issue> <note> --revision=N | connect --file=PRIVATE_KEY_JSON [--project=UUID] | projects | project <UUID> | log\nPrivate agent notes are the default for note; reply and convert are explicitly shared. Use --request-id=UUID to retry the same mutation safely.'); return; }
+            if ($command === 'help') { \WP_CLI::line('guidance | list | get <issue> | link <issue> | status <issue> --status=done --revision=N | reply <issue> --body=TEXT --revision=N | note <issue> --body=TEXT [--agent=NAME] | notes <issue> | convert <issue> <note> --revision=N | connect --file=PRIVATE_KEY_JSON [--project=UUID] | projects | project <UUID> | log\nRun wp feedbackpress guidance first. Use private notes only for a confirmed human connection; dedicated agent accounts use brief public replies. Use --request-id=UUID to retry the same mutation safely.'); return; }
             if ($command === 'connect') {
                 if (!current_user_can('manage_options')) throw new \RuntimeException('Administrator access required.');
                 if (empty($flags['file'])) throw new \InvalidArgumentException('Use --file with private JSON containing a license_key or account token.');
@@ -21,6 +22,7 @@ if (defined('WP_CLI') && WP_CLI) {
             if (!API::can_view()) throw new \RuntimeException('This user does not have review access.');
             if ($command === 'list') { $path = '/issues'; $body = ['status' => $flags['statuses'] ?? 'todo,needs_info,review', 'search' => $flags['search'] ?? '', 'page' => (int) ($flags['page'] ?? 1), 'order' => $flags['sort'] ?? 'number']; }
             elseif ($command === 'get') $path = '/issues/' . $id;
+            elseif ($command === 'link') $path = '/issues/' . $id . '/review-link';
             elseif ($command === 'notes') $path = '/issues/' . $id . '/notes';
             elseif ($command === 'note') { $path = '/issues/' . $id . '/notes'; $method = 'POST'; $body = ['body' => $flags['body'] ?? '', 'agent' => $flags['agent'] ?? 'Agent', 'kind' => 'agent']; }
             elseif ($command === 'convert') { $path = '/issues/' . $id . '/notes/' . ($args[2] ?? '') . '/convert'; $method = 'POST'; $body = ['revision' => (int) ($flags['revision'] ?? 0), 'publish' => true]; }
