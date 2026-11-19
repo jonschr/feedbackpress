@@ -12,6 +12,12 @@ add_filter('pre_http_request', function($pre,$args,$url)use(&$httpRequests,$conn
 $assert = function ($value) { if (!$value) throw new RuntimeException('Reviewer configuration assertion failed at line '.debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']); };
 $admin = wp_get_current_user();
 $assert(current_user_can('manage_options'));
+// A review cookie may disable page caching, but rendering must never call the service.
+wp_set_current_user(0);
+foreach($GLOBALS['wp_filter']['template_redirect']->callbacks as $callbacks)foreach($callbacks as $callback){$function=$callback['function'];if($function instanceof Closure&&(new ReflectionFunction($function))->getFileName()===dirname(__DIR__).'/feedbackpress.php')$function();}
+$assert($httpRequests === 0 && defined('DONOTCACHEPAGE') && DONOTCACHEPAGE);
+wp_set_current_user($admin->ID);
+
 $config = FeedbackPress\frontend_config();
 $assert($config['reviewSession'] && $config['privateNotes'] && $config['canShareReviewLinks']);
 $assert($config['userName'] === $admin->display_name && $config['authorId'] === FeedbackPress\Identity::id($admin->user_email));

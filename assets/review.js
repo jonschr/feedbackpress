@@ -721,7 +721,7 @@
   window.visualViewport?.addEventListener('scroll', hideTooltip);
   new MutationObserver(() => { if (tooltipTarget && (!tooltipTarget.isConnected || tooltipTarget.disabled || tooltipTarget.closest('[hidden]'))) hideTooltip(); queueScrollCues(); }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
   const pendingRequests = new Map(), fileIds = new WeakMap();
-  let syncRetryAt = 0;
+  let syncRetryAt = 0, nonceRefresh = null;
   let writeTail = Promise.resolve(), nextWriteAt = 0;
   async function api(path, options = {}) {
     const headers = { 'X-WP-Nonce': c.nonce, ...(c.authorId ? { 'X-FeedbackPress-Expected-Actor': c.authorId } : {}), ...(c.network ? { 'X-FeedbackPress-Network': c.network } : {}), ...options.headers };
@@ -761,7 +761,19 @@
     };
     const pending = paced ? writeTail.catch(() => {}).then(send) : send();
     if (paced) writeTail = pending.catch(() => {});
-    const response = await pending;
+    let response = await pending;
+    // WordPress rejects an expired nonce before running the route, so one retry is safe.
+    if (response.status === 403 && !c.userName && (await response.clone().json().catch(() => ({}))).code === 'rest_cookie_invalid_nonce') {
+      if (headers['X-WP-Nonce'] === c.nonce) {
+        if (!nonceRefresh) nonceRefresh = fetch(c.api + 'review-session', { credentials: 'same-origin', cache: 'no-store' })
+          .then(async result => {
+            const data = await result.json();
+            if (result.ok && data.config?.nonce && !data.config.userName && data.config.network === c.network) c.nonce = data.config.nonce;
+          }).catch(() => {}).finally(() => { nonceRefresh = null; });
+        await nonceRefresh;
+      }
+      if (headers['X-WP-Nonce'] !== c.nonce) { headers['X-WP-Nonce'] = c.nonce; response = await send(); }
+    }
     const currentActor = response.headers.get('X-FeedbackPress-Actor-Id');
     if (c.privateNotes && currentActor !== null && currentActor !== (c.authorId || '')) {
       c.privateNotes = false; ownRevisions.clear(); privateIssueIds.clear(); pendingRequests.clear(); try { sessionStorage.removeItem(revisionsKey); } catch (_) {} for (const [id,job] of sharedJobs) if (job.private) sharedJobs.delete(id); renderJobs(); privateNotes.clear(); privateReplyCounts.clear(); replyCountRequest++; privateEditDrafts.clear(); noteConfirmations.clear(); editDrafts.clear(); replyDrafts.clear(); replyFiles.clear();
@@ -1296,6 +1308,7 @@
       panel.hidden = !open || innerWidth < 900; viewButton.setAttribute('aria-expanded', String(open)); renderSelection(); renderIssue(); loadNotes(issue.id);
       if (scroll && issue.target.selector) locate(issue);
       positionDraft();
+      if (issueWindowDocked) { dockHoldPoint = { x: -1, y: -1, entered: issuePopup.matches(':hover') }; issuePopup.setAttribute('data-dock-held', ''); }
       if (scroll && !keepPosition && !panel.hidden) { panel.querySelector(`[data-issue="${issue.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'instant' }); captureListScroll(); saveView(); }
       return true;
     };

@@ -20,7 +20,13 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  const popup=page.getByRole('region',{name:'Issue details',exact:true}),dock=()=>popup.getByRole('button',{name:'Dock issue window',exact:true});
  const assertDock=async()=>{await popup.waitFor();await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-popup').hasAttribute('data-docked'));const box=await popup.boundingBox();assert.equal(box.y,0);assert.equal(box.height,900);assert.equal(await page.evaluate(k=>localStorage.getItem(k),key),'true');};
  await dock().click();await assertDock();
+ await popup.hover();await page.mouse.move(40,100);await page.waitForFunction(()=>getComputedStyle(document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-popup')).opacity==='0');
  await page.locator(`.issue-row[data-issue="${issues[1].id}"] .issue-open`).click();await popup.locator('.issue-reference').filter({hasText:'Issue 2'}).waitFor();await assertDock();
+ assert.equal(await popup.evaluate(n=>getComputedStyle(n).opacity),'1','Selecting another same-page issue restores the opaque hold');
+ await page.mouse.move(50,150);assert.equal(await popup.evaluate(n=>getComputedStyle(n).opacity),'1','Outside movement cannot release a newly selected issue');
+ await popup.hover();await page.mouse.move(40,100);await page.waitForFunction(()=>getComputedStyle(document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-popup')).opacity==='0');
+ await page.locator(`.issue-row[data-issue="${issues[1].id}"] .issue-open`).click();assert.equal(await popup.evaluate(n=>getComputedStyle(n).opacity),'1','Reselecting the current issue restores visibility too');
+ await popup.getByRole('button',{name:'Previous issue',exact:true}).click();await popup.locator('.issue-reference').filter({hasText:'Issue 1'}).waitFor();await page.mouse.move(40,100);await page.waitForFunction(()=>getComputedStyle(document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.issue-popup')).opacity==='0');
  await page.locator(`.issue-row[data-issue="${issues[2].id}"] .issue-open`).click();await page.waitForURL(base+issues[2].path+'#feedbackpress='+issues[2].id);await assertDock();
  await page.reload();await assertDock();assert.equal(await popup.evaluate(n=>getComputedStyle(n).opacity),'1','Restored docking starts opaque');
  await page.locator('#ordinary').click();await page.waitForURL(base+'/normal/');await page.getByRole('complementary',{name:'Issues',exact:true}).waitFor();assert.equal(await popup.isVisible(),false,'Ordinary browsing does not reopen a ticket');

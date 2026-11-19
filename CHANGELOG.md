@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — November 19, 2026
+
+- Refresh expired anonymous REST nonces once without requiring sign-in, and keep central review-access validation out of page rendering.
+
+- Restore docked issue visibility on every selection, including same-page switches and reselecting the current issue, until the next actual hover exit.
+
 ## 0.4.0 — November 18, 2026
 
 - Verify guest email before the first contribution, retain pending replies and attachments while checking email, and remember verified reviewers for 180 days. Native WordPress login bypasses verification and remains required for private notes.
