@@ -10,6 +10,11 @@ final class Identity {
     }
     public static function request(\WP_REST_Request $r): array {
         if (is_user_logged_in()) { $u = wp_get_current_user(); return ['name' => $u->display_name, 'email' => strtolower(trim($u->user_email))]; }
+        $verified = Email_Verification::current();
+        if (!$verified) throw new \RuntimeException('Log in or verify your email before leaving feedback.', 403);
+        return ['name' => $verified['name'], 'email' => $verified['email']];
+    }
+    public static function claim(\WP_REST_Request $r): array {
         $name = sanitize_text_field((string) $r->get_param('author')); $email = strtolower(trim((string) $r->get_param('author_email')));
         if (!$name || strlen($name) > 120 || !is_email($email) || strlen($email) > 254) throw new \InvalidArgumentException('Enter your name and a valid email address.');
         return ['name' => $name, 'email' => $email];

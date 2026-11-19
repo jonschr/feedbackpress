@@ -74,13 +74,17 @@
       name = saved ? decodeURIComponent(saved.slice('feedbackpress_name='.length)) : localStorage.getItem('feedbackpress-name') || '';
     } catch (_) { /* Identity can still be entered when browser storage is disabled. */ }
   }
+  if (!c.userName && c.verifiedReviewer) { name = c.verifiedReviewer.name; email = c.verifiedReviewer.email; actorId = c.verifiedReviewer.id || ''; }
   const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
   let reviewAccess = {paused:false,account_owner:false,can_create:true};
   let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'page', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
   const collapsedPages = new Set(), sharedPagePaths = new Set();
   let sidebarSide = 'right', pageLayout = 'room';
-  let issueWindowPosition = null, issueWindowDocked = false, issueWindowDrag = null;
+  let issueWindowPosition = null, issueWindowDocked = false, issueWindowDrag = null, dockHoldPoint = null;
+  const dockPreferenceKey = 'feedbackpress-docked:' + c.home;
+  try { issueWindowDocked = localStorage.getItem(dockPreferenceKey) === 'true'; } catch (_) {}
+  function saveDockPreference() { try { localStorage.setItem(dockPreferenceKey, String(issueWindowDocked)); } catch (_) {} }
   let keepListOrder = false, localWriteVersion = 0, pinDrag = null, suppressedPin = null, listLoaded = false, listLoading = true, listError = '', listScroll = 0, hasListPosition = false, resumeOpen = false, deferredIssueRender = false, deferredListRender = false;
   const editDrafts = new Map();
   const replyDrafts = new Map();
@@ -380,7 +384,7 @@
     shareSuggestions.style.left = Math.max(left + 8, Math.min(box.left, left + width - popupWidth - 8)) + 'px';
     shareSuggestions.showPopover(); shareEmail.setAttribute('aria-expanded', 'true');
     const height = shareSuggestions.getBoundingClientRect().height;
-    shareSuggestions.style.top = (above >= below ? box.top - height - 4 : box.bottom + 4) + 'px';
+    shareSuggestions.style.top = (above >= below ? box.top - height - 8 : box.bottom + 8) + 'px';
   }
   shareEmail.addEventListener('focus', showShareSuggestions);
   shareEmail.addEventListener('click', showShareSuggestions);
@@ -423,9 +427,10 @@
     try {
       const [people, capabilities] = await Promise.all([api('admin/reviewers').then(response => response.json()), api('admin/capabilities').then(response => response.json())]);
       if (cacheDenied) return;
-      reviewers = people.users; showShareSuggestions();
+      reviewers = people.users;
       invitationsAvailable = capabilities.invitations === true; sharingLoaded = true;
       sharingMessage(invitationsAvailable ? '' : 'Email invites are unavailable. You can still copy a magic link.');
+      showShareSuggestions();
     } catch (error) { sharingMessage(error.message + ' Close and reopen to retry.', true); }
     finally { sharingLoading = false; syncSharingControls(); }
   }
@@ -441,12 +446,15 @@
     } catch (error) { sharingMessage(error.message, true); }
     finally { sharingBusy = false; syncSharingControls(); }
   }
+  function publicSharingLink(link) {
+    return link.protocol === 'https:' && !link.username && !link.password && !/(^|\.)(localhost|local|test|invalid|lan|internal|home|localdomain)$/.test(link.hostname) && !link.hostname.endsWith('.home.arpa') && /^#fp-review=[a-f0-9-]{36}\.[A-Za-z0-9_-]{43}$/.test(link.hash);
+  }
   async function copyReviewLink() {
     if (sharingBusy) return;
     sharingBusy = true; syncSharingControls(); shareFallback.hidden = true; shareFallback.value = ''; sharingMessage('Creating magic link…');
     try {
       const result = await (await api('admin/review-link')).json(), link = new URL(result.url);
-      if (link.origin !== new URL(c.home).origin || !link.hash.startsWith('#fp-review=')) throw Error('Could not create a review link for this site.');
+      if (!publicSharingLink(link)) throw Error('Could not create a review link for this site.');
       link.searchParams.set('feedbackpress', 'open');
       try { await navigator.clipboard.writeText(link.href); sharingMessage('Magic link copied. Anyone with it can view shared feedback.'); }
       catch (_) {
@@ -517,6 +525,7 @@
   }
   const composer = el('section', { class: 'composer', 'aria-label': 'New feedback', hidden: true });
   const issuePopup = el('section', { class: 'composer issue-popup', 'aria-label': 'Issue details', hidden: true });
+  if (issueWindowDocked) { issuePopup.setAttribute('data-dock-held', ''); dockHoldPoint = { x: -1, y: -1, entered: false }; }
   const lightbox = el('dialog', { class: 'attachment-lightbox', 'aria-label': 'Attachment preview' });
   const identity = el('section', { class: 'identity', 'aria-label': 'Introduce yourself', hidden: true });
   const draftPin = el('span', { class: 'pin draft-pin', 'aria-label': 'New feedback pin', hidden: true });
@@ -765,9 +774,11 @@
       const data = await response.json().catch(() => ({}));
       if (response.status === 404 && !writes) { const gone = route.match(/^issues\/([a-f0-9-]{36})(?:\/notes)?$/)?.[1]; if (gone) forgetIssue(gone); }
       if (signature && response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) pendingRequests.delete(signature);
+      const verificationRequired = data.code === 'email_verification_required';
+      if (verificationRequired) { c.verifiedReviewer = null; actorId = ''; actorRequest = null; }
       const creationPaused=data.code==='feedback_paused', ownerDenied=route==='review-access'&&data.code==='account_owner_required';
       if(creationPaused||ownerDenied)applyReviewAccess({paused:creationPaused||reviewAccess.paused,account_owner:false,can_create:!creationPaused&&!reviewAccess.paused});
-      if ([401, 403].includes(response.status) && !route.includes('/notes') && route !== 'reply-counts' && !creationPaused && !ownerDenied && !(route.startsWith('admin/') && response.status === 403)) {
+      if ([401, 403].includes(response.status) && !route.includes('/notes') && route !== 'reply-counts' && !verificationRequired && route !== 'identity/verification' && !creationPaused && !ownerDenied && !(route.startsWith('admin/') && response.status === 403)) {
         cancelLocate(); issueCache.clear(); collapsedPages.clear(); sharedPagePaths.clear(); clearAttachments(true); cacheDenied = true;
         if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); cacheSaveTimer = null;
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
@@ -787,7 +798,7 @@
     // Keep the key until the complete JSON acknowledgment arrives, including uploads.
     const data = await response.json(); pendingRequests.delete(signature);
     if (!route.includes('/notes')) cacheResponse(data);
-    if (path !== 'identity' && !path.startsWith('sync/')) { localWriteVersion++; activity(); }
+    if (!path.startsWith('identity') && !path.startsWith('sync/')) { localWriteVersion++; activity(); }
     return { json: async () => data };
   }
   function message(text) { notice.replaceChildren(el('span', {}, text), button('Dismiss', () => { notice.hidden = true; positionDraft(); }, { class: 'notice-close' })); notice.hidden = false; positionDraft(); }
@@ -803,27 +814,64 @@
     if (!actorRequest) actorRequest = api('identity', { method: 'POST', body: { author: name, author_email: email } }).then(response => response.json()).then(person => { actorId = person.author_id; return actorId; }).catch(error => { actorRequest = null; throw error; });
     return actorRequest;
   }
-  function withReadAccess(action) {
-    return c.reviewSession && !(name && (c.userName || email)) ? action() : withIdentity(action);
+  let verificationSequence = 0, verificationTimer = null;
+  function stopVerification() {
+    verificationSequence++;
+    if (verificationTimer !== null) clearTimeout(verificationTimer);
+    verificationTimer = null;
   }
+  function identified() { return name && (c.userName || (c.verifiedReviewer && c.verifiedReviewer.email === email.toLowerCase())); }
+  function withReadAccess(action) { return action(); }
   function withIdentity(action) {
     if (busy) return;
-    if (name && (c.userName || email)) {
+    if (identified()) {
       if (!c.userName && !actorId) ensureActor().then(() => { if (selected && !busy && !root.activeElement?.matches('input,textarea,select')) renderIssue(); else if (selected) deferredIssueRender = true; }).catch(() => {});
       return action();
     }
-    identity.replaceChildren(el('header', {}, el('h2', {}, 'Choose how to continue'), button(icon('close'), () => { identity.hidden = true; launcher.focus(); }, { class: 'fp-icon-button', 'aria-label': 'Dismiss name prompt', 'aria-keyshortcuts': 'Escape' })));
-    const input = el('input', { name: 'author', 'aria-label': 'Your name', required: true, maxlength: 120, autocomplete: 'name', placeholder: 'Your name' });
-    input.value = name;
+    stopVerification();
+    identity.replaceChildren(el('header', {}, el('h2', {}, 'Choose how to continue'), button(icon('close'), () => { stopVerification(); identity.hidden = true; launcher.focus(); }, { class: 'fp-icon-button', 'aria-label': 'Dismiss name prompt', 'aria-keyshortcuts': 'Escape' })));
+    const input = el('input', { name: 'author', 'aria-label': 'Your name', required: true, maxlength: 120, autocomplete: 'name', placeholder: 'Your name' }); input.value = name;
     const mail = el('input', { name: 'email', type: 'email', required: true, maxlength: 254, autocomplete: 'email', placeholder: 'Email address', 'aria-label': 'Email address' }); mail.value = email;
     let login = null;
     if (c.loginUrl) {
       const url = new URL(c.loginUrl); url.searchParams.set('redirect_to', location.href);
       login = el('a', { class: 'identity-login fp-primary', href: url.href }, 'Log in to this site');
-      identity.append(login, el('p', { class: 'identity-guest-label subtle' }, 'Or continue as a guest'));
+      identity.append(login, el('p', { class: 'identity-guest-label subtle' }, 'Or verify your email to continue'));
     }
-    identity.append(el('form', { onsubmit: event => { event.preventDefault(); if (!input.value.trim()) return; remember(input.value, mail.value); identity.hidden = true; withIdentity(action); } }, el('label', {}, 'Name', input), el('label', {}, 'Email', mail), el('button', { type: 'submit', class: c.loginUrl ? 'fp-quiet' : 'fp-primary' }, 'Continue')));
-    if (!c.reviewSession) panel.hidden = true; identity.hidden = false; (login || input).focus();
+    const status = el('p', { class: 'subtle verification-status', role: 'status', hidden: true });
+    const submit = el('button', { type: 'submit', class: c.loginUrl ? 'fp-quiet' : 'fp-primary' }, 'Send verification email');
+    let request = null, sending = false;
+    const check = async sequence => {
+      if (sequence !== verificationSequence || identity.hidden || !request) return;
+      if (request.expires < Date.now()) { stopVerification(); status.textContent = 'Verification expired. Send another email.'; return; }
+      if (!document.hidden) {
+        try {
+          const data = await (await api('identity/verification')).json();
+          if (sequence !== verificationSequence || identity.hidden) return;
+          if (data.verified && data.reviewer?.email === request.email) {
+            c.verifiedReviewer = data.reviewer; remember(data.reviewer.name, data.reviewer.email); actorId = data.reviewer.id || ''; actorRequest = null;
+            stopVerification(); identity.hidden = true; withIdentity(action); return;
+          }
+        } catch (error) { if (cacheDenied || [401,403].includes(error.status)) { stopVerification(); status.textContent = error.message; return; } }
+      }
+      verificationTimer = setTimeout(() => check(sequence), 2500);
+    };
+    const form = el('form', { onsubmit: async event => {
+      event.preventDefault(); if (sending || !input.value.trim() || !form.reportValidity()) return;
+      const address = mail.value.trim().toLowerCase();
+      if (!request || request.email !== address || request.name !== input.value.trim() || request.sent) request = { id: crypto.randomUUID(), email: address, name: input.value.trim(), expires: Date.now() + 15 * 60000 };
+      const attempt = verificationSequence;
+      sending = true; submit.disabled = true; input.disabled = true; mail.disabled = true; status.hidden = false; status.textContent = 'Sending verification email…';
+      try {
+        await api('identity/verification', { method: 'POST', requestId: request.id, body: { author: request.name, author_email: request.email, path: location.pathname + location.search, return: /^#feedbackpress=[a-f0-9-]{36}$/.test(location.hash) ? location.hash.slice(1) : '' } });
+        if (attempt !== verificationSequence || identity.hidden) return;
+        remember(request.name, request.email); request.sent = true; status.textContent = 'Check your email, then return here. Your draft is kept.'; submit.textContent = 'Send again';
+        stopVerification(); const sequence = verificationSequence; check(sequence);
+      } catch (error) { status.textContent = error.message; }
+      finally { sending = false; submit.disabled = false; input.disabled = false; mail.disabled = false; }
+    } }, el('label', {}, 'Name', input), el('label', {}, 'Email', mail), submit, status);
+    form.addEventListener('input', () => { if (request && request.email === mail.value.trim().toLowerCase() && request.name === input.value.trim()) return; stopVerification(); request = null; status.hidden = true; submit.textContent = 'Send verification email'; });
+    identity.append(form); identity.hidden = false; (login || input).focus();
   }
   function toggle(value) {
     if (busy) return;
@@ -935,7 +983,7 @@
   function statusControl(issue, place, change = null) {
     const actions = Object.entries(labels).map(([status, label]) => {
       const current = status === issue.status;
-      const action = button(icon(status === 'done' ? 'check' : status), () => { if (!change) targetIssueShortcuts(issue.id); if (!current || issue.conflict) { if (change) change(status); else setStatus(issue, status, action); } }, {
+      const action = button(icon(status === 'done' ? 'check' : status), () => { if (!change) targetIssueShortcuts(issue.id); if (!current) { if (change) change(status); else setStatus(issue, status, action); } }, {
         class: 'fp-icon-button status-action status-' + status + (current ? ' is-current' : ''),
         'aria-pressed': String(current), disabled: Boolean(issue.pending),
         'data-status-action': status,
@@ -1388,9 +1436,7 @@
       if (selected?.id !== issue.id || !trigger.isConnected) return;
       const group = el('div', { class: 'author-picker' });
       const choose = el('select', { 'aria-label': 'Issue author' }, ...people.map(person => el('option', { value: person.id }, person.name + (person.email_identified === false ? ' (name only)' : ''))), el('option', { value: '__new' }, 'Add person…'));
-      if (issue.target_conflict) issuePopup.append(el('p', { class: 'warning' }, 'The pin moved on more than one site. Drag it to the intended location to resolve.'));
-    if (issue.author_conflict) choose.prepend(el('option', { value: '', disabled: true }, 'Choose author…'));
-      choose.value = issue.author_conflict ? '' : issue.author_id || people.find(person => person.name === issue.author)?.id || '';
+      choose.value = issue.author_id || people.find(person => person.name === issue.author)?.id || '';
       const cancel = button(icon('close'), () => renderIssue(), { class: 'fp-icon-button', 'aria-label': 'Cancel author change' });
       const assign = async id => {
         const updated = await (await api(`issues/${issue.id}/author`, { method: 'POST', body: { author_id: id, revision: issue.author_revision } })).json();
@@ -1410,6 +1456,7 @@
     } catch (error) { message(error.message); }
   }
   function editComment(comment, issueId = selected?.id, sidebar = false) {
+    if (!identified()) return withIdentity(() => editComment(comment, issueId, sidebar));
     if (!issueId || actorId !== (comment.owner_id || comment.author_id)) return;
     mentionDrafts.delete('edit:' + comment.id);
     editDrafts.set(comment.id, { issue: issueId, sidebar, proposed: comment.target?.text_change?.proposed, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
@@ -1580,7 +1627,7 @@
     const uploads = files.filter(file => !file.screenshot);
     const screenshots = files.filter(file => file.screenshot);
     const draft = editDrafts.get(comment.id)?.sidebar ? null : editDrafts.get(comment.id);
-    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, comment.edit_conflict ? el('p', { class: 'warning' }, 'This comment has competing edits. Edit and save to resolve them.') : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated && !comment.target?.text_change ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]), byline);
+    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated && !comment.target?.text_change ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]), byline);
     return el('div', { class: 'thread-comment', 'data-comment': comment.id, 'data-visibility': comment.visibility === 'private' || selected?.visibility === 'private' ? 'private' : 'shared' }, copy,
       files.length ? el('div', { class: 'comment-media' },
         screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null,
@@ -1635,8 +1682,8 @@
   async function copyIssueReviewLink(issue, trigger) {
     await perform(trigger, async () => {
       const data = await (await api('admin/review-link')).json();
-      const link = new URL(data.url), target = new URL(c.home + issue.path);
-      if (link.origin !== target.origin || !link.hash.startsWith('#fp-review=')) throw new Error('Could not create a review link for this site.');
+      const link = new URL(data.url), target = new URL(link.origin + link.pathname.replace(/\/$/, '') + issue.path);
+      if (!publicSharingLink(link)) throw new Error('Could not create a review link for this site.');
       link.pathname = target.pathname; link.search = target.search;
       const hash = new URLSearchParams(link.hash.slice(1)); hash.set('fp-return', 'feedbackpress=' + issue.id); link.hash = hash.toString();
       try { await navigator.clipboard.writeText(link.href); message('Magic link copied.'); }
@@ -1772,8 +1819,6 @@
       button(icon('dock'), toggleIssueWindowDock, { class: 'fp-icon-button popup-dock', 'aria-label': issueWindowDocked ? 'Undock issue window' : 'Dock issue window', 'aria-pressed': String(issueWindowDocked), disabled: innerWidth < 900 }),
       issueActions, button(icon('close'), () => { if (!busy) { closeIssue(); (panel.hidden ? viewButton : panel.querySelector('[aria-label="Dismiss issues"]')).focus(); } }, { class: 'fp-icon-button', 'aria-label': 'Dismiss issue', 'aria-keyshortcuts': 'Escape' }))));
     const issueConfirmation = confirmationView(issue.id, issue.id); if (issueConfirmation) issuePopup.append(issueConfirmation);
-    if (issue.author_conflict) issuePopup.append(el('p', { class: 'warning' }, 'The author changed on more than one site. Choose the author again to resolve.'));
-    if (issue.conflict) issuePopup.append(el('p', { class: 'warning' }, 'Conflicting status changes: ' + issue.status_choices.map(choice => `${labels[choice.status]} (${choice.author})`).join('; ') + '. Choose a status to resolve.'));
     const replies = issue.activity.filter(event => event.kind === 'reply');
     const filesFor = id => issue.files.filter(file => (file.comment_id || issue.id) === id);
     const thread = el('div', { class: 'issue-thread', 'aria-label': 'Conversation' }, textChangeView(issue), commentView(issue, filesFor(issue.id)));
@@ -1826,7 +1871,7 @@
     finally { pendingForms.delete(form); form.removeAttribute('aria-busy'); controls.forEach(control => { control.disabled = false; }); }
   }
   function setStatus(issue, status) {
-    if (!name || (!c.userName && !email)) return withIdentity(() => setStatus(issue, status));
+    if (!identified()) return withIdentity(() => setStatus(issue, status));
     if (selected?.id === issue.id) issue = selected;
     if (issue.pending) return;
     const tail = [...sharedJobs.values()].at(-1);
@@ -1841,7 +1886,7 @@
     if (!current || current.pending) return;
     const content = readMentionField(form.elements.body), files = [...(replyFiles.get(id) || [])];
     if (!content.body && !files.length) return;
-    if (!name || (!c.userName && !email)) return withIdentity(() => submitReply(form, id));
+    if (!identified()) return withIdentity(() => submitReply(form, id));
     imageDropJob = null;
     replyDrafts.delete(id); mentionDrafts.delete('reply:' + id); replyFiles.delete(id); form.elements.body.value = '';
     const key = replyOperations.get(id)?.key || crypto.randomUUID(); replyOperations.delete(id);
@@ -2096,13 +2141,14 @@
     const anchor = draft || selected?.target;
     if (!surface || !anchor || surface.hidden) return;
     const viewport = window.visualViewport;
-    const viewportLeft = (viewport?.offsetLeft || 0) + 12, top = (viewport?.offsetTop || 0) + 12;
-    const alongside = !panel.hidden && innerWidth >= 900, panelRect = panel.getBoundingClientRect();
+    const alongside = !panel.hidden && innerWidth >= 900;
+    const docked = surface === issuePopup && issueWindowDocked && alongside;
+    const viewportLeft = (viewport?.offsetLeft || 0) + 12, top = (viewport?.offsetTop || 0) + (docked ? 0 : 12);
+    const panelRect = panel.getBoundingClientRect();
     const left = alongside && sidebarSide === 'left' ? Math.max(viewportLeft, panelRect.right + 12) : viewportLeft;
     const viewportRight = viewportLeft + (viewport?.width || innerWidth) - 24;
     const right = alongside && sidebarSide === 'right' ? Math.min(viewportRight, panelRect.left - 12) : viewportRight;
-    const bottom = Math.min(top + (viewport?.height || innerHeight) - 24, (!notice.hidden || !launchers.hidden) ? toolbar.getBoundingClientRect().top - 12 : Infinity);
-    const docked = surface === issuePopup && issueWindowDocked && alongside;
+    const bottom = docked ? top + (viewport?.height || innerHeight) : Math.min(top + (viewport?.height || innerHeight) - 24, (!notice.hidden || !launchers.hidden) ? toolbar.getBoundingClientRect().top - 12 : Infinity);
     issuePopup.toggleAttribute('data-docked', docked);
     const dockButton = issuePopup.querySelector('.popup-dock');
     if (dockButton) { dockButton.disabled = innerWidth < 900 || busy; dockButton.setAttribute('aria-pressed', String(issueWindowDocked)); dockButton.setAttribute('aria-label', issueWindowDocked ? 'Undock issue window' : 'Dock issue window'); dockButton.dataset.tooltip = dockButton.getAttribute('aria-label'); dockButton.dataset.tooltipNote = innerWidth < 900 ? 'Available beside the sidebar on larger screens.' : ''; }
@@ -2111,8 +2157,9 @@
     const clamp = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
     if (surface === issuePopup && (docked || issueWindowPosition)) {
       const { width, height } = surface.getBoundingClientRect();
-      const position = docked ? { x: sidebarSide === 'right' ? right - width : left, y: top } : issueWindowPosition;
-      const x = clamp(position.x, left, right - width), y = clamp(position.y, top, bottom - height);
+      const minX = docked && sidebarSide === 'left' ? panelRect.right : left, maxX = docked && sidebarSide === 'right' ? panelRect.left : right;
+      const position = docked ? { x: sidebarSide === 'right' ? maxX - width : minX, y: top } : issueWindowPosition;
+      const x = clamp(position.x, minX, maxX - width), y = clamp(position.y, top, bottom - height);
       if (!docked) issueWindowPosition = { x, y };
       Object.assign(surface.style, { left: x + 'px', top: y + 'px' });
       tether.hidden = true; positionMentionMenu(); return;
@@ -2292,7 +2339,7 @@
     const target = event.composedPath().find(node => node instanceof Element);
     if (target?.closest('.popup-move') && !event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key)) {
       consume();
-      if (event.key === 'Home') { issueWindowPosition = null; issueWindowDocked = false; positionDraft(); }
+      if (event.key === 'Home') { issueWindowPosition = null; issueWindowDocked = false; saveDockPreference(); positionDraft(); }
       else { const rect = issuePopup.getBoundingClientRect(), step = event.shiftKey ? 40 : 10; moveIssueWindow(rect.left + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0), rect.top + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0)); }
       return;
     }
@@ -2327,7 +2374,7 @@
     if (!status) return;
     const id = shortcutIssueId || selected?.id;
     const issue = selected?.id === id ? selected : issues.find(item => item.id === id) || pageIssues.find(item => item.id === id);
-    if (!issue || issue.pending || (issue.status === status && !issue.conflict)) return;
+    if (!issue || issue.pending || issue.status === status) return;
     const row = !panel.hidden && panel.querySelector(`[data-issue="${id}"]`);
     const pin = pins.querySelector(`[data-pin-issue="${id}"]`);
     if (!row && !pin && (issuePopup.hidden || selected?.id !== id)) return;
@@ -2553,15 +2600,19 @@
   }
   let cardRevealRequest = null;
   function moveIssueWindow(x, y) {
-    issueWindowDocked = false; issueWindowPosition = { x, y }; positionDraft();
+    issueWindowDocked = false; if (!issueWindowDrag) saveDockPreference(); issueWindowPosition = { x, y }; positionDraft();
   }
-  function toggleIssueWindowDock() {
-    finishIssueWindowDrag(); issueWindowDocked = !issueWindowDocked; issueWindowPosition = null; hideTooltip(); positionDraft();
+  function toggleIssueWindowDock(event) {
+    finishIssueWindowDrag(); issueWindowDocked = !issueWindowDocked; saveDockPreference(); issueWindowPosition = null;
+    dockHoldPoint = issueWindowDocked ? { x: event?.clientX ?? -1, y: event?.clientY ?? -1, entered: false } : null;
+    issuePopup.toggleAttribute('data-dock-held', issueWindowDocked); hideTooltip(); positionDraft();
+    if (dockHoldPoint && event?.detail > 0) { const box = issuePopup.getBoundingClientRect(); dockHoldPoint.entered = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom; }
   }
   function finishIssueWindowDrag(cancel = false) {
     const drag = issueWindowDrag; if (!drag) return;
     issueWindowDrag = null; issuePopup.removeAttribute('data-dragging');
     if (cancel) { issueWindowPosition = drag.position; issueWindowDocked = drag.docked; }
+    else if (drag.moved && drag.docked) saveDockPreference();
     if (issuePopup.hasPointerCapture(drag.pointer)) issuePopup.releasePointerCapture(drag.pointer);
     positionDraft();
   }
@@ -2574,6 +2625,10 @@
     issuePopup.setPointerCapture(event.pointerId); cancelLocate(); hideTooltip();
   });
   window.addEventListener('pointermove', event => {
+    if (issueWindowDocked && dockHoldPoint && !issueWindowDrag && event.pointerType !== 'touch') {
+      if (event.composedPath().includes(issuePopup)) dockHoldPoint.entered = true;
+      else if (dockHoldPoint.entered && (event.clientX !== dockHoldPoint.x || event.clientY !== dockHoldPoint.y)) { issuePopup.removeAttribute('data-dock-held'); dockHoldPoint = null; }
+    }
     const drag = issueWindowDrag; if (!drag || drag.pointer !== event.pointerId) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
     event.preventDefault(); drag.moved = true; issuePopup.setAttribute('data-dragging', '');
@@ -2616,7 +2671,6 @@
   }
   function beginPinDrag(event, pin, issue) {
     if (busy || lightbox.open || event.button !== 0 || !event.isPrimary) return;
-    if (!c.reviewSession && (!name || (!c.userName && !email))) { withIdentity(() => message('Drag the pin to its new location.')); return; }
     event.preventDefault(); pin.focus({ preventScroll: true });
     pinDrag = { pin, issue, pointer: event.pointerId, x: event.clientX, y: event.clientY, moved: false, ending: false };
     pin.setPointerCapture(event.pointerId);
@@ -2632,7 +2686,7 @@
     const drag = pinDrag;
     if (!drag || drag.ending || event.pointerId !== drag.pointer) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
-    if (!name || (!c.userName && !email)) { drag.moved = true; cancelPinDrag(); withIdentity(() => message('Drag the pin to its new location.')); return; }
+    if (!identified()) { drag.moved = true; cancelPinDrag(); withIdentity(() => message('Drag the pin to its new location.')); return; }
     drag.moved = true; notice.hidden = true; event.preventDefault(); event.stopPropagation(); hideTooltip();
     drag.pin.classList.add('is-dragging'); drag.pin.style.pointerEvents = 'none';
     drag.pin.style.left = event.clientX + 'px'; drag.pin.style.top = event.clientY + 'px';
@@ -2794,7 +2848,7 @@
         (!panel.hidden ? sidebarSettings.querySelector('input:checked:not(:disabled),button:not([hidden]):not(:disabled)') : !issuePopup.hidden ? issuePopup.querySelector('[aria-label="Dismiss issue"]') : viewButton)?.focus();
       }, { class: 'fp-icon-button work-dismiss', 'aria-label': 'Dismiss notification' }) : el('span', { class: 'work-indicator', 'aria-hidden': 'true' }, job.phase === 'done' ? icon('check') : null);
       return el('div', { class: 'work-item', 'data-state': job.error ? 'error' : job.phase, role: 'status' }, indicator, el('span', {}, label),
-        job.error ? button('Retry', () => { delete job.error; if (job.retry) job.retry(); else executeJob(job); }) : null,
+        job.error ? button('Retry', () => withIdentity(() => { delete job.error; if (job.retry) job.retry(); else executeJob(job); })) : null,
         job.error && job.missingFiles ? el('input', { type: 'file', multiple: true, 'aria-label': 'Reattach interrupted files', onchange: event => { job.files = [...event.target.files].map(file => ({ file, key: crypto.randomUUID(), screenshot: false })); job.missingFiles = 0; delete job.error; executeJob(job); } }) : null,
         job.error && !job.private && job.phase === 'text' && job.kind !== 'status' ? button('Restore draft', () => restoreJob(job).catch(error => message(error.message))) : null,
         job.phase === 'done' ? button('Dismiss', () => { sharedJobs.delete(job.id); renderJobs(); }, { class: 'fp-quiet' }) : null);

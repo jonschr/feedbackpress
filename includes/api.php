@@ -6,21 +6,22 @@ final class API {
     const STATUSES = ['todo', 'needs_info', 'doing', 'review', 'done'];
     const ORDERS = ['created_asc', 'created_desc', 'updated_asc', 'updated_desc', 'completed_asc', 'completed_desc'];
     public static function error(string $message, int $status = 400, string $code = 'feedbackpress'): \WP_Error { return new \WP_Error($code, $message, ['status' => $status]); }
-    public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && (current_user_can('manage_options') || ReviewAccess::grant())))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
+    public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && (current_user_can('manage_options') || ReviewAccess::member() || ReviewAccess::grant())))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
     public static function read($r = null) { if ($r && $r->get_header('origin')) { $home = wp_parse_url(home_url()); $origin = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : ''); if ($r->get_header('origin') !== $origin) return self::error('Open feedback on this site.', 403); } if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
-    public static function write(\WP_REST_Request $r) {
+    public static function write(\WP_REST_Request $r, bool $requireIdentity = true) {
         if (!self::can_view()) return self::error('Feedback is unavailable.', 403);
         $actor = (string) $r->get_header('x-feedbackpress-expected-actor');
         if ($actor && (!is_user_logged_in() || !hash_equals(Identity::id(wp_get_current_user()->user_email), $actor))) return self::error('Your WordPress identity changed. Reload this page to continue.', 409);
         if ($r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload before saving.', 409);
-        if (current_user_can('manage_options') && !$r->get_header('origin')) return self::throttle();
+        if ($requireIdentity && !is_user_logged_in() && !Email_Verification::current()) return self::error('Verify your email before leaving feedback.', 403, 'email_verification_required');
+        if (!$r->get_header('origin') && (current_user_can('manage_options') || (defined('WP_CLI') && WP_CLI) || did_action('application_password_did_authenticate'))) return self::throttle();
         $home = wp_parse_url(home_url()); $expected = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : '');
         if (($r->get_header('origin') && $r->get_header('origin') !== $expected) || !wp_verify_nonce($r->get_header('x-wp-nonce'), 'wp_rest')) return self::error('Refresh the page before saving.', 403);
         return self::throttle();
     }
     public static function throttle() {
         $now = time(); $logged_in = is_user_logged_in();
-        $actor = $logged_in ? 'user:' . get_current_user_id() : 'ip:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $actor = $logged_in ? 'user:' . get_current_user_id() : 'ip:' . sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
         $scope = (Service::connection()['project'] ?? '') . ':' . $actor . ':' . intdiv($now, 60);
         $key = 'fp_changes_' . hash_hmac('sha256', $scope, wp_salt()); $count = (int) get_transient($key);
         if ($count >= ($logged_in ? 600 : 120)) {
@@ -30,7 +31,7 @@ final class API {
         set_transient($key, $count + 1, 120); return true;
     }
     public static function hosting_auth(bool $is_api): bool {
-        $path = rawurldecode($_SERVER['REQUEST_URI'] ?? '');
+        $path = rawurldecode(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')));
         return str_contains($path, 'feedbackpress/v1/') && (isset($_SERVER['HTTP_X_WP_NONCE']) || str_contains($path, 'feedbackpress/v1/review-session')) ? false : $is_api;
     }
     public static function routes(): void {
@@ -69,6 +70,8 @@ final class API {
             $result = Service::request('POST', $path, $body, self::key($r), true);
             return !empty($result['deleted']) ? $result : Service::view($result);
         }, fn($r) => self::privateWrite($r));
+        $route('/identity/verification', 'POST', [Email_Verification::class, 'request'], fn($r) => self::write($r, false));
+        $route('/identity/verification', 'GET', function () { $person = is_user_logged_in() ? Identity::request(new \WP_REST_Request('GET')) : Email_Verification::current(); return ['verified' => (bool) $person, 'reviewer' => $person]; }, $read);
         $route('/identity', 'POST', fn($r) => Service::person(Service::request('POST', '/people', Identity::request($r))));
         $route('/authors', 'GET', fn() => Identity::people(), $read);
         $route('/mentions', 'GET', function () {
@@ -125,7 +128,10 @@ final class API {
         ReviewAccess::routes($route);
         add_filter('rest_post_dispatch', function ($response, $server, $r) { if (str_starts_with($r->get_route(), '/feedbackpress/')) { $response->header('Cache-Control', 'private, no-store, max-age=0'); $response->header('Vary', 'Cookie, Authorization'); $response->header('X-FeedbackPress-Actor-Id', is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : ''); if ($response->get_status() === 429 && ($retry = (int) ($response->get_data()['data']['retry_after'] ?? 0)) > 0) $response->header('Retry-After', (string) $retry); if ($response->get_status() >= 400 && $response->get_status() !== 429 && (str_ends_with($r->get_route(), '/manage') || str_contains($r->get_route(), '/notes'))) Log::add(['operation' => $r->get_method() . (str_ends_with($r->get_route(), '/manage') ? ' manage' : ' notes'), 'status' => $response->get_status(), 'ms' => 0, 'error' => sanitize_key($response->get_data()['code'] ?? 'gateway_error')]); } return $response; }, 10, 3);
         add_filter('rest_pre_serve_request', function ($served, $response, $request) {
-            if (($response->get_headers()['X-FeedbackPress-Binary'] ?? '') === '1') { echo $response->get_data(); return true; } return $served;
+            if (str_starts_with($request->get_route(), '/feedbackpress/v1/files/') && ($response->get_headers()['X-FeedbackPress-Binary'] ?? '') === '1') {
+                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Authorized image/PDF bytes have nosniff and sandbox headers; HTML escaping corrupts the download.
+                echo $response->get_data(); return true;
+            } return $served;
         }, 10, 3);
     }
     public static function privateRead() { return is_user_logged_in() && self::can_view() ? true : self::error('Log in to WordPress to access private notes.', 403); }

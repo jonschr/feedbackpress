@@ -60,3 +60,7 @@
 #fp-plan .fp-inline-actions { margin-top:8px; }
 #fp-free-key-result { max-width:480px; margin-top:16px; }
 #fp-free-key-result .fp-inline-actions { margin-top:8px; }
+
+.fp-section .fp-check-label { display:flex; align-items:flex-start; gap:8px; font-weight:400; }
+.fp-check-label input { flex:none; margin:2px 0 0; }
+#fp-revoke-links { margin-top:12px; }

@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<ruleset name="FeedbackPress security">
+    <description>Release gate for WordPress input, nonce and output handling. Narrow source annotations explain intentional REST JSON, navigation-only metadata and authorized binary output.</description>
+    <file>feedbackpress.php</file>
+    <file>includes</file>
+    <arg name="extensions" value="php"/>
+    <arg value="s"/>
+    <rule ref="WordPress.Security"/>
+</ruleset>

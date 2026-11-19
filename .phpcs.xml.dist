@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<ruleset name="FeedbackPress">
+    <description>Full WordPress standards review of first-party runtime PHP. Style findings remain visible; bundled dependencies retain upstream standards.</description>
+    <file>feedbackpress.php</file>
+    <file>includes</file>
+    <arg name="extensions" value="php"/>
+    <arg value="s"/>
+    <rule ref="WordPress"/>
+</ruleset>

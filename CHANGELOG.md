@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — November 18, 2026
+
+- Verify guest email before the first contribution, retain pending replies and attachments while checking email, and remember verified reviewers for 180 days. Native WordPress login bypasses verification and remains required for private notes.
+- Resolve identity through an uncached access check in every review mode, keeping cached page HTML free of verified guest attribution. Authorized WordPress login takes precedence over stale sharing links.
+- Require verified ownership when editing guest comments; supplied email addresses and attribution cookies cannot grant editing access.
+- Preserve authorized WordPress CLI and Application Password writes while retaining browser nonce, origin, project and actor checks.
+- Remove obsolete peer-conflict presentation and scope attachment binary output to FeedbackPress routes. Add WordPress security and full coding-standard review profiles.
+
+- Use persistent public-environment links for copied sharing, invitations and notifications, with project-wide revocation that also ends guest sessions.
+- Optionally create a FeedbackPress-only WordPress account when an invitation is first opened; reuse existing email-matched accounts without changing their roles or passwords, and preserve their comment identity after login.
+
+- Open magic invitations directly in feedback, with login offered only through the on-site identity prompt and a return URL preserving the page and selected ticket.
+
+- Accept a valid magic environment link when the destination installation holds a different active credential for the same site and project, using scoped service validation before starting the guest session.
+
+- Remember docking across issue changes, page navigation, reloads and new tabs until explicitly changed.
+
+- Dock issue windows flush to the sidebar and hide them completely when idle, restoring readability on hover or keyboard interaction.
+
+- Remove the invite field’s baseline gap, keep recipient suggestions aligned after loading, and distinguish the picker with a raised dark surface and clear edge.
+
 ## 0.3.11 — November 18, 2026
 
 - Add an owner-only Environments switcher in the sidebar for opening other connected project sites through their own magic review links.

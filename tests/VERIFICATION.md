@@ -417,3 +417,64 @@ Environment links always carry destination-specific review grants. Ten browser s
 ## 0.3.11 / service 0.1.2 release — November 18, 2026
 
 All 13 selected Chrome correctness fixtures pass, including overlay sharing, environments, settings, guest review access, issue links, sidebar layout/scrolling, tooltips, mentions, pause, menus and keyboard navigation. Fixed two fixture assumptions: no disclosures applies to the footer layout group; invitation busy state uses a controlled response instead of an 80ms timer. Service verification passes 52/52 on isolated Linux PostgreSQL. Four native permission/setup fixtures, normal/AJAX/live updater, source syntax and actual HTTPS asset checks pass. Published assets were downloaded/byte-verified before the update feed advanced. Seven native local copies have matching files, unchanged connection/settings and complete feedback snapshots. Existing Chrome first-open performance limitation retained; Safari/Firefox not rerun.
+
+
+## Recipient surface and rendered spacing — November 18, 2026
+
+Removed the email input's inline baseline gap and positioned suggestions after loading text settles. Five focused Chrome cases (desktop light, dark mobile, 320px light/touch dark, and unavailable email) pass, including measured 8px input insets and popup/field separation, keyboard/touch selection and captured invitation/copy flows. Fixed the held-response fixture to wait for its intercepted request before releasing it. Dark/light renders inspected. Two matching runtime files installed on local Harrison/Alliance after release-manifest verification and private source backups. No real mail/settings/feedback changes. Service and published 0.3.11 package unchanged; Safari/Firefox not rerun. Pending local review.
+
+
+## Flush dock and idle transparency — November 18, 2026
+
+`issue-window.cjs` passes both sidebar-edge flush calculations, initial opaque docking, 14% idle/100% hover states, keyboard-visible focus and reply editing away from the pointer, open-menu/forced-color readability, independent scrolling, preserved draft/marker, drag-to-undock/Escape cancellation, touch drag/cancel and responsive bounds. Reduced-motion rendering inspected in light/dark and idle captures. Hover-capable fine pointers fade; coarse/touch and forced colors remain opaque. The fade applies only while docked. Two matching JS/CSS files installed on local Harrison/Alliance after previous working hashes were verified and source backed up. No service/settings/feedback writes. Uncommitted/unreleased; Safari/Firefox not rerun.
+
+
+## Full-height dock and initial visibility correction — November 18, 2026
+
+Docked cards now use the full visual viewport height, touching top/bottom and the sidebar, with a soft side-aware shadow. Initial opacity hold requires actual hover entry before an exit can release it; outside movement immediately after docking no longer causes fading. `issue-window.cjs` passes exact 0px top/1000px height on both sides, initial hold without hover, hover/idle/keyboard/edit/menu/forced-color visibility, preserved drafts, pointer/touch drag/cancel and narrow-screen bounds. Light/dark and idle renders inspected. Matching JS/CSS installed on local Harrison/Alliance with private backups; no service, settings or feedback changes. Unreleased; Safari/Firefox not rerun.
+
+
+## Saved docking preference — November 18, 2026
+
+`dock-persistence.cjs` passes actual same-page issue changes, cross-page issue navigation with repeated queries, reload, ordinary browsing without automatic ticket reopening, new tabs, explicit undock persistence, and mobile fallback followed by restored docking. The restored dock starts opaque. `issue-window.cjs` also passes dragging/cancellation, keyboard resets, touch and unchanged marker/draft behavior; completed undocking saves while cancelled drags do not. Only a per-site boolean enters localStorage. Matching JS/CSS installed on local Harrison/Alliance after verified prior working hashes/private backups. No service/settings/feedback writes. Unreleased; Safari/Firefox not rerun.
+
+
+Idle dock opacity changed to 0% at owner request. Existing issue-window fixture passes complete invisibility after hover exit, initial opaque hold and hover/keyboard/edit/menu/forced-color restoration, plus docking/drag/draft behavior. Matching CSS installed locally on Harrison/Alliance with prior source backed up. Unreleased; Safari/Firefox not rerun.
+
+
+Docked stacking order corrected: sidebar is above the docked card and its shadow, while floating cards retain their previous foreground layer. Existing issue-window fixture passes explicit computed layer-order checks for both sidebar sides, floating recovery, opacity/focus states, drag/cancel and draft preservation. Dark render inspected; matching CSS installed on local Harrison/Alliance after verified prior hashes and a private backup. No data/service changes. Unreleased; Safari/Firefox not rerun.
+
+
+## Alternate same-site review grant — November 18, 2026
+
+Native `tests/review-link-exchange.php` passes anonymous redemption of an alternate credential’s grant, canonical local-cookie validation, absent private identity, invalid-proof denial and disabled-mode rejection without HTTP. Synthetic connection options are process filters and HTTP is intercepted; the fixture removes its own limiter transient. CLI emitted existing WP-CLI/other-plugin deprecation and header warnings, so real browser cookie transport is covered separately by the review-access fixture. Core verification passes 53/53 on isolated Linux PostgreSQL, covering successful same-site exchange without credential mutation and foreign-site/tampered/malformed/expired/revoked denial. PHP syntax and source whitespace checks pass. No live staging installation or grant has been changed.
+
+Chrome `review-access.cjs` passes both REST URL formats, fragment cleanup, actual HttpOnly cookies, logged-in nonce fallback, guest/private isolation, session ending and disabled/error cases. All requests intercepted. Safari/Firefox and actual Harrison Staging were not rerun.
+
+
+## Single-action magic invitations — November 18, 2026
+
+All 53 core checks pass in isolated Linux/PostgreSQL. Invitation email assertions require one HTML link, one plain-text URL and no login action. HTTP acceptance ignores an old login request flag. Chrome notification-opening cases pass new invitations, old login flags and direct-ticket notifications using freshly generated landing HTML/CSP. Anonymous invitees see the sidebar without identifying, then receive the normal identity prompt when replying; explicit login preserves the selected issue’s actual page path, repeated query values and issue fragment in redirect_to. Review-access regression passes both REST URL forms and cookie/identity isolation. The expanded fixture now permits legitimate GET session refreshes and expects the selected issue’s actual page rather than the invitation’s root URL. All requests intercepted; no live email, configuration or feedback changes. Safari/Firefox and live staging not rerun. Unreleased.
+
+
+## Persistent public links and optional reviewer accounts — November 18, 2026
+
+Core verify: 56/56 on disposable Linux/PostgreSQL, receipt shared-access-20261119T025317Z. Covers public-only configured/automatic sharing, no local/private-IP fallback, project-wide revocation across copied/invitation/notification grants and fresh replacements, unchanged site credentials and feedback, old anonymous gateway denial after revocation, native actor/public-mode access, and recipient-proof/setting scope. The old SQL-string assertion in review-link.test.ts now checks a read-only SELECT plus the required project version rather than mirroring the full query. Email signature tests assert no expiry field; old signed version-zero grants remain subject to project revocation.
+
+Native Cove QA: invitation-accounts.php, review-link-exchange.php, reviewer-config.php, review-links-unit.php and source-loaded agent-ticket-links.php pass. All core HTTP/mail is intercepted. Account fixture verifies no read/edit/upload/admin powers, duplicate reuse, unchanged existing editor role/password/name, no auto-login, stable email attribution, wrong-project denial, option-off behavior, invalid-proof rejection and explicit deletion of every temporary user/role. Exchange fixture verifies canonical cookies, anonymous identity isolation and denial of a previously accepted cookie on a subsequent central check. CLI deprecation/header warnings are unrelated; actual browser cookie transport passes separately.
+
+Chrome: overlay-sharing.cjs (10 variants), issue-review-links.cjs (6 states), notification-opening.cjs with invitation recipient forwarding and old login flags, review-access.cjs, admin-projects.cjs and shared-access-settings.cjs pass. Copies target a synthetic public host distinct from the current local test origin. Native REST/MCP/CLI sharing also targets that public host. Settings cover project payload guards, opt-in save/persistence, one-click revoke, permission error/recovery and no overflow at 1280/390/320px; renders inspected. Existing dock/picker changes remain pending and preserved. No live site installation, service deployment or real email occurred. Safari/Firefox and actual staging not rerun.
+
+
+## 0.4.0 security review and verified guests
+
+`tests/email-verification.php` runs source-loaded on disposable Cove QA with all service HTTP intercepted. It verifies the first-contribution gate, native signed proof, stable delivery retry, tamper/expiry/replay rejection, one-use core consumption, 180-day cookie payload, current verified identity overriding supplied author fields, native login precedence, no private access and project revocation. No real mail or feedback writes; transient counters are removed. Native CLI cannot prove browser header transport, so `review-access.cjs` separately checks actual Secure/HttpOnly/SameSite cookie handling, 180-day lifetime, verification fragment cleanup and forwarding for pretty/plain REST URLs.
+
+`tests/email-verification.cjs` intercepts all requests and checks forged editable cookies, mail failure/idempotent retry, explicit resend, no contribution before proof, draft continuation, dismissal during pending delivery, remembered/native bypass and expired-tab recovery. `anonymous-review.cjs` adds reply/file retention and one attributed write across desktop/light and 390px/320px dark, read-only pin/sidebar/hash navigation, new issue/text/status/author/drag gates and login return tracking. The mobile recovery test exposed background activity covering the verification action; identity now renders above it. New PHP verification code passes full WordPress standards.
+
+The full WordPressCS 3.4.1 scan is intentionally reported separately from the release security profile. Existing compressed runtime code has formatting/docblock findings; it is not fully WPCS-compliant. The security profile is clean. ESLint checks first-party assets for undefined/unused code (intentional empty storage-fallback catches allowed), TypeScript checks unused locals/parameters, and the production npm audit reports zero known dependency vulnerabilities. Historical peer-conflict presentation was removed; live central stale-edit recovery remains tested.
+
+The old 60px mobile footer assertion predated the additional footer controls. Measurement shows two 40px touch rows, an 8px gap, 16px padding and a 1px border (105px total) at 320px. Its revised 106px bound still rejects a third row, and every control must stay within the viewport. Queued shared drafts, files, exact query/idempotency restoration and private memory-only retry/purge passed before and after this assertion update.
+
+
+Final 0.4.0 browser coverage: 64 intercepted suite runs (63 main-run passes, one corrected anonymous-review fixture passing on rerun). Original failure is retained with the rerun receipt; no product test was silently dropped. The old launcher-gap assertion was measuring against hidden launchers after opening the public sidebar; the fixture now closes the sidebar before measuring that gap. Subsequent public-bootstrap/native-precedence checks also pass independently. Screenshot capture, target recovery, text editing, shared/private conversation handling, scrolling, status animations, docking, tooltips, queue/upload retries and notification/invitation landings all pass. Full strict performance result is recorded separately in the release review.

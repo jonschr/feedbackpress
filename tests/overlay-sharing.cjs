@@ -3,14 +3,14 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try {
-  const base='https://feedbackpress.test',home=base+'/site',project='11111111-1111-4111-8111-111111111111';
+  const base='https://feedbackpress.test',home=base+'/site',shared='https://review.example.com/site',grant='22222222-2222-4222-8222-222222222222.'+'a'.repeat(43),project='11111111-1111-4111-8111-111111111111';
   for(const variant of ['desktop','dark-mobile','narrow','touch','unavailable','clipboard-denied','denied','options-failed','identity-changed','guest']) {
    console.log('Checking',variant);
    const width=['narrow','touch'].includes(variant)?320:variant==='dark-mobile'?390:1280;
    const context=await browser.newContext({viewport:{width,height:844},colorScheme:variant==='dark-mobile'||variant==='touch'?'dark':'light',hasTouch:variant==='touch',reducedMotion:'reduce'});
    await context.addInitScript(denied=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async value=>{if(denied)throw Error('Clipboard blocked');window.copied=value;}}}),variant==='clipboard-denied');
    const issues=Array.from({length:24},(_,i)=>({id:`${String(i+1).padStart(8,'0')}-1111-4111-8111-111111111111`,number:i+1,title:'An issue to review',body:'Shared context',path:'/',author:'Client',status:'todo',revision:1,files:[],activity:[],target:{selector:'#target',x:.5,y:.5}}));
-   let options=0,copies=0;const sends=[],errors=[];let releaseFirstSend;
+   let options=0,copies=0;const sends=[],errors=[];let releaseFirstSend,firstSendStarted;const firstSendReady=new Promise(resolve=>{firstSendStarted=resolve;});
    await context.route(base+'/**',async route=>{
     const req=route.request(),url=new URL(req.url());
     if(url.pathname.endsWith('.css'))return route.fulfill({contentType:'text/css',body:fs.readFileSync('assets/review.css','utf8')});
@@ -18,10 +18,10 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
     if(url.pathname==='/review.js')return route.fulfill({contentType:'text/javascript',body:fs.readFileSync('assets/review.js','utf8')});
     if(url.pathname==='/api/admin/reviewers'){options++;if(variant==='options-failed'&&options===1)return route.fulfill({status:503,json:{message:'Could not load invitation options.'}});return route.fulfill({json:{users:[{id:42,name:'Existing reviewer',email:'existing@example.test'},{id:43,name:'Second reviewer with a longer name',email:'second@example.test'}]}});}
     if(url.pathname==='/api/admin/capabilities')return route.fulfill({json:{invitations:variant!=='unavailable'}});
-    if(url.pathname==='/api/admin/review-link'){copies++;return route.fulfill(variant==='denied'?{status:403,json:{message:'Administrator access required.'}}:{headers:variant==='identity-changed'?{'X-FeedbackPress-Actor-Id':'different'}:{},json:{url:home+'/#fp-review=synthetic'}});}
+    if(url.pathname==='/api/admin/review-link'){copies++;return route.fulfill(variant==='denied'?{status:403,json:{message:'Administrator access required.'}}:{headers:variant==='identity-changed'?{'X-FeedbackPress-Actor-Id':'different'}:{},json:{url:shared+'/#fp-review='+grant}});}
     if(url.pathname==='/api/admin/invite'){
      sends.push({body:req.postDataJSON(),key:req.headers()['idempotency-key']});
-     if(sends.length===1&&variant==='desktop')await new Promise(resolve=>{releaseFirstSend=resolve;});
+     if(sends.length===1&&variant==='desktop')await new Promise(resolve=>{releaseFirstSend=resolve;firstSendStarted();});
      return route.fulfill(sends.length===1?{status:503,json:{message:'Could not send. Try again.'}}:{json:{sent:true,captured:false}});
     }
     if(url.pathname==='/api/review-access')return route.fulfill({json:{paused:false,can_create:true,account_owner:true}});
@@ -43,7 +43,8 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
    const suggestions=page.getByRole('listbox',{name:'Site reviewers',exact:true});await suggestions.waitFor();
    assert.equal(await suggestions.getByRole('option').count(),2);assert.equal(await suggestions.locator('.share-option-name').first().textContent(),'Existing reviewer');assert.equal(await suggestions.locator('.share-option-email').first().textContent(),'existing@example.test');
    const padding=await bar.evaluate(n=>{const s=getComputedStyle(n);return [s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft]});assert.deepEqual(padding,['8px','8px','8px','8px']);
-   const popup=await suggestions.boundingBox();assert.ok(popup.x>=0&&popup.x+popup.width<=width&&popup.y>=0&&popup.y+popup.height<=844);
+   const insets=await mail.evaluate(n=>{const field=n.getBoundingClientRect(),bar=n.closest('.share-bar'),box=bar.getBoundingClientRect(),style=getComputedStyle(bar),status=bar.querySelector('.share-state'),statusHeight=status.hidden?0:status.getBoundingClientRect().height+parseFloat(getComputedStyle(status).marginTop);return [field.left-box.left,field.top-box.top-parseFloat(style.borderTopWidth),box.bottom-field.bottom-statusHeight]});assert.ok(insets.every(value=>Math.abs(value-8)<.5),'Visible input must have equal left/top/bottom insets, including its wrapper line box');
+   const popup=await suggestions.boundingBox();assert.ok(popup.x>=0&&popup.x+popup.width<=width&&popup.y>=0&&popup.y+popup.height<=844);const inputBox=await mail.boundingBox();assert.ok(Math.abs(inputBox.y-(popup.y+popup.height)-8)<.5,'Picker stays 8px above the input after loading message clears');
    if(variant==='desktop'){
     await mail.fill('second');assert.equal(await suggestions.getByRole('option').count(),1);await mail.dispatchEvent('keydown',{key:'ArrowDown',isComposing:true});assert.equal(await mail.getAttribute('aria-activedescendant'),null);await mail.press('ArrowDown');assert.ok(await mail.getAttribute('aria-activedescendant'));await mail.press('Enter');assert.equal(await mail.inputValue(),'second@example.test');assert.equal(await suggestions.isVisible(),false);assert.equal(sends.length,0,'Selecting a person never sends an invitation');assert.equal(await mail.evaluate(n=>n.getRootNode().activeElement===n),true);
     await mail.fill('');await suggestions.getByRole('option',{name:'Existing reviewer existing@example.test',exact:true}).click();assert.equal(await mail.inputValue(),'existing@example.test');assert.equal(await suggestions.isVisible(),false);await mail.fill('');await mail.press('Escape');assert.equal(await suggestions.isVisible(),false);assert.equal(await bar.isVisible(),true);await mail.click();await suggestions.waitFor();
@@ -54,11 +55,11 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
    if(['desktop','dark-mobile','narrow','touch'].includes(variant))await panel.screenshot({path:'/tmp/feedbackpress-sharing-'+variant+'.png'});
    await copy.click();
    if(variant==='identity-changed'){await page.locator('.notice').getByText(/Your WordPress identity changed/).waitFor();assert.equal(await panel.isVisible(),false);assert.equal(await page.locator('.share-suggestions [role=option]').count(),0);assert.equal(await page.locator('.share-bar input[type=email]').inputValue(),'');assert.equal(await page.evaluate(()=>window.copied),undefined);assert.deepEqual(errors,[]);await context.close();continue;}
-   if(variant==='clipboard-denied'){const fallback=bar.getByRole('textbox',{name:'Magic review link'});await fallback.waitFor();assert.equal(await fallback.inputValue(),home+'/?feedbackpress=open#fp-review=synthetic');assert.equal(await page.evaluate(()=>window.copied),undefined);await fallback.press('Escape');assert.equal(await bar.isVisible(),false);assert.equal(await bar.locator('input[aria-label="Magic review link"]').inputValue(),'');await toggle.click();}
+   if(variant==='clipboard-denied'){const fallback=bar.getByRole('textbox',{name:'Magic review link'});await fallback.waitFor();assert.equal(await fallback.inputValue(),shared+'/?feedbackpress=open#fp-review='+grant);assert.equal(await page.evaluate(()=>window.copied),undefined);await fallback.press('Escape');assert.equal(await bar.isVisible(),false);assert.equal(await bar.locator('input[aria-label="Magic review link"]').inputValue(),'');await toggle.click();}
    else if(variant==='denied'){await bar.getByText('Administrator access required.',{exact:true}).waitFor();assert.equal(await list.locator('.issue-row').count(),24,'Sharing denial does not erase otherwise authorized issues');}
-   else{await bar.getByText(/Magic link copied/).waitFor();assert.equal(await page.evaluate(()=>window.copied),home+'/?feedbackpress=open#fp-review=synthetic');assert.equal(sends.length,0,'Copy does not send an email');}
+   else{await bar.getByText(/Magic link copied/).waitFor();assert.equal(await page.evaluate(()=>window.copied),shared+'/?feedbackpress=open#fp-review='+grant);assert.equal(sends.length,0,'Copy does not send an email');}
    if(variant==='desktop'){
-    await mail.fill('client@example.test');await mail.press('Enter');await bar.getByText('Sending invitation…',{exact:true}).waitFor();assert.equal(await send.isDisabled(),true);releaseFirstSend();await bar.getByText('Could not send. Try again.',{exact:true}).waitFor();assert.equal(await mail.inputValue(),'client@example.test');
+    await mail.fill('client@example.test');await mail.press('Enter');await bar.getByText('Sending invitation…',{exact:true}).waitFor();assert.equal(await send.isDisabled(),true);await firstSendReady;releaseFirstSend();await bar.getByText('Could not send. Try again.',{exact:true}).waitFor();assert.equal(await mail.inputValue(),'client@example.test');
     await mail.press('Control+Enter');await bar.getByText('Invitation sent to client@example.test.',{exact:true}).waitFor();assert.equal(sends.length,2);assert.equal(sends[0].key,sends[1].key);assert.deepEqual(sends[0].body,sends[1].body);assert.equal(sends[1].body.project,project);assert.equal(sends[1].body.user_id,0);assert.equal(await mail.inputValue(),'');
     await mail.fill('existing@example.test');await send.click();await bar.getByText('Invitation sent to existing@example.test.',{exact:true}).waitFor();assert.equal(sends[2].body.user_id,42);assert.equal(sends[2].body.email,'');assert.notEqual(sends[2].key,sends[1].key);
     await mail.fill('kept@example.test');await mail.press('Escape');assert.equal(await bar.isVisible(),false);assert.equal(await panel.isVisible(),true);await toggle.click();assert.equal(await mail.inputValue(),'kept@example.test');

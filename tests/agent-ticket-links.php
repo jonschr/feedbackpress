@@ -10,7 +10,7 @@ add_filter('pre_option_feedbackpress_settings', function () use (&$mode) { retur
 add_filter('pre_http_request', function ($pre, $args, $url) use (&$calls, &$visibility, &$path, $id, $c) {
     $calls[] = $url;
     if (str_ends_with($url, '/issues/' . $id)) $data = ['id' => $id, 'path' => $path, 'visibility' => $visibility];
-    elseif (str_ends_with($url, '/review-link')) $data = ['url' => FeedbackPress\Service::home() . '/#fp-review=' . $c['credential_id'] . '.' . str_repeat('a', 43)];
+    elseif (str_ends_with($url, '/share-link')) $data = ['url' => 'https://review.example.com' . '/#fp-review=' . $c['credential_id'] . '.' . str_repeat('a', 43)];
     elseif (str_ends_with($url, '/invitations')) {
         $body = json_decode($args['body'], true);
         $actor = FeedbackPress\Service::unpack($args['headers']['X-FeedbackPress-Actor'] ?? '');
@@ -26,7 +26,7 @@ $native = array_values(array_filter($people->get_data()['users'], fn($user) => $
 $check(count($native) === 1 && $native[0]['email'] === $admin->user_email && $native[0]['name'] === $admin->display_name && count($calls) === 0);
 $request = new WP_REST_Request('GET', '/feedbackpress/v1/issues/' . $id . '/review-link');
 $response = rest_do_request($request); $check($response->get_status() === 200); $link = $response->get_data()['url'];
-$check(str_starts_with($link, FeedbackPress\Service::home() . $path . '#fp-review='));
+$check(str_starts_with($link, 'https://review.example.com' . $path . '#fp-review='));
 parse_str(wp_parse_url($link, PHP_URL_FRAGMENT), $fragment); $check($fragment['fp-return'] === 'feedbackpress=' . $id);
 $ability = wp_get_ability('feedbackpress/ticket-link'); $check($ability instanceof WP_Ability);
 $check($ability->execute(['issue_id' => $id])['url'] === $link);

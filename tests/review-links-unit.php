@@ -1,7 +1,7 @@
 <?php
 defined('ABSPATH') || exit;
 if (!defined('DISABLE_WP_CRON')) define('DISABLE_WP_CRON', true);
-// Pure signature/actor checks in a real WP bootstrap, intercepted HTTP, no options saved.
+// Central proof/actor checks in a real WP bootstrap, intercepted HTTP, no options saved.
 require_once dirname(__DIR__) . '/feedbackpress.php';
 use FeedbackPress\Service;
 use FeedbackPress\ReviewAccess;
@@ -10,7 +10,8 @@ $cfg = []; // Missing/empty settings must use the administrator-only default.
 $c = ['project' => '11111111-1111-4111-8111-111111111111', 'credential_id' => '22222222-2222-4222-8222-222222222222', 'token' => 'fp_' . str_repeat('x', 43), 'site_url' => Service::home(), 'service' => 'https://service.example.test'];
 add_filter('pre_option_feedbackpress_settings', function () use (&$cfg) { return $cfg; });
 add_filter('pre_option_' . Service::OPTION, function () use (&$c) { return Service::pack($c); });
-add_filter('pre_http_request', function () { throw new RuntimeException('Unexpected external request'); });
+$initial=$c;
+add_filter('pre_http_request',function($pre,$args,$url)use($initial,&$token){$valid=$url==='https://service.example.test/v1/projects/'.$initial['project'].'/review-link'&&$args['method']==='POST'&&$args['headers']['Authorization']==='Bearer '.$initial['token']&&json_decode($args['body'],true)===['token'=>$token];return ['headers'=>[],'response'=>['code'=>$valid?200:403],'body'=>wp_json_encode($valid?['url'=>FeedbackPress\Service::home().'/#fp-review='.$token]:['error'=>'invalid_review_link'])];},10,3);
 $assert = function ($ok) { if (!$ok) throw new RuntimeException('Review-link assertion failed'); };
 // Cross-language expected signature generated independently by Node.
 $token = getenv('FEEDBACKPRESS_REVIEW_UNIT_TOKEN'); if (!$token) throw new RuntimeException('Synthetic signature required');
@@ -28,4 +29,4 @@ $_COOKIE[ReviewAccess::COOKIE] = ['malformed']; $assert(!ReviewAccess::grant());
 $_COOKIE[ReviewAccess::COOKIE] = $token; $cfg['mode'] = 'disabled'; $assert(!API::can_view());
 $cfg['mode'] = 'everyone'; unset($_COOKIE[ReviewAccess::COOKIE]); $assert(API::can_view()); $assert(is_wp_error(API::privateRead()));
 $cfg['mode'] = 'admins'; wp_set_current_user(1); $assert(API::can_view());
-echo 'PASS Real WP cross-language signature, access modes, current connection binding, malformed cookies and guest private denial. No writes or HTTP.';
+echo 'PASS Real WP central proof validation, access modes, current connection binding, malformed cookies and guest private denial. No writes; HTTP intercepted.';

@@ -6,22 +6,26 @@ final class Admin {
         wp_clear_scheduled_hook('feedbackpress_tick');
         if ($networkWide || is_network_admin() || wp_doing_ajax() || (defined('WP_CLI') && WP_CLI)
             || !current_user_can('manage_options') || !empty(Service::connection()['manager'])
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read native activation context only; WordPress performs activation authorization.
             || isset($_REQUEST['activate-multi']) || in_array('activate-selected', [$_REQUEST['action'] ?? '', $_REQUEST['action2'] ?? ''], true)) return;
         set_transient('feedbackpress_setup_redirect_' . get_current_user_id(), true, MINUTE_IN_SECONDS);
     }
     public static function activationRedirect(): void {
         if (is_network_admin() || wp_doing_ajax() || (defined('WP_CLI') && WP_CLI) || !current_user_can('manage_options')
+            // phpcs:ignore WordPress.Security.NonceVerification -- Only suppress redirects on form/bulk requests; no submitted values are processed.
             || !empty($_POST) || isset($_REQUEST['activate-multi']) || in_array('activate-selected', [$_REQUEST['action'] ?? '', $_REQUEST['action2'] ?? ''], true)) return;
         $key = 'feedbackpress_setup_redirect_' . get_current_user_id();
         if (!get_transient($key)) return;
         delete_transient($key);
-        if (!empty(Service::connection()['manager']) || ($_GET['page'] ?? '') === 'feedbackpress') return;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Navigation context only; the redirect transient is scoped to this administrator.
+        if (!empty(Service::connection()['manager']) || sanitize_key(wp_unslash($_GET['page'] ?? '')) === 'feedbackpress') return;
         if (!headers_sent() && wp_safe_redirect(admin_url('options-general.php?page=feedbackpress'))) exit;
     }
     public static function setupNotice(): void {
         if (is_network_admin() || !current_user_can('manage_options') || !empty(Service::connection()['manager'])) return;
         echo '<div class="notice notice-warning"><p><strong>License FeedbackPress to get started.</strong>';
-        if (($_GET['page'] ?? '') !== 'feedbackpress') echo ' <a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=feedbackpress')) . '">Set up FeedbackPress</a>';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Determines notice placement only, without changing settings.
+        if (sanitize_key(wp_unslash($_GET['page'] ?? '')) !== 'feedbackpress') echo ' <a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=feedbackpress')) . '">Set up FeedbackPress</a>';
         echo '</p></div>';
     }
     public static function pluginLinks(array $links): array {
@@ -57,6 +61,16 @@ final class Admin {
             if ($r->has_param('notification_email')) $body['notification_email'] = $r->get_param('notification_email');
             $c = Service::connection(); Service::manager('POST', '/projects/' . $c['project'] . '/notifications', $body); return self::state();
         }, $admin);
+        $route('/admin/shared-links', 'POST', function ($r) {
+            $c = Service::connection();
+            if ($r->get_param('project') !== ($c['project'] ?? null)) throw new \RuntimeException('The project changed. Reload before saving.', 409);
+            Service::manager('POST', '/projects/' . $c['project'] . '/shared-links', ['create_accounts' => $r->get_param('create_accounts')]); return self::state();
+        }, $admin);
+        $route('/admin/shared-links/revoke', 'POST', function ($r) {
+            $c = Service::connection();
+            if ($r->get_param('project') !== ($c['project'] ?? null)) throw new \RuntimeException('The project changed. Reload before revoking links.', 409);
+            return Service::manager('POST', '/projects/' . $c['project'] . '/shared-links/revoke', new \stdClass());
+        }, $admin);
         $route('/admin/disconnect', 'POST', fn() => Service::disconnect(), $admin);
         $route('/admin/settings', 'POST', function ($r) {
             $mode = $r->get_param('mode'); if (!in_array($mode, ['everyone', 'admins', 'disabled'], true)) throw new \InvalidArgumentException('Choose a review access setting.');
@@ -89,7 +103,8 @@ final class Admin {
         <div class="wrap fp-settings">
             <h1>FeedbackPress</h1>
             <div id="fp-admin-message" class="notice inline" role="status" hidden><p></p></div>
-            <?php if (isset($_GET['disconnected'])): ?><div class="notice inline notice-info"><p><?php echo $_GET['disconnected'] === 'unconfirmed' ? 'Account disconnected here. The service could not confirm removal; remove this URL from another connected site when it is available.' : 'This installation is disconnected. Your feedback remains in the service.'; ?></p></div><?php endif; ?>
+            <?php // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Selects one of two fixed informational messages; no request value is output.
+            if (isset($_GET['disconnected'])): ?><div class="notice inline notice-info"><p><?php echo $_GET['disconnected'] === 'unconfirmed' ? 'Account disconnected here. The service could not confirm removal; remove this URL from another connected site when it is available.' : 'This installation is disconnected. Your feedback remains in the service.'; ?></p></div><?php endif; ?>
             <section class="fp-section fp-main" id="fp-main">
             <?php if (!empty($c['manager'])): ?>
                 <h2 id="fp-project-heading">Project</h2>
@@ -118,6 +133,7 @@ final class Admin {
             <section class="fp-section">
                 <h2>Review access</h2>
                 <form id="fp-access" method="post"><label for="fp-mode">Access without a review link</label><div class="fp-field-actions"><select id="fp-mode" aria-describedby="fp-access-help"><?php foreach (['everyone' => 'Every visitor', 'admins' => 'Logged-in administrators', 'disabled' => 'Nobody (disabled)'] as $value => $label): ?><option value="<?php echo esc_attr($value); ?>" <?php selected(settings()['mode'], $value); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><button class="button" type="submit">Save access</button></div><p class="description" id="fp-access-help">Private notes require the owner’s WordPress login. Nobody also disables review links.</p></form>
+                <div id="fp-shared-access" class="fp-subsection" hidden><h3>Shared access links</h3><p class="description">Links never expire and always open a public site. Revoking ends all existing link-based access for this project, including open review sessions.</p><button type="button" class="button" id="fp-revoke-links">Revoke all shared links</button><form id="fp-invitation-accounts" method="post"><label class="fp-check-label" for="fp-create-accounts"><input type="checkbox" id="fp-create-accounts"> Create WordPress accounts for invited reviewers</label><p class="description">Existing accounts are matched by email. When enabled, new invitees get a FeedbackPress-only account on their first visit. They can set a password at login.</p><button class="button" type="submit">Save invitation setting</button></form></div>
                 <?php if (!empty($c['token'])): ?><p class="description"><a href="<?php echo esc_url(add_query_arg('feedbackpress', 'open', home_url('/'))); ?>">Open feedback to invite reviewers</a></p><?php endif; ?>
             </section>
             <?php if (!empty($c['manager'])): ?><details class="fp-section"><summary>Account connection</summary>

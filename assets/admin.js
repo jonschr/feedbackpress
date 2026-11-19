@@ -66,6 +66,7 @@
     $('fp-project-state').hidden = Boolean(state.project && !state.disconnected);
     const section = $('fp-connected-sites'), notificationOpen = section.querySelector('.fp-notifications')?.open; section.replaceChildren(); const heading = document.createElement('h3'); heading.textContent = 'Connected sites'; section.append(heading);
     section.hidden = !state.project || !$('fp-create-project').hidden;
+    if ($('fp-shared-access')) { $('fp-shared-access').hidden = !state.project; $('fp-create-accounts').checked = Boolean(state.project?.invitation_accounts); }
     if (!state.project) return;
     const list = document.createElement('ul'); list.className = 'fp-site-list';
     for (const site of state.project.sites || []) {
@@ -80,15 +81,15 @@
     emailHeading.textContent='Email notifications';emailLabel.textContent='Project owner email';email.id='fp-notification-email';emailLabel.htmlFor=email.id;email.type='email';email.autocomplete='email';email.value=state.project.notification_email||'';email.placeholder=state.notification_default_email||'you@example.com';email.setAttribute('aria-describedby','fp-email-help');
     emailSave.className='button';emailSave.type='submit';emailSave.textContent='Save email';emailHelp.id='fp-email-help';emailHelp.className='description';emailHelp.textContent='Summarize shared feedback from other people after 10 quiet minutes. Leave empty to turn off.'+(state.project.owner_notification_delivery==='capture'?' Email previews are being captured; live delivery is off.':'');emailActions.className='fp-field-actions';emailActions.append(email,emailSave);emailForm.append(emailLabel,emailActions,emailHelp);
     emailForm.addEventListener('submit',event=>{event.preventDefault();run(emailForm,async()=>{await refresh(await api('notifications',{notification_email:email.value.trim()||null}));show('Notification email saved.');});});emailSection.className='fp-subsection';emailSection.append(emailHeading,emailForm);section.append(emailSection);
-    const details=document.createElement('details'),summary=document.createElement('summary');details.className='fp-notifications';details.open=Boolean(notificationOpen || (state.project.review_site && !state.project.notification_site));summary.textContent='Notification links';details.append(summary);
+    const details=document.createElement('details'),summary=document.createElement('summary');details.className='fp-notifications';details.open=Boolean(notificationOpen || (state.project.review_site && !state.project.notification_site));summary.textContent='Shared link destination';details.append(summary);
     const form=document.createElement('form'),label=document.createElement('label'),select=document.createElement('select'),save=document.createElement('button'),help=document.createElement('p');
-    label.textContent='Notification link destination';select.id='fp-review-site';label.htmlFor=select.id;
+    label.textContent='Link destination';select.id='fp-review-site';label.htmlFor=select.id;
     select.append(new Option('Automatic: first non-local site',''));
     for(const site of state.project.sites||[])if(site.notification_eligible)select.append(new Option(site.url,site.url));
     if(state.project.review_site&&![...select.options].some(option=>option.value===state.project.review_site)){const unavailable=new Option(state.project.review_site+' (unavailable)',state.project.review_site);unavailable.disabled=true;select.append(unavailable);}
     select.value=state.project.review_site||'';save.className='button';save.textContent='Save link destination';save.type='submit';help.className='description';help.style.overflowWrap='anywhere';
     select.setAttribute('aria-describedby','fp-notification-help');help.id='fp-notification-help';
-    help.textContent=(state.project.notification_site?'Links open '+state.project.notification_site+'.':state.project.review_site?'The chosen site is unavailable. Choose another public site or Automatic.':'Connect a public HTTPS site to use notification links.');
+    help.textContent=(state.project.notification_site?'Links open '+state.project.notification_site+'.':state.project.review_site?'The chosen site is unavailable. Choose another public site or Automatic.':'Connect a public HTTPS site to share links.');
     const actions=document.createElement('div');actions.className='fp-field-actions';actions.append(select,save);
     const delivery=document.createElement('p');delivery.className='description';delivery.textContent='Applies to all sites in this project. '+(state.project.notification_delivery==='capture'?'Email previews are being captured; live delivery is off.':state.project.notification_delivery==='resend'?'Delivery testing is limited to approved recipients.':'Mention emails are off.');
     form.append(label,actions,help,delivery);
@@ -119,6 +120,8 @@
   $('fp-cancel-project')?.addEventListener('click', () => { creatingProject(false); $('fp-project-name').value = ''; $('fp-new-project').focus(); });
   $('fp-create-project')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { const next = await api('project/new', { id: projectDraftId, name: $('fp-project-name').value }); await refresh(next); creatingProject(false); $('fp-project-name').value = ''; show('Created and connected to ' + next.project.name + '.'); }); });
   $('fp-access')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await api('settings', { mode: $('fp-mode').value }); show('Review access saved.'); }); });
+  $('fp-invitation-accounts')?.addEventListener('submit', event => { event.preventDefault(); run(event.currentTarget, async () => { await refresh(await api('shared-links', {project:state?.project?.id,create_accounts:$('fp-create-accounts').checked})); show('Invitation setting saved.'); }); });
+  $('fp-revoke-links')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { if (!state?.project) return; await api('shared-links/revoke', {project:state.project.id}); show('All existing shared links revoked. Copy a new link or send a new invitation to share again.'); }));
   $('fp-disconnect')?.addEventListener('click', event => run(event.currentTarget.parentElement, async () => { const result = await api('disconnect', {}); const url = new URL(location.href); url.searchParams.set('disconnected', result.remote_removed ? '1' : 'unconfirmed'); location.assign(url); }));
   $('fp-diagnostics')?.addEventListener('toggle', async event => { if (!event.currentTarget.open) return; try { const log = await api('log'); $('fp-log').textContent = log.length ? log.map(row => `${row.utc}  ${row.operation}  ${row.status || 'connection failed'}  ${row.ms} ms`).join('\n') : 'No requests yet.'; } catch (error) { $('fp-log').textContent = error.message; } });
   if (search) refresh().catch(error => { $('fp-project-state').textContent = 'Could not load projects.'; show(error.message, true); });

@@ -5,13 +5,14 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  try {
   const base='https://feedbackpress.test',id='11111111-1111-4111-8111-111111111111';
   async function fixture(entry,reviewSession=true,width=1280,colorScheme='light'){
-   const context=await browser.newContext({viewport:{width,height:900},colorScheme,reducedMotion:'reduce'}),writes=[],errors=[];
+   const context=await browser.newContext({viewport:{width,height:900},colorScheme,reducedMotion:'reduce'}),writes=[],errors=[],verifications=[];let verified=false;
    let issue={id,number:1,title:'Review without registration',body:'Original shared text',author:'Client',status:'todo',revision:1,path:'/',target:{selector:'#target',x:.5,y:.5},files:[{id:'33333333-3333-4333-8333-333333333333',comment_id:id,name:'screenshot.png',mime:'image/png',screenshot:true,available:true}],activity:[]};
    await context.route(base+'/**',route=>{
     const req=route.request(),url=new URL(req.url()),path=url.pathname.slice(5);
     if(url.pathname.endsWith('.woff2'))return route.fulfill({contentType:'font/woff2',body:fs.readFileSync('assets/fonts/InterVariable.woff2')});
     if(url.pathname==='/review.css')return route.fulfill({contentType:'text/css',body:fs.readFileSync('assets/review.css','utf8')});
     if(url.pathname==='/review.js')return route.fulfill({contentType:'text/javascript',body:fs.readFileSync('assets/review.js','utf8')});
+    if(path==='identity/verification'){if(req.method()==='POST'){verifications.push(req.postDataJSON());return route.fulfill({json:{pending:true}});}return route.fulfill({json:{verified,reviewer:verified?{name:'New reviewer',email:'reviewer@example.test',id:'a'.repeat(64)}:null}});}
     if(path==='authors'&&req.method()==='GET')return route.fulfill({json:[{id:'a'.repeat(64),name:'New reviewer'}]});
     if(path.startsWith('files/'))return route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});
     if(url.pathname.startsWith('/api/')){
@@ -28,9 +29,9 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
    });
    const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base+entry);
    const prompt=page.getByRole('region',{name:'Introduce yourself',exact:true}),popup=page.getByRole('region',{name:'Issue details',exact:true});
-   const identify=async()=>{await prompt.getByRole('textbox',{name:'Your name',exact:true}).fill('New reviewer');await prompt.getByRole('textbox',{name:'Email address',exact:true}).fill('reviewer@example.test');await prompt.getByRole('button',{name:'Continue',exact:true}).click();};
+   const identify=async()=>{await prompt.getByRole('textbox',{name:'Your name',exact:true}).fill('New reviewer');await prompt.getByRole('textbox',{name:'Email address',exact:true}).fill('reviewer@example.test');await prompt.getByRole('button',{name:'Send verification email',exact:true}).click();await prompt.getByText('Check your email, then return here. Your draft is kept.',{exact:true}).waitFor();assert.equal(writes.length,0);assert.equal(verifications.length,1);verified=true;await prompt.waitFor({state:'hidden'});};
    const finish=async()=>{assert.deepEqual(errors,[]);await context.close();};
-   return {context,page,writes,prompt,popup,identify,finish};
+   return {context,page,writes,verifications,prompt,popup,identify,finish};
   }
   for(const [width,colorScheme] of [[1280,'light'],[390,'light'],[320,'dark']]){
    const f=await fixture('/#feedbackpress='+id,true,width,colorScheme),{page,popup,prompt,writes}=f;
@@ -73,12 +74,12 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
    await f.finish();
   }
   for(const [width,colorScheme] of [[1280,'light'],[390,'light'],[320,'dark']]){
-   const ordinary=await fixture('/',false,width,colorScheme);await ordinary.page.getByRole('button',{name:'View issues',exact:true}).click();await ordinary.prompt.waitFor();assert.equal(ordinary.writes.length,0);
+   const ordinary=await fixture('/',false,width,colorScheme);await ordinary.page.getByRole('button',{name:'View issues',exact:true}).click();await ordinary.page.getByRole('complementary',{name:'Issues',exact:true}).waitFor();assert.equal(await ordinary.prompt.isVisible(),false);await ordinary.page.getByRole('button',{name:'Dismiss issues',exact:true}).click();await ordinary.page.getByRole('button',{name:'Leave feedback',exact:true}).click();await ordinary.prompt.waitFor();assert.equal(ordinary.writes.length,0);
    await ordinary.page.evaluate(()=>document.fonts.ready);await ordinary.page.waitForFunction(()=>{const r=document.querySelector('#feedbackpress-root').shadowRoot,box=r.querySelector('.identity').getBoundingClientRect(),buttons=r.querySelectorAll('.launcher button');return Math.abs(buttons[0].getBoundingClientRect().top-box.bottom-8)<1;});
    const spacing=await ordinary.prompt.evaluate(n=>{const r=n.getRootNode(),box=n.getBoundingClientRect(),buttons=[...r.querySelectorAll('.launcher button')].map(b=>b.getBoundingClientRect()),style=getComputedStyle(n);return {gap:buttons[0].top-box.bottom,buttonGap:buttons[1].top-buttons[0].bottom,header:n.querySelector('header').getBoundingClientRect().height,title:n.querySelector('h2').getBoundingClientRect().height,padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft]};});
    assert.ok(Math.abs(spacing.gap-spacing.buttonGap)<1,JSON.stringify(spacing));assert.equal(spacing.header,spacing.title);assert.deepEqual(spacing.padding,['16px','16px','16px','16px']);
    await ordinary.page.screenshot({path:'/tmp/feedbackpress-identity-spacing-'+width+'-'+colorScheme+'.png'});await ordinary.finish();
   }
-  console.log('PASS magic-link anonymous desktop/mobile reading, direct/fragment/sidebar/pin/resumed entry, reply/file preservation and one attributed send, creation C/T/button, status/author identity guards, and unchanged non-link prompt. All requests intercepted.');
+  console.log('PASS magic-link anonymous desktop/mobile reading, direct/fragment/sidebar/pin/resumed entry, reply/file preservation and one attributed send, creation C/T/button, status/author identity guards, verified first contribution with no write before email proof, and anonymous reading on intentionally public sites. All requests intercepted.');
  }finally{await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
