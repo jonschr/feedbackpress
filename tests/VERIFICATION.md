@@ -1,3 +1,9 @@
+# Published 0.5.1 — November 20, 2026
+
+[FeedbackPress 0.5.1](https://github.com/jonschr/feedbackpress/releases/tag/0.5.1) tags source `626c5d3679c024e641063bf245ca5e85a5791953`. The installable ZIP contains 150 files built from committed bytes and has SHA256 `666f2b811958c72e4d58ad0822c5dd41234b23f7dcad952548fa0b8a40f74297`. Downloaded draft assets match the committed-source package and every manifest entry. After publication, the ZIP, manifest and checksum assets were downloaded anonymously over HTTP 200 and match byte for byte, with no observed throttling.
+
+Only after the public assets passed verification was main pushed with updater metadata. The actual public JSON feed returns 0.5.1 and its matching installable ZIP URL over HTTP 200. Native normal/update-AJAX updater checks and release checks follow below. No physical WordPress installation was replaced or package installation claimed for this patch; Main Dev and other existing source links follow the working checkout. Hosted installations receive the existing updater offer. No service deployment, schema migration or real feedback/email write was performed by the release checks/publication.
+
 # Release checks for 0.5.1 — November 20, 2026
 
 All 16 selected intercepted Chrome suites pass: bootstrap-loading, review-access, sidebar-startup, environments, overlay-sharing, page-notes, pin-drag, tooltips, text-preview-markup, text-changes, text-controls, status-drawer, review-pause, sidebar-layout, screenshot-pin and security-rendering. These cover the environment drawer and permission boundaries, loading/error handoff, current-state appearance icons/tooltips, attempted-drag-only text hint, native page-note cursor, exact BR markup restoration, immediate selection rings, existing layout/navigation and all ten real screenshot-renderer scenarios.
