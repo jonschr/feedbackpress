@@ -1,3 +1,63 @@
+# 0.5.0 release candidate — November 20, 2026
+
+All 70 intercepted Chrome functional fixtures pass after reviewed fixes/reruns. Coverage includes page-note placement/conversion/contrast/clearance, inline editing and Escape handling, statuses/sorting/timestamps, author attribution, hostile text, exact navigation/scroll restoration, screenshots/video, private notes, review access and queued upload recovery. The screenshot suite caught a real page-note regression: the newly positioned page-note anchor was stamped into captures. Capture now stamps only element-bound targets; all ten real-renderer scenarios pass with the original pixel/geometry assertions. Earlier Pending entries below are chronological development receipts included in this candidate.
+
+Eight initial browser failures are retained privately with rerun results. Fixtures now accommodate the page-note drop area, legitimate avatar markup, yellow private-note color/labels, page-note menu actions and active-row deselection. Navigation measures the live list atomically rather than a detached element replaced by a background read; exact position/order assertions remain. The activation fixture supplies the two WordPress stubs already required by its tested code.
+
+The 38 native/lint/security checks pass under supported PHP 8.1, including original/reply author routing and forged-target denial, private counts, account setup/access, invitation accounts with temporary-user cleanup, email verification/revocation, agent helpers and normal/update-AJAX updater boot. All 42 first-party runtime/test PHP files pass syntax validation. First-party JS syntax, ESLint, the WordPress security profile and whitespace checks pass. Full WPCS style compliance is not claimed; its established formatting backlog remains.
+
+WebKit 27.2 passes full list navigation and keyboard shortcuts. An initial run used an incompatible cached browser and timed out; installing the build matching the existing Playwright runtime resolved that setup issue. This is targeted WebKit coverage, not full Safari/Firefox certification.
+
+The strict instant-interactions timing target remains a known limitation. The first candidate sample missed 100 ms at 2159 ms (1830.8 ms synchronous handler); the published 0.4.1 control also missed it at 773.4 ms (593.4 ms handler). A second isolated candidate sample measured 1743.2 ms (1513.6 ms handler), again missing the target. These local samples do not establish a latency guarantee or prove equal performance. Functional upload/navigation coverage passes separately; the strict timing assertion is unchanged.
+
+Tests intercept service traffic; no real feedback edits or email delivery were performed. Native invitation/email tests run only on disposable Cove QA. Customer-writing installed-browser fixtures and the two guarded service-backed disposable project/review-access fixtures were not run against Laurel. No service update or schema migration is required. Private logs/results/backups: `~/Library/Application Support/FeedbackPress/private/release-0.5.0-20261120T064535Z`.
+
+# Pending sidebar selection toggle — November 20, 2026
+
+`sidebar-toggle.cjs` passes title/number/reply-count/background/Enter toggles, selection/fragment removal, sidebar/draft preservation, late-read invalidation, switching tickets and mobile list deselection, with zero mutation requests. JS syntax and whitespace checks pass. Local Laurel working symlink remains active; other browser engines were not checked.
+
+# Pending page-note placement labels/cursor — November 20, 2026
+
+`page-notes.cjs` passes creation label Add page note with uppercase presentation, plus glyph retained on hover, square SVG placement cursor inside the area and circular cursor outside it, plus existing contrast/creation/drag/clearance/mobile regressions. JS syntax and whitespace pass; cream-background uppercase label render inspected. Source remains active on local Laurel through the working symlink. Other browser engines were not checked.
+
+# Pending adaptive page-note contrast — November 20, 2026
+
+`page-notes.cjs` passes light/dark switching over white, cream, mid-gray, gradients and actual canvas-generated dark/light raster backgrounds, alongside existing page-note creation/drag/clearance/mobile checks. Cream/mid-gray/gradient renders inspected: plain black/white translucent text and dotted border, no gray stroke or fill. JS syntax and whitespace pass. Image reads are bounded/cached and tolerate blocked pixel access; gradients use a color estimate. Source is active through Laurel's working symlink. No real feedback writes or remote publication; other browser engines were not checked.
+
+# Pending ticket/page-note clearance — November 20, 2026
+
+`page-notes.cjs` passes page↔element conversion with the conversation kept open, non-overlap with marker stack/visible drop zone, pointer tracking and a long mobile thread compacted clear of centered controls. `issue-window.cjs` retains dragging, docking, keyboard/touch movement, draft preservation and responsive bounds. JS syntax and whitespace checks pass; the 320px long-conversation render was inspected. Controls/selected pin retain a higher layer as the fallback when no clear placement fits. Local working checkout only; no real feedback writes or remote publication. Other browser engines were not checked.
+
+# Pending centered page-note stack — November 20, 2026
+
+`page-notes.cjs` passes vertically centered marker stacks on desktop and 320px viewports, non-overlapping drop area with a 12px gap, bounds beside the left sidebar, pointer-following while dragging markers out of the centered stack, and the existing creation/conversion/cancellation/reload/status checks. JS syntax and whitespace pass; desktop and narrow renders inspected. Existing local Laurel symlink serves this checkout. No real feedback writes or remote publication; other browser engines were not checked.
+
+# Pending contextual page-note drop zone — November 20, 2026
+
+`page-notes.cjs` passes placement-only/drag-only visibility, no plus/native button surface, a larger 220×150 zone vertically centered at desktop/320px sizes, click-to-create, drag conversion/return, cancellation/failure recovery and retained page-note stack behavior. `pin-drag.cjs` retains existing mouse/touch/failed-save/link-drop handling. JS syntax and whitespace checks pass. Transparent-surface light/dark host captures and narrow placement inspected. Working source remains active through Laurel's existing symlink; no real feedback or remote publication. Other browser engines were not checked.
+
+# Pending inline typography and sizing — November 20, 2026
+
+`inline-edit.cjs` passes saved/editing color equality, wrapping title growth/shrinkage, paragraph growth/shrinkage without clipping, native content sizing and an explicitly exercised fallback, plus existing inline save/Escape/ownership/mentions/conflict/private-note and 320px checks. `comment-edit.cjs` retains the full menu editor behavior. JS syntax and whitespace checks pass; desktop title and narrow body renders inspected. Laurel still symlinks to this checkout, so refresh loads the updated assets. No real feedback edits or remote publication; other browser engines were not run.
+
+# Pending double-click inline editing — November 20, 2026
+
+`inline-edit.cjs` verifies separate title/description fields, shared reply and owner-private body editing, immutable ownership despite displayed-author reassignment, untouched counterpart/unsent-reply preservation, optimistic saves, native linked text, buttonless inline forms, focus-drift/mention Escape that retains the interface, same-ticket outside-field autosave, unchanged no-ops, invalid field retention, locked single private submission, modified Enter, existing full Save/Cancel menu Edit and failed/stale Restore draft, text-change metadata preservation, offscreen-marker editing, hidden stale-form Escape, pristine new-composer Escape dismissal and 320px bounds. Existing `comment-edit.cjs`, `note-actions.cjs` and `scroll-focus.cjs` pass; field editor desktop/narrow renders inspected. Shared-only replies now use the existing Edit-only menu instead of a separate button. Shared writes retain the existing full revision-checked payload; restored failed drafts reopen the existing full editor.
+
+Local Laurel's linked working source serves the latest JS/CSS byte-for-byte (two sequential identified asset GETs, HTTP 200, no throttling; `/tmp/feedbackpress-inline-served-assets.json`). Browser tests intercept all gateway traffic. No live feedback/email writes, service changes or release publication.
+
+# Pending page notes and review controls — November 19, 2026
+
+`page-notes.cjs` passes existing page-note visibility, chronological stacking/current-page isolation, fixed scrolling, creation/reload, drag conversion and return to an element, menu conversion, Escape, failed saves, preserved content/attribution, status shortcuts, left/right sidebar layouts and 320px bounds. Combined `pin-drag.cjs` retains mouse/touch/cancellation/failure/link-drop behavior. `note-actions.cjs` preserves ownership, privacy and identity-change clearing. Page-note desktop and narrow renders inspected.
+
+`status-drawer.cjs` also checks count-only summaries and constant All statuses sizing across zero through five selections. It passes default disclosure, multi-selection, keyboard focus/shortcuts, persistent collapse/reopen, normal interactions and 320px bounds; desktop light/dark and narrow renders inspected. Completed-sort regression passes both directions, preserving other selected statuses and reload state. Existing statuses, list views, authors UI and page-group checks pass with the updated controls/compact URL labels; URL destinations and relative paths remain unchanged. JS syntax and whitespace checks pass. Reuses the existing page-feedback target and target-update route; no service schema or backend changes. Uncommitted; the working checkout is active on local Laurel through a plugin-directory symlink, with the previous install retained privately for rollback. Native plugin activation/settings/connection hashes are unchanged; local homepage and served versioned JS/CSS checks pass. No remote deployment. Tests intercept gateway traffic and do not edit real feedback or send email. Install receipt: `~/Library/Application Support/FeedbackPress/private/laurel-working-link-20261120T055758Z/receipt.json`.
+
+# Pending individual comment authors — November 19, 2026
+
+`authors-ui.cjs` passes independent reply reassignment, existing/new-person selection, sibling/root/body/immutable-owner preservation, cancellation and stale-revision handling alongside original issue author editing. The 390px picker has no horizontal overflow; desktop/mobile renders inspected. Native `comment-authors.php` passes root/reply route forwarding, server-resolved service/native people, revision and idempotency key preservation, unknown-person/forged-target denial, conflicts and unverified guest denial. Its installed-runtime variant also passes on local Laurel. `comment-edit.cjs` retains text editing, ownership, drafts and conflict behavior; `anonymous-review.cjs` passes passive anonymous reading and verified contribution guards. PHP/JS syntax and whitespace checks pass.
+
+Reuses the service's existing `/issues/:issue/authors/:comment` endpoint; no service change or migration. Only `includes/api.php` and `assets/review.js` are installed on local Laurel with private backups under the site's `plugin-backups/comment-authors-20261119T132945`. Tests intercept all service HTTP, with no real feedback/email changes. Changes remain uncommitted and unreleased; hosted installations are unchanged. Private human/agent notes retain their separate existing note controls.
+
 # Published 0.4.1 — November 19, 2026
 
 Normal [0.4.1 release](https://github.com/jonschr/feedbackpress/releases/tag/0.4.1), tagged source `e8f2a0c`, contains guest nonce recovery, nonblocking page rendering and dock visibility restoration. The 146-file installable ZIP and both manifest/checksum assets were downloaded from GitHub and byte-verified before advancing main's updater metadata. ZIP SHA256: `533b2ec5e286654866fe41f3e75c34bed95de4f43f4a2ad6710409a1e5bdf962`.
@@ -495,3 +555,44 @@ Final 0.4.0 browser coverage: 64 intercepted suite runs (63 main-run passes, one
 ## Dock visibility after selection — November 18, 2026
 
 Expanded dock-persistence.cjs reproduces the old opacity=0 failure after selecting another same-page issue. The fixed source passes restoration, outside movement preserving the hold, the next actual hover exit fading out, current-issue reselection, navigation controls, cross-page persistence, reload and mobile fallback. issue-window.cjs still passes both docking sides, dragging, touch, keyboard, opacity and draft preservation. ESLint and whitespace checks pass. One reviewed JS asset installed on local Harrison/Alliance after exact 0.4.0 package hash checks and a private backup; no settings/feedback changes or public release.
+
+
+# Pending author avatars and yellow private notes — November 19, 2026
+
+`tests/author-avatars.cjs` passes intercepted Gravatar/identicon URLs, same-person reuse, different icons for same-name/different-email reviewers, local failure fallback, attribution-based You labels independent of ownership, yellow private-note surfaces in light/dark and 320px layout. Desktop/light and narrow/dark renders inspected. Existing authors-ui, private-notes and sidebar-layout fixtures pass; JS syntax and whitespace checks pass. Avatar HTTP is synthetic in these checks; no real Gravatar profile or customer data was requested. Changes are source-only and unreleased.
+
+
+# Pending sidebar startup continuity — November 19, 2026
+
+`sidebar-startup.cjs` uses the actual head access bootstrap, a parser-blocking theme script and a held uncached permission response. It verifies left/right 400px reservation and an empty neutral sidebar before DOM readiness, UI asset preloading while authorization is pending, zero intermediate page-width/offset changes in sampled navigation frames, pending desktop/mobile resize, no cached issue DOM before authorization, one adopted layout style, no continuation animation and fixed-header geometry after handoff. Screenshot loading is deferred until capture and reused. Access denial and CSS failure remove the shell and page-fit geometry. All HTTP is intercepted.
+
+Existing review-access, navigation-continuity, page-scale and all ten screenshot-pin real-renderer scenarios pass. PHP/JS syntax and diff whitespace pass. Continued-sidebar render inspected in Chrome. Source-only/unreleased; actual installed-site loading and Safari/Firefox were not exercised.
+
+
+# Installed Harrison review build — November 19, 2026
+
+On owner request, copied the five differing runtime files (review-access.js, review.js, review.css, feedbackpress.php and includes/api.php) to Harrison's physical plugin installation. Source main fetch/compare had no incoming commits; the resolved destination is not a Git checkout. All installed runtime files now match source, and PHP/JS syntax passes. Four read-only local HTTPS requests returned 200: page markup includes the new head bootstrap asset/layout scope, and all three actually served JS/CSS bodies match source hashes. No throttling observed. No settings, feedback, database, accounts or public release changed. Prior file backups and before/after manifest: private/harrison-sidebar-review-current-path. Interactive installed-site navigation remains for owner review.
+
+
+# Installed agent icons and authorship bars — November 19, 2026
+
+`author-avatars.cjs` passes distinct email avatars, no visible You/Only you labels, attribution-based 3px absolutely positioned markers, unchanged row/comment alignment, human-only self marking, bundled Codex/Claude logos, generic robot fallback, no owner Gravatar on agent notes, offline fallback and 320px light/dark layout. Desktop light/narrow dark renders inspected. Existing note-actions and authors-ui pass, as do JS syntax and whitespace.
+
+Installed the updated review.js/review.css and four new brand asset/license files on local Harrison, preserving settings/feedback. Prior installed bytes matched the preceding installation receipt before replacement. Both actual served JS/CSS bodies and both agent SVGs returned HTTP200 and matched source hashes; no throttling observed. Private backups/manifest: private/harrison-author-cues-current-path. No public release or service change.
+
+
+# Installed circular-avatar alignment — November 19, 2026
+
+Author avatars are 18px circles matching metadata line height; comment bylines vertically center their items. The author-avatars fixture passes, including measured 18px geometry, 50% clipping and less than 1px avatar/username center difference for human and agent bylines at desktop light and 320px dark, with all previous identity/privacy/marker checks. Narrow dark render inspected. Harrison's CSS matched the previous receipt before replacement, was backed up, and now matches source both on disk and through actual HTTP200. Receipt: private/harrison-avatar-alignment-current-path. No settings, feedback or service changes.
+
+
+# Live notification landing fix — November 19, 2026
+
+Both notification-opening browser variants pass with simulated Cloudflare Rocket Loader rewriting; non-exempt scripts become inert and the patched landing script remains executable under the existing hash-only CSP. Exact service candidate passed 60/60 isolated Linux checks (Mac DB initialization unavailable). The one-attribute shared notification/invitation landing fix is live; actual original email link opens Harrison staging issue64 in clean incognito Chrome without login/private access or retained bearer fragments. Canonical plan and private notification-rocket-loader-current-path record deployment/rollback details. No email sent or feedback changed.
+
+
+# Installed ticket-only green bars and transparent agents — November 19, 2026
+
+The author-avatars fixture passes no sidebar pseudo-marker, 3px ticket bars anchored at top/bottom zero with green light/dark tokens, unchanged comment/row geometry, circular 18px human avatar alignment, transparent uncropped agent marks, dark-mode inversion, versioned local brand URLs and all prior private-label/attribution/fallback checks at desktop and 320px. Both renders inspected. Codex uses its standalone terminal glyph without the filled badge; Claude is transparent too.
+
+Installed only review.js, review.css, codex.svg and its asset README on local Harrison after matching existing bytes to the prior receipts. All installed bytes and actual HTTP200 JS/CSS/Codex SVG bodies match source. Backups/manifest: private/harrison-ticket-markers-current-path. No settings, feedback or hosted service changes.

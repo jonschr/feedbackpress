@@ -23,7 +23,7 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/design/');
  await page.evaluate(()=>document.fonts.ready);await page.getByRole('button',{name:'View issues',exact:true}).click();
  const panel=page.getByRole('complementary',{name:'Issues',exact:true}),popup=page.getByRole('region',{name:'Issue details',exact:true});
- await panel.getByRole('button',{name:'Filter statuses',exact:true}).click();
+ if(await panel.getByRole('button',{name:'Filter statuses',exact:true}).getAttribute('aria-expanded')!=='true')await panel.getByRole('button',{name:'Filter statuses',exact:true}).click();
  for(const name of ['Doing','Done'])await panel.getByRole('checkbox',{name,exact:true}).check();
  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.querySelector('#feedbackpress-root').shadowRoot.querySelectorAll('.issue-row').length===5);
  await panel.getByLabel('Issue page view',{exact:true}).selectOption('paged');await panel.locator('.page-heading').waitFor();await page.mouse.move(10,10);

@@ -46,7 +46,7 @@ const {chromium,webkit}=require('playwright'),fs=require('node:fs'),assert=requi
   const reply=popup.getByRole('textbox',{name:'Reply',exact:true});await reply.fill('Keep this reply while switching views.');
   await p.screenshot({path:capture('desktop')});
   await popup.getByRole('button',{name:'Preview reference.png',exact:true}).click();const lightbox=p.getByRole('dialog',{name:'Attachment preview'});await lightbox.locator('img').waitFor();assert.equal(await lightbox.getByRole('button',{name:'Download',exact:true}).count(),1);await p.keyboard.press('Escape');assert.equal(await reply.inputValue(),'Keep this reply while switching views.');
-  await filter.click();await panel.getByRole('checkbox',{name:'Doing',exact:true}).check();await panel.getByRole('checkbox',{name:'Done',exact:true}).check();await p.keyboard.press('Escape');
+  if(await filter.getAttribute('aria-expanded')!=='true')await filter.click();await filter.focus();await panel.getByRole('checkbox',{name:'Doing',exact:true}).check();await panel.getByRole('checkbox',{name:'Done',exact:true}).check();await p.keyboard.press('Escape');
   await panel.locator('[data-status=done].issue-row').waitFor();await p.screenshot({path:capture('statuses')});
   const done=panel.locator('[data-status=done].issue-row');assert.equal(await done.locator('.issue-body').evaluate(e=>getComputedStyle(e).color),'rgb(32, 36, 43)');
   await p.mouse.move(5,5);const review=panel.locator('[data-status=review].issue-row').first(),resting=await review.evaluate(e=>getComputedStyle(e).backgroundColor);await review.hover();assert.equal(await review.evaluate(e=>getComputedStyle(e).backgroundColor),resting);assert.equal(await review.locator('.row-status').evaluate(e=>getComputedStyle(e).opacity),'1');

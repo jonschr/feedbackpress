@@ -79,13 +79,14 @@ final class API {
             return ['people' => array_map(fn($p) => ['id' => $p['id'], 'name' => $p['name']], $data['people']), 'review_site' => $data['review_site'], 'delivery' => $data['delivery']];
         }, $read);
         $route('/authors', 'POST', fn($r) => self::personResult(Service::request('POST', '/people', ['name' => $r->get_param('name'), 'email' => $r->get_param('email')])));
-        $route($id . '/author', 'POST', function ($r) {
+        foreach ([$id . '/author', $id . '/comments/(?P<comment_id>[a-f0-9-]{36})/author'] as $path) $route($path, 'POST', function ($r) {
             $person = null;
             foreach (Service::request('GET', '/people') as $p) if ($p['id'] === $r->get_param('author_id')) $person = $p;
             // A WordPress user can be selected before their first comment.
             if (!$person) foreach (get_users(['fields' => ['display_name', 'user_email']]) as $u) if (Identity::id($u->user_email) === $r->get_param('author_id')) $person = ['name' => $u->display_name, 'email' => $u->user_email];
             if (!$person) throw new \InvalidArgumentException('Choose an author from the list.');
-            return Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/authors/' . $r['id'], ['revision' => (int) $r->get_param('revision'), 'author' => $person], self::key($r)));
+            $target = $r->get_url_params()['comment_id'] ?? $r['id'];
+            return Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/authors/' . $target, ['revision' => (int) $r->get_param('revision'), 'author' => $person], self::key($r)));
         });
         $route($id . '/files', 'POST', [self::class, 'upload']);
         $route('/files/(?P<id>[a-f0-9-]{36})', 'GET', function ($r) {

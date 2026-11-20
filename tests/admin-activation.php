@@ -14,6 +14,8 @@ function get_current_user_id() { return $GLOBALS['fixture']['user']; }
 function set_transient($key, $value, $ttl) { $GLOBALS['fixture']['transients'][$key] = $value; }
 function get_transient($key) { return $GLOBALS['fixture']['transients'][$key] ?? false; }
 function delete_transient($key) { unset($GLOBALS['fixture']['transients'][$key]); }
+function sanitize_key($key) { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($key)); }
+function wp_unslash($value) { return stripslashes($value); }
 function admin_url($path) { return 'https://site.example/wp-admin/' . $path; }
 function esc_url($value) { return htmlspecialchars($value, ENT_QUOTES); }
 function headers_sent() { return $GLOBALS['fixture']['headers']; }

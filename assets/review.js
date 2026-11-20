@@ -21,7 +21,8 @@
 
   let stylesReady = false;
   const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = c.css; root.append(css);
-  css.addEventListener('load', () => { stylesReady = true; updatePlacementCursor(); if (open) render(); restoreThreadScroll(); positionDraft(); host.style.visibility = ''; });
+  css.addEventListener('load', () => { stylesReady = true; updatePlacementCursor(); if (open) render(); restoreThreadScroll(); positionDraft(); host.style.visibility = ''; c.finishBoot?.(true); });
+  css.addEventListener('error', () => { host.remove(); fitPage(null); c.finishBoot?.(); });
   const el = (tag, attrs = {}, ...children) => {
     const node = document.createElement(tag);
     if (tag === 'button' && attrs.type === 'submit') attrs = { 'aria-keyshortcuts': 'Meta+Enter Control+Enter', ...attrs, 'data-fp-submit': true };
@@ -41,6 +42,7 @@
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', kind === 'text' ? 'M7 4h10M7 20h10M12 4v16M4 8v8M2 8h4M2 16h4' : kind === 'close' ? 'M6 6l12 12M18 6L6 18' : kind === 'plus' ? 'M12 5v14M5 12h14' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 11-16 0 8 8 0 0116 0' : kind === 'check' ? 'M5 12.5l4.5 4.5L19 7' : kind === 'todo' ? 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M10 3h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 11h6M9 15h6' : kind === 'needs_info' ? 'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6ZM9 3v15M15 6v15' : kind === 'doing' ? 'M8.5 5.5v13L19 12 8.5 5.5Z' : kind === 'reply' ? 'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z' : kind === 'document' ? 'M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6' : kind === 'image' ? 'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01' : kind === 'review' ? 'M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18s-9.5-6-9.5-6ZM14.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0Z' : kind === 'previous' ? 'M15 6l-6 6 6 6' : kind === 'next' ? 'M9 6l6 6-6 6' : kind === 'chevron' ? 'M6 9l6 6 6-6' : 'M21 11.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5');
     if (kind === 'pause') path.setAttribute('d','M8 5v14M16 5v14');
+    if (kind === 'agent') path.setAttribute('d', 'M12 3v3M10 3h4M6 7h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2ZM8 12h.01M16 12h.01M9 16h6M1 11v5M23 11v5');
     if (kind === 'globe') path.setAttribute('d', 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM3 12h18M12 3a18 18 0 0 1 0 18 18 18 0 0 1 0-18Z');
     if (kind === 'share') path.setAttribute('d', 'M15 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8.6 10.5l3.8-4M8.6 13.5l6.8 4');
     if (kind === 'send') path.setAttribute('d', 'm21 3-7 18-4-7-7-4 18-7ZM10 14 21 3');
@@ -77,8 +79,10 @@
   if (!c.userName && c.verifiedReviewer) { name = c.verifiedReviewer.name; email = c.verifiedReviewer.email; actorId = c.verifiedReviewer.id || ''; }
   const sortLabels = { created_asc: 'Created: oldest first', created_desc: 'Created: newest first', updated_desc: 'Last edited: newest first', updated_asc: 'Last edited: oldest first', completed_desc: 'Completed: newest first', completed_asc: 'Completed: oldest first' };
   let reviewAccess = {paused:false,account_owner:false,can_create:true};
-  let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'page', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = false, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
+  let issues = [], pageIssues = [], selected = null, sort = 'created_asc', scope = 'all', grouping = 'page', scopePath = null, search = '', searchTimer, filter = ['todo', 'needs_info', 'review'], filterOpen = true, open = false, picking = false, busy = false, draft = null, screenshot = null, requestNumber = 0, issueRequest = 0, openingIssue = 0, uiSession = 0, pageLeaving = false, listPage = 1, total = 0;
   const viewKey = 'feedbackpress-view:' + c.home;
+  const filterDisclosureKey = 'feedbackpress-status-drawer:' + c.home;
+  try { filterOpen = localStorage.getItem(filterDisclosureKey) !== 'false'; } catch (_) {}
   const collapsedPages = new Set(), sharedPagePaths = new Set();
   let sidebarSide = 'right', pageLayout = 'room';
   let issueWindowPosition = null, issueWindowDocked = false, issueWindowDrag = null, dockHoldPoint = null;
@@ -241,7 +245,10 @@
         row.querySelector('.row-number')?.setAttribute('aria-description', labels[updated.status]);
         row.querySelector('.row-status')?.replaceWith(statusControl(updated, 'row-status'));
       }
-      if (selected?.id === updated.id) issuePopup.querySelector('.popup-status')?.replaceWith(statusControl(updated, 'popup-status'));
+      if (selected?.id === updated.id) {
+        issuePopup.querySelector('.popup-status')?.replaceWith(statusControl(updated, 'popup-status'));
+        if (updated.status !== 'done') issuePopup.querySelector('.comment-closed')?.remove();
+      }
       drawPins(); return;
     }
     if (selected?.id === updated.id) {
@@ -470,7 +477,7 @@
   const placementCursorStyle = document.createElement('style');
   placementCursorStyle.dataset.feedbackpressCursor = '';
   document.head.append(placementCursorStyle);
-  const pageLayoutStyle = document.createElement('style');
+  const pageLayoutStyle = document.querySelector('style[data-feedbackpress-layout]') || document.createElement('style');
   pageLayoutStyle.dataset.feedbackpressLayout = '';
   document.head.append(pageLayoutStyle);
   let pageFit = null, pageFitDirty = false, fixedSequence = 0;
@@ -531,6 +538,10 @@
   const draftPin = el('span', { class: 'pin draft-pin', 'aria-label': 'New feedback pin', hidden: true });
   const tether = el('div', { class: 'tether', hidden: true, 'aria-hidden': 'true' });
   const pins = el('div', { class: 'pins' });
+  const pageNotePins = el('div', { class: 'page-note-pins', role: 'group', 'aria-label': 'Page notes' });
+  const createPageNote = () => { if (picking && !textPicking && !busy) withIdentity(() => newDraft(pageNoteTarget())); };
+  const pageNoteDrop = el('div', { class: 'page-note-drop', hidden: true, role: 'button', tabindex: 0, 'aria-label': 'Add page note', onclick: createPageNote, onpointerenter: () => { highlight.hidden = true; }, onkeydown: event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); createPageNote(); } } }, icon('plus'), el('span', {}, 'Add page note'));
+  const pageNotes = el('div', { class: 'page-notes', hidden: true }, pageNotePins);
   const highlight = el('div', { class: 'highlight', hidden: true });
   const notice = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite', hidden: true });
   const launcher = button([icon('plus'), el('span', {}, 'Leave feedback')], () => withIdentity(startPick), { title: 'Leave feedback', 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' });
@@ -554,7 +565,7 @@
       input.setAttribute('aria-description', innerWidth < 900 ? 'Available on desktop. The list and page use separate views on small screens.' : label === 'Make room' ? 'Scale the entire page beside the sidebar.' : text);
     });
     host.dataset.sidebarSide = sidebarSide;
-    const visible = !panel.hidden && innerWidth >= 900;
+    const visible = host.isConnected && !panel.hidden && innerWidth >= 900;
     host.toggleAttribute('data-sidebar-visible', visible);
     toolbar.style.insetInlineStart = visible && sidebarSide === 'left' ? '420px' : '';
     toolbar.style.insetInlineEnd = visible && sidebarSide === 'right' ? '420px' : '';
@@ -615,7 +626,7 @@
     listScroll = 0; hasListPosition = true;
     const list = panel.querySelector('.issue-list'); if (list) list.scrollTop = 0;
   }
-  root.append(pins, highlight, toolbar, panel, tether, draftPin, composer, issuePopup, lightbox, identity);
+  root.append(pins, pageNotes, pageNoteDrop, highlight, toolbar, panel, tether, draftPin, composer, issuePopup, lightbox, identity);
   const interruptLocate = event => {
     // Reading the thread/list stops correction without re-enabling the page's scroll snap.
     if (event.composedPath().includes(host)) stopLocate();
@@ -630,7 +641,7 @@
   root.addEventListener('load', queueScrollCues, true);
   const tooltip = el('div', { id: 'fp-tooltip', class: 'fp-tooltip', role: 'tooltip', popover: 'manual', hidden: true });
   root.append(tooltip);
-  const tooltipTargets = '[data-tooltip], [data-tooltip-shortcut], button[aria-keyshortcuts], button[type=submit]';
+  const tooltipTargets = '[data-tooltip], [data-tooltip-shortcut], button[aria-keyshortcuts]:not(.popup-move), button[type=submit]';
   let tooltipTarget = null, tooltipHideTimer;
   function hideTooltip() {
     clearTimeout(tooltipHideTimer);
@@ -889,7 +900,7 @@
     if (busy) return;
     if (!value) { imageDropJob = null; environmentSwitcher.open = false; setSharing(false, false); } clearImageDrop();
     captureListScroll();
-    issueRequest++; openingIssue = 0; if (!value) closeStatusFilter(); closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
+    issueRequest++; openingIssue = 0; closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
     if (value) prepareListReveal(); panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
     updateChrome(); positionDraft();
     if (value) { render(); load(null, true); } else { panel.removeAttribute('data-continuing'); viewButton.focus(); }
@@ -1057,10 +1068,11 @@
     panel.querySelectorAll('[data-filter-status]').forEach(node => node.setAttribute('aria-description', `${statusCounts[node.dataset.filterStatus]} matching issues`));
   }
   function filterSummary() {
-    return filter.length === Object.keys(labels).length ? 'All statuses' : filter.length === 0 ? 'No statuses' : filter.length > 2 ? `${filter.length} statuses` : filter.map(status => labels[status]).join(' + ');
+    return filter.length === Object.keys(labels).length ? 'All statuses' : `${filter.length} status${filter.length === 1 ? '' : 'es'}`;
   }
   function closeStatusFilter(restoreFocus = false) {
     filterOpen = false;
+    try { localStorage.setItem(filterDisclosureKey, 'false'); } catch (_) {}
     const trigger = panel.querySelector('.status-filter-trigger');
     const options = panel.querySelector('.status-filter-options');
     if (trigger) trigger.setAttribute('aria-expanded', 'false');
@@ -1078,18 +1090,16 @@
         panel.querySelector('.status-filter-trigger').dataset.tooltip = summary;
         load();
       } });
-      options.append(el('label', { class: 'filter-option', 'data-status': status }, input, el('span', { class: 'status-dot', 'aria-hidden': 'true' }), label, el('span', { class: 'status-count', 'data-count-status': status, 'aria-hidden': 'true' }, statusCounts ? String(statusCounts[status]) : '…')));
+      input.setAttribute('aria-label', label);
+      options.append(el('label', { class: 'filter-option', 'data-status': status, 'data-tooltip': label }, input, icon(status === 'done' ? 'check' : status), el('span', { class: 'status-count', 'data-count-status': status, 'aria-hidden': 'true' }, statusCounts ? String(statusCounts[status]) : '…')));
     }
     const trigger = button(el('span', { class: 'filter-summary' }, filterSummary()), () => {
       filterOpen = !filterOpen; options.hidden = !filterOpen; trigger.setAttribute('aria-expanded', String(filterOpen));
-      if (filterOpen) options.querySelector('input')?.focus();
+      try { localStorage.setItem(filterDisclosureKey, String(filterOpen)); } catch (_) {}
     }, { class: 'status-filter-trigger', 'aria-label': 'Filter statuses', 'aria-expanded': String(filterOpen), 'aria-controls': 'fp-status-options', title: filterSummary() });
     trigger.append(icon('chevron'));
-    return el('div', { class: 'status-filter' }, trigger, options);
+    return { trigger: el('div', { class: 'status-filter' }, trigger), options };
   }
-  document.addEventListener('pointerdown', event => {
-    if (filterOpen && !event.composedPath().includes(panel.querySelector('.status-filter'))) closeStatusFilter();
-  }, true);
   function render() {
     if (!cacheDenied && panel.querySelector('.note-actions:popover-open')) { deferredListRender = true; return; }
     deferredListRender = false;
@@ -1102,7 +1112,7 @@
     const focusedTrigger = root.activeElement?.classList.contains('status-filter-trigger');
     const focusedView = root.activeElement?.getAttribute('aria-label');
     const changeView = () => { listPage = 1; resetListScroll(); saveView(); load(); };
-    const order = el('select', { 'aria-label': 'Order issues', 'data-tooltip': 'Order issues: ' + sortLabels[sort], onchange: event => { sort = event.target.value; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
+    const order = el('select', { 'aria-label': 'Order issues', 'data-tooltip': 'Order issues: ' + sortLabels[sort], onchange: event => { sort = event.target.value; if (sort.startsWith('completed_') && !filter.includes('done')) filter = [...filter, 'done']; changeView(); } }, ...Object.entries(sortLabels).map(([value, label]) => el('option', { value }, label))); order.value = sort;
     const orderControl = el('span', { class: 'order-control' }, icon('sort'), order);
     const heading = el('header', { class: 'panel-header' }, el('div', { class: 'panel-heading', 'aria-live': 'polite', 'aria-atomic': 'true' }, el('h2', { class: 'open-issue-count' }, projectCountLabel('open')), el('span', { class: 'issue-count closed-issue-count', hidden: !projectCounts }, projectCountLabel('closed'))),
       el('div', { class: 'panel-actions' }, orderControl, button(icon('plus'), () => withIdentity(startPick), { class: 'fp-icon-button', 'aria-label': 'Leave feedback', title: 'Leave feedback', disabled:!reviewAccess.can_create, 'data-tooltip-shortcut': 'C', 'aria-keyshortcuts': 'C' }), button(icon('text'),()=>withIdentity(()=>startPick(true)),{class:'fp-icon-button','aria-label':'Change text',title:'Change text',disabled:!reviewAccess.can_create,'data-tooltip-shortcut':'T','aria-keyshortcuts':'T'}), button(icon('close'), () => toggle(false), { class: 'fp-icon-button', 'aria-label': 'Dismiss issues', 'data-tooltip-shortcut': 'V', 'aria-keyshortcuts': 'V' })));
@@ -1112,7 +1122,8 @@
     } });
     const pages = el('select', { 'aria-label': 'Issue page view', onchange: event => { scope = event.target.value === 'current' ? 'current' : 'all'; grouping = event.target.value === 'paged' ? 'page' : 'none'; changeView(); } }, el('option', { value: 'list' }, 'Issues list'), el('option', { value: 'paged' }, 'Issues by page'), el('option', { value: 'current' }, 'Current page')); pages.value = scope === 'current' ? 'current' : grouping === 'page' ? 'paged' : 'list';
     const list = el('div', { class: 'issue-list', 'aria-busy': String(listLoading || Boolean(openingIssue) || !stylesReady) });
-    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'list-controls' }, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, statusFilterControl()))), list);
+    const statuses = statusFilterControl();
+    panelContents.replaceChildren(el('div', { class: 'panel-tools' }, heading, el('div', { class: 'list-controls' }, el('div', { class: 'search-field' }, icon('search'), searchField), el('div', { class: 'filters' }, pages, statuses.trigger)), statuses.options), list);
     if (!issues.length) {
       if (listLoading) list.append(el('div', { class: 'list-placeholder', role: 'status', 'aria-label': 'Loading issues' }, ...Array.from({ length: 3 }, () => el('div', {}, el('span'), el('span'), el('span')))));
       else if (listError) list.append(el('div', { class: 'empty', role: 'status' }, el('p', { class: 'subtle' }, listError), button('Try again', () => load(), { class: 'fp-quiet' })));
@@ -1154,7 +1165,7 @@
     }
     captureListScroll(); saveView(); queueScrollCues();
   }
-  function pageLabel(path) { return path === '/' ? c.home.replace(/\/$/, '') + '/' : path; }
+  function pageLabel(path) { return path === '/' ? c.home.replace(/^https?:\/\//i, '').replace(/\/$/, '') : path; }
   function renderSelection() {
     if (!panelContents.hasChildNodes() || panelContents.querySelector('.outside-filter') || selected && matchesScope(selected) && !issues.some(issue => issue.id === selected.id)) return render();
     updateChrome();
@@ -1173,9 +1184,16 @@
   function replyCount(issue) {
     return issue.activity.filter(event => event.kind === 'reply').length + (c.privateNotes ? privateReplyCounts.get(issue.id) || 0 : 0);
   }
+  function toggleSidebarIssue(id) {
+    if (selected?.id !== id) return showIssue(id);
+    issueRequest++; openingIssue = 0;
+    if (location.hash === '#feedbackpress=' + id) history.replaceState(history.state, '', location.pathname + location.search);
+    closeIssue();
+    panel.querySelector(`[data-issue="${id}"] .issue-open`)?.focus({ preventScroll: true });
+  }
   function replyCountControl(issue) {
     const replies = replyCount(issue);
-    return replies ? button([icon('reply'), String(replies)], () => showIssue(issue.id), { class: 'row-replies', 'aria-label': `${replies} ${replies === 1 ? 'reply' : 'replies'}` }) : null;
+    return replies ? button([icon('reply'), String(replies)], () => toggleSidebarIssue(issue.id), { class: 'row-replies', 'aria-label': `${replies} ${replies === 1 ? 'reply' : 'replies'}` }) : null;
   }
   function paintReplyCounts() {
     for (const issue of issues) {
@@ -1204,13 +1222,13 @@
   function issueRow(issue) {
     const active = selected?.id === issue.id;
     const rail = el('div', { class: 'row-rail' },
-      button(String(issue.number), () => showIssue(issue.id), { class: 'row-number', 'aria-label': 'Open issue ' + issue.number, 'aria-description': labels[issue.status] }),
+      button(String(issue.number), () => toggleSidebarIssue(issue.id), { class: 'row-number', 'aria-label': 'Open issue ' + issue.number, 'aria-description': labels[issue.status] }),
       replyCountControl(issue));
-    const row = el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status, onclick: event => { if (!event.target.closest('button, a, form, input, textarea, select, label')) showIssue(issue.id); } }, rail,
+    const row = el('div', { class: 'issue-row' + (active ? ' is-selected' : ''), 'data-issue': issue.id, 'data-status': issue.status, 'data-self': isCurrentAuthor(issue.author_id), 'aria-description': isCurrentAuthor(issue.author_id) ? 'Written by current reviewer' : null, onclick: event => { if (!event.target.closest('button, a, form, input, textarea, select, label')) toggleSidebarIssue(issue.id); } }, rail,
       el('div', { class: 'row-content' },
-        el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => showIssue(issue.id) }, el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null),
-        el('div', { class: 'row-footer' }, el('div', { class: 'row-meta' }, el('span', { class: 'row-author' }, issue.author), issue.target?.text_change ? el('span',{class:'subtle'},'Text change') : null, issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null)), issueSummary(issue), statusControl(issue, 'row-status')));
-    if ((ownsComment(issue) || canShareIssue(issue)) && !editDrafts.has(issue.id)) { const actions = noteActions('issue', issue, issue.id, true); actions.classList.add('row-issue-actions'); row.querySelector('.row-content').append(actions); row.classList.add('has-issue-actions'); }
+        el('button', { type: 'button', class: 'issue-open', 'aria-current': active ? 'true' : null, onclick: () => toggleSidebarIssue(issue.id) }, el('span', { class: 'issue-body' }, issue.title || issue.body), grouping !== 'page' ? el('small', { class: 'page-reference' }, pageLabel(issue.path)) : null),
+        el('div', { class: 'row-footer' }, el('div', { class: 'row-meta' }, el('span', { class: 'row-author' }, authorAvatar(issue.author_id, issue.author), issue.author), issue.target?.text_change ? el('span',{class:'subtle'},'Text change') : null, issue.visibility === 'private' ? el('span', { class: 'private-label' }, 'Private') : null)), issueSummary(issue), statusControl(issue, 'row-status')));
+    if (hasIssueActions(issue) && !editDrafts.has(issue.id)) { const actions = noteActions('issue', issue, issue.id, true); actions.classList.add('row-issue-actions'); row.querySelector('.row-content').append(actions); row.classList.add('has-issue-actions'); }
     const editor = editDrafts.get(issue.id);
     const management = el('div', { class: 'row-management' }, editor?.sidebar ? commentEditor(issue, editor) : null, confirmationView(issue.id, issue.id, true));
     if (management.hasChildNodes()) row.querySelector('.row-content').append(management);
@@ -1285,7 +1303,7 @@
     stopLocate();
     if (imageDropJob?.issueId !== id) imageDropJob = null;
     clearImageDrop();
-    if (scroll) { closeStatusFilter(); targetIssueShortcuts(id); }
+    if (scroll) targetIssueShortcuts(id);
     captureListScroll(); captureThreadScroll(); const keepPosition = hasListPosition;
     const ticket = ++issueRequest; openingIssue = ticket;
     const cached = issueCache.get(id)?.issue || issues.find(issue => issue.id === id) || pageIssues.find(issue => issue.id === id);
@@ -1443,16 +1461,17 @@
     // WebKit can reject a navigation-cancelled fetch just before pagehide; keep its resumable descriptor.
     for (const job of sharedJobs.values()) if (job.error && !job.dismissed && performance.now() - (transportFailures.get(job) ?? -Infinity) < 1000) { delete job.error; storeJob(job).catch(() => {}); }
     cancelLocate(); captureListScroll(); captureThreadScroll(); saveView(); if (cacheSaveTimer !== null) clearTimeout(cacheSaveTimer); persistIssueCache(true); clearAttachments(true); });
-  async function editAuthor(trigger, issue) {
+  async function editAuthor(trigger, issue, comment = issue) {
     try {
       const people = await (await api('authors')).json();
       if (selected?.id !== issue.id || !trigger.isConnected) return;
       const group = el('div', { class: 'author-picker' });
-      const choose = el('select', { 'aria-label': 'Issue author' }, ...people.map(person => el('option', { value: person.id }, person.name + (person.email_identified === false ? ' (name only)' : ''))), el('option', { value: '__new' }, 'Add person…'));
-      choose.value = issue.author_id || people.find(person => person.name === issue.author)?.id || '';
+      const choose = el('select', { 'aria-label': comment.id === issue.id ? 'Issue author' : 'Comment author' }, ...people.map(person => el('option', { value: person.id }, person.name + (person.email_identified === false ? ' (name only)' : ''))), el('option', { value: '__new' }, 'Add person…'));
+      choose.value = comment.author_id || people.find(person => person.name === comment.author)?.id || '';
       const cancel = button(icon('close'), () => renderIssue(), { class: 'fp-icon-button', 'aria-label': 'Cancel author change' });
       const assign = async id => {
-        const updated = await (await api(`issues/${issue.id}/author`, { method: 'POST', body: { author_id: id, revision: issue.author_revision } })).json();
+        const path = `issues/${issue.id}/` + (comment.id === issue.id ? 'author' : `comments/${comment.id}/author`);
+        const updated = await (await api(path, { method: 'POST', body: { author_id: id, revision: issue.revision } })).json();
         if (selected?.id !== issue.id) return;
         selected = updated; keepListOrder = true;
         issues = issues.map(item => item.id === updated.id ? updated : item); pageIssues = pageIssues.map(item => item.id === updated.id ? updated : item);
@@ -1468,13 +1487,29 @@
       group.append(choose, cancel); trigger.replaceWith(group); choose.focus();
     } catch (error) { message(error.message); }
   }
-  function editComment(comment, issueId = selected?.id, sidebar = false) {
-    if (!identified()) return withIdentity(() => editComment(comment, issueId, sidebar));
+  function editComment(comment, issueId = selected?.id, sidebar = false, field = null) {
+    if (!identified()) return withIdentity(() => editComment(comment, issueId, sidebar, field));
     if (!issueId || actorId !== (comment.owner_id || comment.author_id)) return;
     mentionDrafts.delete('edit:' + comment.id);
-    editDrafts.set(comment.id, { issue: issueId, sidebar, proposed: comment.target?.text_change?.proposed, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
+    editDrafts.set(comment.id, { issue: issueId, sidebar, field, proposed: field ? undefined : comment.target?.text_change?.proposed, body: comment.body, mentions: comment.mentions || [], title: comment.title || '', revision: comment.edit_revision });
     renderNoteSurfaces(issueId, sidebar);
-    (sidebar ? panel : issuePopup).querySelector(`[data-edit-comment="${comment.id}"] textarea`)?.focus({ preventScroll: true });
+    (sidebar ? panel : issuePopup).querySelector(`[data-edit-comment="${comment.id}"] ${field === 'title' ? '[aria-label="Edit issue title"]' : 'textarea'}`)?.focus({ preventScroll: true });
+  }
+  function doubleClickComment(event, comment, field) {
+    if (!ownsComment(comment) || editDrafts.has(comment.id) || event.target.closest('a,button,input,textarea,select,[contenteditable]')) return;
+    event.preventDefault(); event.stopPropagation(); editComment(comment, selected.id, false, field);
+  }
+  function editPrivateNote(note, issueId, inline = false) {
+    if (!c.privateNotes || privateEditDrafts.has(note.id)) return;
+    privateEditDrafts.set(note.id, { issue: issueId, body: note.body, revision: note.revision, inline });
+    renderIssue(); issuePopup.querySelector(`[data-private-edit="${note.id}"] textarea`)?.focus({ preventScroll: true });
+  }
+  function cancelInlineEdit(form) {
+    if (!selected || issuePopup.hidden) return;
+    const id = form.dataset.editComment || form.dataset.privateEdit;
+    if (privateEditDrafts.get(id)?.saving) return;
+    editDrafts.delete(id); privateEditDrafts.delete(id); mentionDrafts.delete('edit:' + id);
+    closeMentionMenu(); renderIssue();
   }
   async function loadMentionPeople() {
     if (mentionData && Date.now() - mentionAt < cacheLifetime) return mentionData;
@@ -1595,18 +1630,21 @@
   addEventListener('scroll', closeMentionMenu, { passive: true });
   window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(positionMentionMenu));
   function commentEditor(comment, draft) {
-    const form = el('form', { class: 'comment-editor', 'data-edit-comment': comment.id, onsubmit: event => {
+    const form = el('form', { class: 'comment-editor', 'data-edit-comment': comment.id, 'data-edit-field': draft.field, 'data-inline-editor': !!draft.field, onsubmit: event => {
       event.preventDefault();
+      if (draft.stale) return;
       editDrafts.delete(comment.id);
       if (draft.proposed !== undefined) stopTextSession();
-      const content = readMentionField(form.querySelector('textarea[aria-label="Edit comment"]')); mentionDrafts.delete('edit:' + comment.id);
+      const content = draft.field === 'title' ? { body: draft.body, mentions: draft.mentions } : readMentionField(form.querySelector('textarea[aria-label="Edit comment"]')); mentionDrafts.delete('edit:' + comment.id);
+      if (draft.field && (draft.field === 'title' ? draft.title === comment.title : content.body === comment.body && JSON.stringify(content.mentions) === JSON.stringify(comment.mentions || []))) { renderIssue(); return; }
       enqueueShared('edit', `issues/${draft.issue}/comments/${comment.id}` + (c.privateNotes ? '/manage' : ''), { ...(c.privateNotes ? { action: 'edit' } : {}), author: name, author_email: email, ...content, ...(comment.id === draft.issue ? { title: draft.title, ...(draft.proposed !== undefined ? {proposed_text:draft.proposed} : {}) } : {}), revision: draft.revision }, [], null, draft.requestId || crypto.randomUUID());
       if (selected?.id === draft.issue) renderIssue();
     } });
     if (draft.stale) form.append(el('p', { class: 'warning' }, 'A newer edit exists. Your draft is kept below.'), button('Discard draft and reload', () => perform(form, async () => { const current = await (await api('issues/' + draft.issue)).json(); if (!draft.sidebar && selected?.id !== draft.issue) return; if (draft.sidebar) applyIssue(current); else selected = current; notice.hidden = true; const latest = comment.id === current.id ? current : current.activity.find(event => event.id === comment.id)?.payload; if (latest && (latest.owner_id || latest.author_id) === actorId) editComment({ ...latest, id: comment.id }, draft.issue, draft.sidebar); else { editDrafts.delete(comment.id); if (draft.sidebar) render(); else renderIssue(); } }), { class: 'fp-quiet' }));
-    if (comment.id === draft.issue) form.append(el('input', { value: draft.title, required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }));
+    if (comment.id === draft.issue && draft.field !== 'body') form.append(el(draft.field === 'title' ? 'textarea' : 'input', { ...(draft.field === 'title' ? { rows: 1, onkeydown: event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); form.requestSubmit(); } } } : { value: draft.title }), required: true, maxlength: 120, 'aria-label': 'Edit issue title', oninput: event => { draft.title = event.target.value; } }, ...(draft.field === 'title' ? [draft.title] : [])));
     if (draft.proposed !== undefined) form.append(el('label',{},'Suggested wording',el('textarea',{name:'proposed_text',required:true,maxlength:10000,'aria-label':'Edit suggested wording',oninput:event=>{draft.proposed=event.target.value;}},draft.proposed)));
-    form.append(mentionField(el('textarea', { rows: 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && (draft.sidebar || selected?.visibility !== 'private')), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderNoteSurfaces(draft.issue, draft.sidebar); if (draft.sidebar) panel.querySelector(`[data-issue="${draft.issue}"] .note-actions-trigger`)?.focus({ preventScroll: true }); }, { class: 'fp-quiet', 'aria-keyshortcuts': 'Escape', 'data-cancel-edit': true })));
+    if (draft.field !== 'title') form.append(mentionField(el('textarea', { rows: draft.field ? 1 : 3, required: comment.id !== draft.issue && comment.body !== '' && !selected.files.some(file => file.comment_id === comment.id && !file.screenshot), maxlength: 10000, 'aria-label': 'Edit comment', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => { draft.body = event.target.value; } }, draft.body), 'edit:' + comment.id, draft.mentions, () => comment.visibility !== 'private' && (draft.sidebar || selected?.visibility !== 'private')));
+    if (!draft.field) form.append(el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale, title: 'Save comment', 'data-tooltip-shortcut': submitShortcut }, 'Save'), button('Cancel', () => { editDrafts.delete(comment.id); mentionDrafts.delete('edit:' + comment.id); notice.hidden = true; renderNoteSurfaces(draft.issue, draft.sidebar); if (draft.sidebar) panel.querySelector(`[data-issue="${draft.issue}"] .note-actions-trigger`)?.focus({ preventScroll: true }); }, { class: 'fp-quiet', 'aria-keyshortcuts': 'Escape', 'data-cancel-edit': true })));
     return form;
   }
   const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -1628,20 +1666,58 @@
   setInterval(refreshCommentTimes, 30000);
   document.addEventListener('visibilitychange', refreshCommentTimes);
   function ownsComment(comment) { return !comment.pending && !comment.pending_edit && actorId && actorId === (comment.owner_id || comment.author_id); }
+  function authorAvatar(id, author) {
+    const key = id || author || 'Unknown author';
+    let seed = 2166136261;
+    for (const char of key) seed = Math.imul(seed ^ char.codePointAt(0), 16777619);
+    seed >>>= 0;
+    // Keep a stable local identicon visible while loading, offline, or when third-party images are blocked.
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 7 7');
+    svg.style.color = `hsl(${seed % 360} 42% 42%)`;
+    for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) {
+      if (!(seed & (1 << (y * 3 + x)))) continue;
+      for (const column of x === 2 ? [x] : [x, 4 - x]) {
+        const cell = document.createElementNS(svg.namespaceURI, 'rect');
+        for (const [attr, value] of Object.entries({ x: column + 1, y: y + 1, width: 1, height: 1, fill: 'currentColor' })) cell.setAttribute(attr, value);
+        svg.append(cell);
+      }
+    }
+    const avatar = el('span', { class: 'author-avatar', 'aria-hidden': 'true' }, svg);
+    if (/^[a-f0-9]{64}$/.test(id || '')) avatar.append(el('img', { src: `https://www.gravatar.com/avatar/${id}?s=40&d=identicon&r=g`, alt: '', width: 20, height: 20, loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', onerror: event => event.currentTarget.remove() }));
+    return avatar;
+  }
+  function isCurrentAuthor(id) { return Boolean(actorId && id === actorId); }
+  function agentAvatar(agent) {
+    const brand = /\bcodex\b/i.test(agent || '') ? 'codex' : /\b(?:claude|clawed)\b/i.test(agent || '') ? 'claude' : '';
+    const avatar = el('span', { class: 'author-avatar agent-avatar', 'data-agent': brand || 'agent', 'aria-hidden': 'true' }, icon('agent'));
+    if (brand) {
+      const url = new URL(`agents/${brand}.svg`, c.css); url.search = new URL(c.css).search;
+      avatar.append(el('img', { src: url.href, alt: '', width: 20, height: 20, loading: 'lazy', onerror: event => event.currentTarget.remove() }));
+    }
+    return avatar;
+  }
   function commentView(comment, files) {
-    const author = comment.id === selected?.id && !comment.pending ? button(comment.author || 'Unknown author', () => withIdentity(() => ensureActor().then(() => { if (selected?.id === comment.id) editAuthor(issuePopup.querySelector('.author-edit'), selected); }).catch(error => message(error.message))), { class: 'comment-author author-edit', 'aria-label': 'Change author: ' + comment.author, title: 'Change author' }) : el('strong', { class: 'comment-author' }, comment.author || 'Unknown author');
-    const byline = el('div', { class: 'comment-byline' }, author);
+    const issueId = selected?.id;
+    const author = !comment.pending && !comment.pending_edit ? button(comment.author || 'Unknown author', () => withIdentity(() => ensureActor().then(() => { if (selected?.id === issueId) editAuthor(author, selected, comment); }).catch(error => message(error.message))), { class: 'comment-author author-edit', 'aria-label': 'Change author: ' + comment.author, title: 'Change author' }) : el('strong', { class: 'comment-author' }, comment.author || 'Unknown author');
+    const byline = el('div', { class: 'comment-byline' }, authorAvatar(comment.author_id, comment.author), author);
     const time = commentTime(comment.created_at); if (time) byline.append(time);
     if (comment.pending || comment.pending_edit) byline.append(el('span', { class: 'comment-date' }, 'Saving…'));
     const own = comment.id !== selected?.id && ownsComment(comment);
-    if (comment.visibility === 'private') byline.append(el('span', { class: 'private-label' }, 'Private · Only you'));
-    if (own && c.privateNotes && !editDrafts.has(comment.id)) byline.append(noteActions('reply', comment, selected.id));
-    else if (own && !editDrafts.has(comment.id)) byline.append(button('Edit', () => editComment(comment), { class: 'comment-edit', 'aria-label': 'Edit reply' }));
+    if (comment.visibility === 'private') byline.append(el('span', { class: 'private-label' }, 'Private'));
+    if (own && !editDrafts.has(comment.id)) byline.append(noteActions('reply', comment, selected.id));
+    if (comment.id === issueId && comment.status === 'done' && comment.completed_at) {
+      const closed = commentTime(comment.completed_at);
+      if (closed) byline.append(el('span', { class: 'comment-closed comment-date' }, 'Closed ', closed));
+    }
     const uploads = files.filter(file => !file.screenshot);
     const screenshots = files.filter(file => file.screenshot);
     const draft = editDrafts.get(comment.id)?.sidebar ? null : editDrafts.get(comment.id);
-    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, ...(draft ? [commentEditor(comment, draft)] : [comment.id === selected?.id && comment.title && !comment.title_generated && !comment.target?.text_change ? el('h3', { class: 'issue-title' }, comment.title) : null, el('p', { class: 'comment' }, ...mentionText(comment))]), byline);
-    return el('div', { class: 'thread-comment', 'data-comment': comment.id, 'data-visibility': comment.visibility === 'private' || selected?.visibility === 'private' ? 'private' : 'shared' }, copy,
+    const title = comment.id === issueId && comment.title && !comment.title_generated && !comment.target?.text_change ? el('h3', { class: 'issue-title', 'data-inline-editable': Boolean(ownsComment(comment)), ondblclick: event => doubleClickComment(event, comment, 'title') }, comment.title) : null;
+    const body = el('p', { class: 'comment', 'data-inline-editable': Boolean(ownsComment(comment)), ondblclick: event => doubleClickComment(event, comment, 'body') }, ...mentionText(comment));
+    const content = !draft ? [title, body] : draft.field === 'title' ? [commentEditor(comment, draft), body] : draft.field === 'body' ? [title, commentEditor(comment, draft)] : [commentEditor(comment, draft)];
+    const copy = el('div', { class: 'comment-copy' }, comment.id !== selected?.id ? confirmationView(comment.id, selected.id) : null, ...content, byline);
+    return el('div', { class: 'thread-comment', 'data-comment': comment.id, 'data-self': isCurrentAuthor(comment.author_id), 'aria-description': isCurrentAuthor(comment.author_id) ? 'Written by current reviewer' : null, 'data-visibility': comment.visibility === 'private' || selected?.visibility === 'private' ? 'private' : 'shared' }, copy,
       files.length ? el('div', { class: 'comment-media' },
         screenshots.length ? el('div', { class: 'attachment-strip comment-screenshots', role: 'group', 'aria-label': 'Automatic screenshots' }, ...screenshots.map(attachmentThumbnail)) : null,
         uploads.length ? el('div', { class: 'attachment-strip comment-uploads', role: 'group', 'aria-label': 'Comment attachments' }, ...uploads.map(attachmentThumbnail)) : null) : null);
@@ -1692,6 +1768,7 @@
     if (selected?.id === issueId && !issuePopup.hidden) renderIssue();
   }
   function canShareIssue(issue) { return c.canShareReviewLinks && !issue.pending && issue.visibility !== 'private'; }
+  function hasIssueActions(issue) { return !issue.pending && (ownsComment(issue) || canShareIssue(issue) || issue.target.selector && !issue.target.text_change); }
   async function copyIssueReviewLink(issue, trigger) {
     await perform(trigger, async () => {
       const data = await (await api('admin/review-link')).json();
@@ -1716,10 +1793,11 @@
     const editable = kind !== 'issue' || ownsComment(item);
     if (editable) menu.append(action('Edit', () => {
       noteConfirmations.delete(item.id);
-      if (privateNote) { privateEditDrafts.set(item.id, { issue: issueId, body: item.body, revision: item.revision }); renderIssue(); issuePopup.querySelector(`[data-private-edit="${item.id}"] textarea`)?.focus(); }
+      if (privateNote) editPrivateNote(item, issueId);
       else editComment(item, issueId, sidebar);
     }));
     if (kind === 'issue' && canShareIssue(item)) menu.append(action('Copy magic link', () => copyIssueReviewLink(item, trigger)));
+    if (kind === 'issue' && item.target.selector && !item.target.text_change) menu.append(action('Make page note', () => withIdentity(() => saveIssueTarget(item, pageNoteTarget(), trigger))));
     if (editable && c.privateNotes) {
       if (selected?.visibility === 'private' && kind !== 'issue') menu.append(el('small', { class: 'note-action-hint' }, 'Make the issue public first to share a note.'));
       else menu.append(action(isPrivate ? 'Make public' : 'Make private', () => {
@@ -1805,17 +1883,26 @@
   }
   function privateNoteView(note) {
     const issueId = note.issue_id || selected.id;
-    const byline = el('div', { class: 'comment-byline' }, el('strong', { class: 'comment-author' }, note.author_kind === 'agent' ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, 'Private · Only you'));
+    const agent = note.author_kind === 'agent', self = !agent && Boolean(actorId);
+    const byline = el('div', { class: 'comment-byline' }, agent ? agentAvatar(note.agent) : authorAvatar(actorId, note.author_name), el('strong', { class: 'comment-author' }, agent ? note.agent + ' for ' + note.author_name : note.author_name), el('span', { class: 'private-label' }, 'Private'));
     const time = commentTime(note.created_at); if (time) byline.append(time);
     if (!privateEditDrafts.has(note.id)) byline.append(noteActions('private note', note, issueId));
     const draft = privateEditDrafts.get(note.id);
-    const editor = draft ? el('form', { class: 'comment-editor', 'data-private-edit': note.id, onsubmit: event => {
-      event.preventDefault(); perform(event.currentTarget, async () => {
+    const editor = draft ? el('form', { class: 'comment-editor', 'data-private-edit': note.id, 'data-inline-editor': draft.inline, onsubmit: async event => {
+      event.preventDefault();
+      if (draft.stale || draft.saving) return;
+      if (draft.inline && draft.body === note.body) { privateEditDrafts.delete(note.id); renderIssue(); return; }
+      draft.saving = true;
+      const form = event.currentTarget; form.querySelector('textarea').disabled = true;
+      await perform(form, async () => {
         await api(`issues/${issueId}/notes/${note.id}`, { method: 'POST', body: { body: draft.body, revision: draft.revision } });
         privateEditDrafts.delete(note.id); await loadNotes(issueId);
       });
-    } }, draft.stale ? el('p', { class: 'warning' }, 'This note changed elsewhere. Your draft is kept. Cancel and reopen Edit to use the latest version.') : null, el('textarea', { rows: 3, maxlength: 20000, required: true, 'aria-label': 'Edit private note', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => draft.body = event.target.value }, draft.body), el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale }, 'Save'), button('Cancel', () => { privateEditDrafts.delete(note.id); renderIssue(); }, { class: 'fp-quiet' }))) : el('p', { class: 'comment' }, ...linkedText(note.body));
-    return el('div', { class: 'thread-comment private-note', 'data-note': note.id, 'data-visibility': 'private' }, el('div', { class: 'comment-copy' }, confirmationView(note.id, issueId), editor, byline));
+      draft.saving = false;
+      const field = issuePopup.querySelector(`[data-private-edit="${note.id}"] textarea`);
+      if (field && privateEditDrafts.get(note.id) === draft) field.disabled = false;
+    } }, draft.stale ? el('p', { class: 'warning' }, 'This note changed elsewhere. Your draft is kept. Cancel and reopen Edit to use the latest version.') : null, el('textarea', { rows: draft.inline ? 1 : 3, maxlength: 20000, required: true, disabled: !!draft.saving, 'aria-label': 'Edit private note', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => draft.body = event.target.value }, draft.body), draft.inline ? null : el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'fp-primary', disabled: !!draft.stale }, 'Save'), button('Cancel', () => { privateEditDrafts.delete(note.id); renderIssue(); }, { class: 'fp-quiet', 'data-cancel-edit': true, 'aria-keyshortcuts': 'Escape' }))) : el('p', { class: 'comment', 'data-inline-editable': c.privateNotes, ondblclick: event => { if (event.target.closest('a,button,input,textarea,select,[contenteditable]')) return; event.preventDefault(); event.stopPropagation(); editPrivateNote(note, issueId, true); } }, ...linkedText(note.body));
+    return el('div', { class: 'thread-comment private-note', 'data-note': note.id, 'data-self': self, 'aria-description': self ? 'Written by current reviewer' : null, 'data-visibility': 'private' }, el('div', { class: 'comment-copy' }, confirmationView(note.id, issueId), editor, byline));
   }
   function renderIssue() {
     deferredIssueRender = false;
@@ -1825,8 +1912,8 @@
     if (previewIssueId !== issue.id) { clearAttachments(); previewIssueId = issue.id; }
     const items = navigationIssues();
     const index = items.findIndex(item => item.id === issue.id);
-    const issueActions = (ownsComment(issue) || canShareIssue(issue)) && !editDrafts.has(issue.id) ? c.privateNotes || canShareIssue(issue) ? noteActions('issue', issue, issue.id) : button('Edit', () => editComment(issue), { class: 'comment-edit', 'aria-label': 'Edit issue' }) : null;
-    issuePopup.replaceChildren(el('header', { class: 'popup-header' }, statusControl(issue, 'popup-status'), button('Issue ' + issue.number, () => {}, { class: 'issue-reference popup-move', 'aria-label': 'Move issue window', title: 'Move issue window', 'data-tooltip-shortcut': '↑ ↓ ← → / Home', 'aria-keyshortcuts': 'ArrowUp ArrowDown ArrowLeft ArrowRight Home' }), el('div', { class: 'popup-navigation' },
+    const issueActions = hasIssueActions(issue) && !editDrafts.has(issue.id) ? noteActions('issue', issue, issue.id) : null;
+    issuePopup.replaceChildren(el('header', { class: 'popup-header' }, statusControl(issue, 'popup-status'), button('Issue ' + issue.number, () => {}, { class: 'issue-reference popup-move', 'aria-label': 'Move issue window', 'aria-keyshortcuts': 'ArrowUp ArrowDown ArrowLeft ArrowRight Home', onblur: event => event.currentTarget.removeAttribute('data-pointer-focus') }), el('div', { class: 'popup-navigation' },
       button(icon('previous'), () => stepIssue(-1), { class: 'fp-icon-button', 'aria-label': 'Previous issue', title: 'Previous issue', 'data-tooltip-shortcut': 'P / ↑', 'aria-keyshortcuts': 'P ArrowUp', disabled: index <= 0 && listPage <= 1 }),
       button(icon('next'), () => stepIssue(1), { class: 'fp-icon-button', 'aria-label': 'Next issue', title: 'Next issue', 'data-tooltip-shortcut': 'N / ↓', 'aria-keyshortcuts': 'N ArrowDown', disabled: index >= items.length - 1 && listPage * 50 >= total }),
       button(icon('dock'), toggleIssueWindowDock, { class: 'fp-icon-button popup-dock', 'aria-label': issueWindowDocked ? 'Undock issue window' : 'Dock issue window', 'aria-pressed': String(issueWindowDocked), disabled: innerWidth < 900 }),
@@ -2149,7 +2236,45 @@
     cancelPick(); clearAttachments(); selected = null; issuePopup.hidden = true; draft = target; draftOperation = crypto.randomUUID(); panel.hidden = !open || innerWidth < 900; updateChrome(); viewButton.setAttribute('aria-expanded', String(open));
     notice.hidden = true; drawPins(); screenshot = capture(target); renderDraft(selection);
   }
+  function sizeInlineFields() {
+    if (issuePopup.hidden || CSS.supports('field-sizing', 'content')) return;
+    for (const field of issuePopup.querySelectorAll('[data-inline-editor] textarea')) {
+      field.style.height = 'auto';
+      field.style.height = field.scrollHeight + 'px';
+    }
+  }
+  issuePopup.addEventListener('input', sizeInlineFields, true);
+  issuePopup.addEventListener('focusin', sizeInlineFields);
+  function avoidPageNotes(surface, position, bounds, compact = true) {
+    if (issueWindowDrag) return position;
+    const obstacles = [pageNotes, pageNoteDrop].filter(node => !node.hidden).map(node => node.getBoundingClientRect()).filter(rect => rect.width && rect.height);
+    if (!obstacles.length) return position;
+    const pin = surface === issuePopup && selected?.target.selector && targetPoint(selected);
+    if (pin) obstacles.push({ left: pin.x - 20, right: pin.x + 20, top: pin.y - 20, bottom: pin.y + 20 });
+    const { width, height } = surface.getBoundingClientRect(), gap = 12;
+    const clear = (point, size = height) => point.x >= bounds.left && point.x + width <= bounds.right && point.y >= bounds.top && point.y + size <= bounds.bottom && obstacles.every(rect => point.x + width + gap <= rect.left || point.x >= rect.right + gap || point.y + size + gap <= rect.top || point.y >= rect.bottom + gap);
+    if (clear(position)) return position;
+    const xs = [position.x, bounds.left, bounds.right - width, ...obstacles.flatMap(rect => [rect.right + gap, rect.left - gap - width])];
+    const ys = [position.y, bounds.top, bounds.bottom - height, ...obstacles.flatMap(rect => [rect.bottom + gap, rect.top - gap - height])];
+    const candidates = xs.flatMap(x => ys.map(y => ({ x, y }))).filter(point => clear(point));
+    candidates.sort((a, b) => Math.hypot(a.x - position.x, a.y - position.y) - Math.hypot(b.x - position.x, b.y - position.y));
+    if (candidates.length) return candidates[0];
+    if (compact) {
+      const above = Math.min(...obstacles.map(rect => rect.top)) - gap - bounds.top;
+      const below = bounds.bottom - Math.max(...obstacles.map(rect => rect.bottom)) - gap;
+      const available = Math.max(above, below);
+      if (available >= 200) {
+        surface.style.maxHeight = Math.min(height, available) + 'px';
+        const fittedHeight = surface.getBoundingClientRect().height;
+        const point = { x: Math.max(bounds.left, Math.min(position.x, bounds.right - width)), y: above >= below ? bounds.top : bounds.bottom - fittedHeight };
+        if (clear(point, fittedHeight)) return point;
+      }
+    }
+    // On cramped viewports controls remain above the card so pins can still be dragged.
+    return position;
+  }
   function positionDraft() {
+    sizeInlineFields();
     const surface = draft ? composer : selected && !issuePopup.hidden ? issuePopup : null;
     const anchor = draft || selected?.target;
     if (!surface || !anchor || surface.hidden) return;
@@ -2172,7 +2297,7 @@
       const { width, height } = surface.getBoundingClientRect();
       const minX = docked && sidebarSide === 'left' ? panelRect.right : left, maxX = docked && sidebarSide === 'right' ? panelRect.left : right;
       const position = docked ? { x: sidebarSide === 'right' ? maxX - width : minX, y: top } : issueWindowPosition;
-      const x = clamp(position.x, minX, maxX - width), y = clamp(position.y, top, bottom - height);
+      const { x, y } = avoidPageNotes(surface, { x: clamp(position.x, minX, maxX - width), y: clamp(position.y, top, bottom - height) }, { left: minX, right: maxX, top, bottom }, !docked);
       if (!docked) issueWindowPosition = { x, y };
       Object.assign(surface.style, { left: x + 'px', top: y + 'px' });
       tether.hidden = true; positionMentionMenu(); return;
@@ -2208,6 +2333,8 @@
       }
       if (placement) { boxX=placement.x; boxY=placement.y; horizontal=placement.horizontal; }
     }
+    const safe = avoidPageNotes(surface, { x: boxX, y: boxY }, { left, right, top, bottom });
+    boxX = safe.x; boxY = safe.y;
     Object.assign(surface.style, { left: boxX + 'px', top: boxY + 'px' });
     Object.assign(draftPin.style, { left: x + 'px', top: y + 'px' });
     tether.hidden = true;
@@ -2229,11 +2356,23 @@
     closeDraft(); picking = !change; updatePlacementCursor(); drawPins();
     if (change) notice.hidden=true; else message('Click to drop another pin. Press C or Escape to exit.');
   }
+  let captureScript = null;
+  function loadCapture() {
+    if (window.html2canvas || !c.capture) return Promise.resolve();
+    if (!captureScript) captureScript = new Promise((resolve, reject) => {
+      const script = document.createElement('script'); script.src = c.capture;
+      const failed = () => { clearTimeout(timeout); script.remove(); captureScript = null; reject(new Error('Screenshot renderer could not load.')); };
+      const timeout = setTimeout(failed, 12000);
+      script.onload = () => { clearTimeout(timeout); resolve(); }; script.onerror = failed;
+      document.head.append(script);
+    });
+    return captureScript;
+  }
   async function capture(target) {
     try {
       const width = innerWidth, height = innerHeight;
       const scale = pageFit?.scale || 1, offset = pageFit && sidebarSide === 'left' ? 400 : 0;
-      const clicked = targetPoint({ target });
+      const clicked = target.selector ? targetPoint({ target }) : null;
       // Keep the clicked content at its current height when the capture returns to full size.
       const x = scrollX / scale, y = (scrollY + (clicked?.y || 0)) / scale - (clicked?.y || 0);
       const point = clicked && { x: (clicked.x - offset) / scale, y: clicked.y };
@@ -2242,6 +2381,7 @@
         const styles = getComputedStyle(video);
         return { parent: selector(video.parentElement), index: [...video.parentElement.children].filter(node => ['VIDEO', 'CANVAS'].includes(node.tagName)).indexOf(video), styles: [...styles].map(property => [property, styles.getPropertyValue(property)]) };
       });
+      await loadCapture();
       const canvas = await Promise.race([(window.html2canvas.default || window.html2canvas)(document.body, { useCORS: true, logging: false, backgroundColor: '#ffffff', scale: Math.min(devicePixelRatio, 1.5), x, y, scrollX: x, scrollY: y, width, height, onclone: doc => {
         // Capture the normal page without changing the live sidebar, scroll or layout.
         doc.querySelector('[data-feedbackpress-layout]')?.remove();
@@ -2279,17 +2419,19 @@
     }
     return parts.join(' > ') || 'body';
   }
-  function startPick(textOnly = false) { if (!reviewAccess.can_create) {message('New client tickets are paused. You can still reply to existing tickets.');return;} if (busy) return; textPicking = textOnly === true; for(const [node,preview] of textPreviews) restoreTextPreview(node,preview); cancelLocate(); captureListScroll(); closeStatusFilter(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; updatePlacementCursor(); panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message(textPicking?'Select a text block to edit. T exits; Escape closes review.':'Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
+  function startPick(textOnly = false) { if (!reviewAccess.can_create) {message('New client tickets are paused. You can still reply to existing tickets.');return;} if (busy) return; textPicking = textOnly === true; for(const [node,preview] of textPreviews) restoreTextPreview(node,preview); cancelLocate(); captureListScroll(); issueRequest++; openingIssue = 0; clearAttachments(); selected = null; issuePopup.hidden = true; closeDraft(); identity.hidden = true; picking = true; updatePlacementCursor(); panel.hidden = !open || innerWidth < 900; updateChrome(); drawPins(); message(textPicking?'Select a text block to edit. T exits; Escape closes review.':'Click an element, or press P for page feedback. C exits placement; Escape closes review.'); }
   function stopPlacement() {
     uiSession++; issueRequest++; openingIssue = 0; cancelPick(); closeDraft(); identity.hidden = true; notice.hidden = true;
     prepareListReveal(); panel.hidden = !open; updateChrome(); if (open) render(); drawPins();
   }
   function updatePlacementCursor() {
-    if (!picking) { placementCursorStyle.textContent = ''; return; }
+    if (!picking) { placementCursorStyle.textContent = ''; pageNoteDrop.style.removeProperty('--fp-page-cursor'); return; }
     if (textPicking) { placementCursorStyle.textContent='html,body,body *:not(#feedbackpress-root){cursor:text!important}#feedbackpress-root{cursor:auto!important}';return; }
     const tokens = getComputedStyle(host), ink = tokens.getPropertyValue('--fp-todo-ink').trim(), surface = tokens.getPropertyValue('--fp-surface').trim();
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="${ink}" stroke="${surface}" stroke-width="2"/><circle cx="16" cy="16" r="3" fill="${surface}"/></svg>`;
     const cursor = ink && surface ? `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, crosshair` : 'crosshair';
+    const square = svg.replace('<circle cx="16" cy="16" r="14"', '<rect x="2" y="2" width="28" height="28" rx="3"');
+    pageNoteDrop.style.setProperty('--fp-page-cursor', ink && surface ? `url("data:image/svg+xml,${encodeURIComponent(square)}") 16 16, crosshair` : 'crosshair');
     placementCursorStyle.textContent = `html, body, body *:not(#feedbackpress-root){cursor:${cursor}!important}#feedbackpress-root{cursor:auto!important}`;
   }
   function cancelPick() { picking = false; updatePlacementCursor(); highlight.hidden = true; }
@@ -2320,22 +2462,27 @@
     finishIssueWindowDrag();
     root.querySelectorAll('.note-actions:popover-open').forEach(menu => menu.hidePopover());
     cancelLocate();
-    closeStatusFilter(); captureThreadScroll(); uiSession++; issueRequest++; openingIssue = 0;
+    captureThreadScroll(); uiSession++; issueRequest++; openingIssue = 0;
     selected = null; targetIssueShortcuts(null); open = false; cancelPick(); closeDraft(); clearAttachments();
     identity.hidden = true; panel.hidden = true; issuePopup.hidden = true; notice.hidden = true;
     panel.removeAttribute('data-continuing'); viewButton.setAttribute('aria-expanded', 'false'); updateChrome(); drawPins(); launcher.focus(); hideTooltip();
   }
   window.addEventListener('keydown', event => {
     if (event.isComposing) return;
+    root.activeElement?.closest('.popup-move')?.removeAttribute('data-pointer-focus');
     if ((event.key === 'Escape' || event.key === 'Esc') && root.querySelector('.note-actions:popover-open')) { event.preventDefault(); event.stopPropagation(); const menu = root.querySelector('.note-actions:popover-open'); menu.hidePopover(); root.querySelector(`[popovertarget="${menu.id}"]`)?.focus(); return; }
     const actionsMenu = root.querySelector('.note-actions:popover-open');
     if (actionsMenu && !(event.key === 'Backspace' && actionsMenu.getAttribute('aria-label') === 'Actions for issue')) return;
+    if ((event.key === 'Escape' || event.key === 'Esc') && !lightbox.open && !issueWindowDrag) {
+      const inline = selected && !issuePopup.hidden ? issuePopup.querySelector('[data-inline-editor]') : null;
+      if (inline) { event.preventDefault(); event.stopPropagation(); cancelInlineEdit(inline); return; }
+    }
     if (mentionKey(event)) return;
     const consume = () => { event.preventDefault(); event.stopPropagation(); };
     if (event.key === 'Escape' || event.key === 'Esc') {
       hideTooltip();
       if (issueWindowDrag) { consume(); finishIssueWindowDrag(true); return; }
-      const editForm = event.composedPath().find(node => node instanceof Element)?.closest('[data-edit-comment]');
+      const editForm = event.composedPath().find(node => node instanceof Element)?.closest('[data-edit-comment], [data-private-edit]');
       if (editForm) { consume(); editForm.querySelector('[data-cancel-edit]')?.click(); return; }
       const confirmation = event.composedPath().find(node => node instanceof Element)?.closest('[data-confirm-note]');
       if (confirmation) { consume(); if (!deletingIssues.has(confirmation.dataset.confirmNote)) confirmation.querySelector('button[type=button]')?.click(); return; }
@@ -2344,11 +2491,11 @@
       else if (shareSuggestions.matches(':popover-open')) { consume(); closeShareSuggestions(); }
       else if (environmentSwitcher.open) { consume(); environmentSwitcher.open = false; environmentSummary.focus({ preventScroll: true }); }
       else if (!shareBar.hidden) { consume(); setSharing(false); }
-      else if (filterOpen) { consume(); closeStatusFilter(true); }
+      else if (filterOpen && root.activeElement?.closest('.status-filter, .status-filter-options')) { consume(); closeStatusFilter(true); }
       else if (openingIssue || picking || draft || selected || open || !identity.hidden || !notice.hidden) { consume(); dismissInterface(); }
       return;
     }
-    if (busy || lightbox.open || filterOpen || event.repeat) return;
+    if (busy || lightbox.open || event.repeat) return;
     const target = event.composedPath().find(node => node instanceof Element);
     if (target?.closest('.popup-move') && !event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key)) {
       consume();
@@ -2358,7 +2505,7 @@
     }
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       const form = target?.closest('form');
-      if (form?.getRootNode() === root && form.querySelector('[type=submit]')) { consume(); form.requestSubmit(); }
+      if (form?.getRootNode() === root && (form.matches('[data-inline-editor]') || form.querySelector('[type=submit]'))) { consume(); form.requestSubmit(); }
       return;
     }
     if (document.designMode === 'on' || event.composedPath().some(node => node instanceof Element && (node.isContentEditable || node.matches('input, textarea, select, [role="textbox"], [role="searchbox"], [role="combobox"], [role="spinbutton"], [role="slider"], [role="listbox"], [role="grid"], [role="tree"]')))) return;
@@ -2374,7 +2521,7 @@
     if (key === 'c') { consume(); if ((picking && !textPicking) || draft || !identity.hidden) stopPlacement(); else { const selection = selectedPageText(); withIdentity(() => { startPick(); if (selection) suggestSelection(selection); }); } return; }
     if (key === 't') { consume(); if ((picking && textPicking) || draft) stopPlacement(); else withIdentity(()=>startPick(true)); return; }
     if (key === 'v') { consume(); viewButton.click(); return; }
-    if (picking && !textPicking && event.key.toLowerCase() === 'p') { consume(); newDraft({ selector: '', text: 'Page feedback', x: .5, y: .5 }); return; }
+    if (picking && !textPicking && event.key.toLowerCase() === 'p') { consume(); newDraft(pageNoteTarget()); return; }
     if (draft || picking || pinDrag || !identity.hidden) return;
     if ((key === 'n' || key === 'p') && selected && !issuePopup.hidden) {
       consume(); targetIssueShortcuts(selected.id); stepIssue(key === 'n' ? 1 : -1); return;
@@ -2389,7 +2536,7 @@
     const issue = selected?.id === id ? selected : issues.find(item => item.id === id) || pageIssues.find(item => item.id === id);
     if (!issue || issue.pending || issue.status === status) return;
     const row = !panel.hidden && panel.querySelector(`[data-issue="${id}"]`);
-    const pin = pins.querySelector(`[data-pin-issue="${id}"]`);
+    const pin = root.querySelector(`[data-pin-issue="${id}"]`);
     if (!row && !pin && (issuePopup.hidden || selected?.id !== id)) return;
     consume(); withIdentity(() => setStatus(issue, status));
   }, true);
@@ -2494,6 +2641,10 @@
     return { node: document.body, approximate: true };
   }
   function targetPoint(issue, resolved = resolveTarget(issue)) {
+    if (!issue.target.selector) {
+      const pin = pageNotePins.querySelector(`[data-pin-issue="${issue.id}"]`), rect = pin ? pin.getBoundingClientRect() : { left: parseFloat(pageNoteDrop.style.left) || 12, top: parseFloat(pageNoteDrop.style.top) || innerHeight / 2, width: 0, height: 0 };
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
     if (!resolved) return null;
     if (resolved.node) {
       const rect = resolved.node.getBoundingClientRect();
@@ -2632,7 +2783,8 @@
   issuePopup.addEventListener('pointerdown', event => {
     if (event.button !== 0 || busy || lightbox.open || !event.target.closest('.popup-header') || event.target.closest('button:not(.popup-move), a, input, select, textarea')) return;
     event.preventDefault();
-    issuePopup.querySelector('.popup-move')?.focus({ preventScroll: true });
+    const handle = issuePopup.querySelector('.popup-move');
+    handle?.setAttribute('data-pointer-focus', ''); handle?.focus({ preventScroll: true });
     const rect = issuePopup.getBoundingClientRect();
     issueWindowDrag = { pointer: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, position: issueWindowPosition, docked: issueWindowDocked, moved: false };
     issuePopup.setPointerCapture(event.pointerId); cancelLocate(); hideTooltip();
@@ -2652,7 +2804,7 @@
   issuePopup.addEventListener('lostpointercapture', () => finishIssueWindowDrag(true));
   window.addEventListener('blur', () => finishIssueWindowDrag(true));
   function cardRevealContent(event) {
-    return !event.defaultPrevented && event.button === 0 && event.detail <= 1 && selected && !issuePopup.hidden && !lightbox.open && !pinDrag && !picking && !draft && selected.path === pagePath && selected.target.selector && !event.target.closest('.popup-header, button, a, input, textarea, select, label, summary, iframe, video, audio, [role="button"], [role="link"], [contenteditable], form');
+    return !event.defaultPrevented && event.button === 0 && event.detail <= 1 && selected && !issuePopup.hidden && !lightbox.open && !pinDrag && !picking && !draft && selected.path === pagePath && selected.target.selector && !event.target.closest('.popup-header, button, a, input, textarea, select, label, summary, iframe, video, audio, [role="button"], [role="link"], [contenteditable], [data-inline-editable], form');
   }
   function markerOutsideView() {
     const resolved = resolveTarget(selected), point = resolved && targetPoint(selected, resolved);
@@ -2666,6 +2818,16 @@
     }
     return clipped;
   }
+  issuePopup.addEventListener('click', event => {
+    if (!selected || issuePopup.hidden) return;
+    const form = issuePopup.querySelector('[data-inline-editor]');
+    if (!form || event.defaultPrevented || event.button !== 0 || event.composedPath().includes(form) || event.composedPath().includes(mentionPicker)) return;
+    const editing = editDrafts.get(form.dataset.editComment) || privateEditDrafts.get(form.dataset.privateEdit);
+    if (editing?.stale) { event.preventDefault(); event.stopImmediatePropagation(); form.querySelector('input,textarea')?.focus({ preventScroll: true }); return; }
+    if (!form.reportValidity()) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+    if (!event.target.closest('a')) { event.preventDefault(); event.stopImmediatePropagation(); }
+    form.requestSubmit();
+  }, true);
   issuePopup.addEventListener('pointerdown', event => {
     // Native focus/scroll-snap can move the page before click; retain the original reveal intent.
     cardRevealRequest = cardRevealContent(event) ? { id: selected.id, hidden: markerOutsideView() } : null;
@@ -2675,7 +2837,88 @@
     if (!cardRevealContent(event) || (root.getSelection?.() || document.getSelection())?.toString()) return;
     if ((request?.id === selected.id && request.hidden) || markerOutsideView()) locate(selected);
   });
+  function pageNoteTarget() {
+    return { selector: '', text: 'Page feedback', x: .5, y: .5 };
+  }
+  const contrastImages = new Map();
+  const contrastCanvas = document.createElement('canvas'); contrastCanvas.width = contrastCanvas.height = 1;
+  const contrastContext = contrastCanvas.getContext('2d', { willReadFrequently: true });
+  let contrastRequest = 0;
+  async function pageNoteBackground(node, x, y) {
+    const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+    const imageURL = style.backgroundImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
+    let image = node instanceof HTMLImageElement && node.complete && node.naturalWidth ? node : null;
+    if (!image && imageURL) {
+      if (!contrastImages.has(imageURL)) {
+        if (contrastImages.size >= 2) contrastImages.delete(contrastImages.keys().next().value);
+        contrastImages.set(imageURL, new Promise(resolve => { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => resolve(img); img.onerror = () => resolve(null); img.src = imageURL; }));
+      }
+      image = await contrastImages.get(imageURL);
+    }
+    if (image && rect.width && rect.height && contrastContext) {
+      const mode = image === node ? style.objectFit : style.backgroundSize;
+      const scale = mode === 'contain' ? Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight) : mode === 'cover' ? Math.max(rect.width / image.naturalWidth, rect.height / image.naturalHeight) : null;
+      const width = scale ? image.naturalWidth * scale : rect.width, height = scale ? image.naturalHeight * scale : rect.height;
+      const position = (image === node ? style.objectPosition : style.backgroundPosition).split(' ');
+      const offset = (value, space) => value?.endsWith('%') ? parseFloat(value) / 100 * space : parseFloat(value) || 0;
+      const sx = (x - rect.left - offset(position[0], rect.width - width)) / width * image.naturalWidth;
+      const sy = (y - rect.top - offset(position[1], rect.height - height)) / height * image.naturalHeight;
+      if (sx >= 0 && sy >= 0 && sx < image.naturalWidth && sy < image.naturalHeight) {
+        try {
+          contrastContext.clearRect(0, 0, 1, 1); contrastContext.drawImage(image, sx, sy, 1, 1, 0, 0, 1, 1);
+          const pixel = [...contrastContext.getImageData(0, 0, 1, 1).data];
+          if (pixel[3] > 200) return pixel;
+        } catch (_) { contrastCanvas.width = 1; } // Cross-origin images may prohibit pixel reads.
+      }
+    }
+    const colors = style.backgroundImage !== 'none' && !imageURL ? style.backgroundImage.match(/rgba?\([^)]*\)/g) : null;
+    const parse = value => value.match(/[\d.]+/g)?.map(Number);
+    if (colors?.length) {
+      const values = colors.map(parse);
+      return [0, 1, 2].map(channel => values.reduce((sum, color) => sum + color[channel], 0) / values.length);
+    }
+    const color = parse(style.backgroundColor);
+    if (color && (color.length === 3 || color[3] >= .9)) return color;
+    if (imageURL || node instanceof HTMLImageElement) return [100, 100, 100];
+    return null;
+  }
+  async function updatePageNoteContrast() {
+    if (pageNoteDrop.hidden) return;
+    const request = ++contrastRequest, rect = pageNoteDrop.getBoundingClientRect();
+    const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+    const layers = document.elementsFromPoint(x, y).filter(node => node !== host && !host.contains(node));
+    let color;
+    for (const node of layers) { color = await pageNoteBackground(node, x, y); if (color) break; }
+    if (request !== contrastRequest || pageNoteDrop.hidden) return;
+    const [r, g, b] = color || [255, 255, 255];
+    pageNoteDrop.dataset.contrast = .2126 * r + .7152 * g + .0722 * b < 180 ? 'light' : 'dark';
+  }
+  function positionPageNotes() {
+    const viewport = window.visualViewport, panelRect = panel.getBoundingClientRect();
+    const left = !panel.hidden && innerWidth >= 900 && sidebarSide === 'left' ? panelRect.right : viewport?.offsetLeft || 0;
+    const top = (viewport?.offsetTop || 0) + (viewport?.height || innerHeight) / 2;
+    Object.assign(pageNotes.style, { left: left + 12 + 'px', top: top + 'px', maxHeight: Math.max(80, (viewport?.height || innerHeight) - 120) + 'px' });
+    const stackRect = pageNotes.getBoundingClientRect();
+    pageNotes.style.top = top - stackRect.height / 2 + 'px';
+    const stackWidth = pageNotes.hidden ? 0 : Math.max(40, stackRect.width);
+    const dropLeft = left + 12 + (stackWidth ? stackWidth + 12 : 0);
+    const right = !panel.hidden && innerWidth >= 900 && sidebarSide === 'right' ? panelRect.left : (viewport?.offsetLeft || 0) + (viewport?.width || innerWidth);
+    Object.assign(pageNoteDrop.style, { left: dropLeft + 'px', top: top + 'px', width: Math.min(220, Math.max(80, right - dropLeft - 12)) + 'px' });
+    updatePageNoteContrast();
+  }
+  function pageNoteDropAt(x, y) {
+    const rect = pageNoteDrop.getBoundingClientRect();
+    return !pageNoteDrop.hidden && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+  async function saveIssueTarget(issue, target, control) {
+    await perform(control, async () => {
+      const updated = await (await api(`issues/${issue.id}/target`, { method: 'POST', body: { author: name, target, revision: issue.target_revision } })).json();
+      applyIssue(updated, true);
+    });
+    drawPins(); positionDraft();
+  }
   function dropTarget(x, y) {
+    if (pageNoteDropAt(x, y)) return pinDrag?.issue.target.text_change ? null : { target: pageNoteTarget() };
     const node = document.elementFromPoint(x, y);
     if (!node || node === host || node === document.documentElement || node === document.body || host.contains(node)) return null;
     const rect = node.getBoundingClientRect();
@@ -2691,6 +2934,7 @@
   function cancelPinDrag() {
     const drag = pinDrag; if (!drag) return;
     pinDrag = null; highlight.hidden = true;
+    delete pageNoteDrop.dataset.dragging; delete pageNoteDrop.dataset.over;
     if (drag.pin.hasPointerCapture(drag.pointer)) drag.pin.releasePointerCapture(drag.pointer);
     if (drag.moved) { suppressedPin = drag.pin; setTimeout(() => { if (suppressedPin === drag.pin) suppressedPin = null; }, 500); }
     drawPins(); positionDraft();
@@ -2701,10 +2945,15 @@
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
     if (!identified()) { drag.moved = true; cancelPinDrag(); withIdentity(() => message('Drag the pin to its new location.')); return; }
     drag.moved = true; notice.hidden = true; event.preventDefault(); event.stopPropagation(); hideTooltip();
+    const showingDrop = pageNoteDrop.hidden;
+    pageNoteDrop.hidden = false; pageNoteDrop.dataset.dragging = ''; positionPageNotes();
+    pageNoteDrop.querySelector('span').textContent = drag.issue.target.text_change ? 'Choose an element' : 'Drop for page note';
+    pageNoteDrop.toggleAttribute('data-over', !drag.issue.target.text_change && pageNoteDropAt(event.clientX, event.clientY));
+    if (showingDrop) positionDraft();
     drag.pin.classList.add('is-dragging'); drag.pin.style.pointerEvents = 'none';
     drag.pin.style.left = event.clientX + 'px'; drag.pin.style.top = event.clientY + 'px';
-    const drop = dropTarget(event.clientX, event.clientY); highlight.hidden = !drop;
-    if (drop) Object.assign(highlight.style, { left: drop.rect.left + 'px', top: drop.rect.top + 'px', width: drop.rect.width + 'px', height: drop.rect.height + 'px' });
+    const drop = dropTarget(event.clientX, event.clientY); highlight.hidden = !drop?.rect;
+    if (drop?.rect) Object.assign(highlight.style, { left: drop.rect.left + 'px', top: drop.rect.top + 'px', width: drop.rect.width + 'px', height: drop.rect.height + 'px' });
   }, { capture: true, passive: false });
   window.addEventListener('pointerup', async event => {
     const drag = pinDrag;
@@ -2716,29 +2965,29 @@
     const drop = dropTarget(event.clientX, event.clientY); highlight.hidden = true;
     if (!drop) { cancelPinDrag(); return; }
     try {
-      await perform(drag.pin, async () => {
-        const updated = await (await api(`issues/${drag.issue.id}/target`, { method: 'POST', body: { author: name, target: { ...drop.target, ...(drag.issue.target.text_change ? {text_change:drag.issue.target.text_change} : {}) }, revision: drag.issue.target_revision } })).json();
-        keepListOrder = true;
-        issues = issues.map(item => item.id === updated.id ? updated : item);
-        pageIssues = pageIssues.map(item => item.id === updated.id ? updated : item);
-        if (selected?.id === updated.id) { selected = updated; if (!issuePopup.hidden) renderIssue(); }
-        if (open) render();
-      });
-    } finally { pinDrag = null; drawPins(); positionDraft(); }
+      await saveIssueTarget(drag.issue, { ...drop.target, ...(drag.issue.target.text_change ? {text_change:drag.issue.target.text_change} : {}) }, drag.pin);
+    } finally { pinDrag = null; delete pageNoteDrop.dataset.dragging; delete pageNoteDrop.dataset.over; drawPins(); positionDraft(); }
   }, true);
   window.addEventListener('dragstart', event => { if (pinDrag) event.preventDefault(); }, true);
   window.addEventListener('pointercancel', event => { if (pinDrag && !pinDrag.ending && event.pointerId === pinDrag.pointer) cancelPinDrag(); }, true);
   window.addEventListener('click', event => { if (suppressedPin && event.composedPath().includes(suppressedPin)) { event.preventDefault(); event.stopImmediatePropagation(); suppressedPin = null; } }, true);
   function drawPins() {
     if (pinDrag) return;
-    const existing = new Map([...pins.children].map(pin => [pin.dataset.pinIssue, pin])), retained = new Set();
+    const existing = new Map([...pins.children, ...pageNotePins.children].map(pin => [pin.dataset.pinIssue, pin])), retained = new Set();
     const visible = pageIssues.filter(issue => filter.includes(issue.status));
     if (selected && !visible.some(issue => issue.id === selected.id)) visible.push(selected);
     syncTextPreviews(visible);
-    const positions = visible.filter(issue => issue.path === pagePath && issue.target.selector).map(issue => {
+    const current = visible.filter(issue => issue.path === pagePath);
+    pageNoteDrop.querySelector('span').textContent = 'Add page note';
+    pageNotes.hidden = cacheDenied || !current.some(issue => !issue.target.selector);
+    pageNoteDrop.hidden = cacheDenied || !picking || textPicking;
+    pageNoteDrop.setAttribute('aria-disabled', String(busy || !picking || !reviewAccess.can_create));
+    const pageOrder = current.filter(issue => !issue.target.selector).sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '') || Number(a.number) - Number(b.number));
+    const positions = current.filter(issue => issue.target.selector).map(issue => {
       const resolved = resolveTarget(issue), point = resolved && targetPoint(issue, resolved);
       return { issue, resolved, point };
     });
+    positions.push(...pageOrder.map(issue => ({ issue, resolved: { approximate: false }, point: { x: 0, y: 0 } })));
     positions.forEach(({ issue, resolved, point }) => {
       if (!point) return;
       let pin = existing.get(issue.id);
@@ -2746,17 +2995,22 @@
         pin = button(String(issue.number), () => withReadAccess(() => showIssue(issue.id)));
         pin.dataset.pinIssue = issue.id; pin.addEventListener('pointerdown', event => beginPinDrag(event, pin, pin.feedbackpressIssue)); pins.append(pin);
       }
+      const pageNote = !issue.target.selector, container = pageNote ? pageNotePins : pins;
+      if (pin.parentElement !== container) container.append(pin);
       retained.add(issue.id); pin.feedbackpressIssue = issue; pin.style.pointerEvents = '';
-      const className = 'pin ' + (String(issue.number).length > 4 ? 'is-wide ' : '') + issue.status + (selected?.id === issue.id ? ' is-selected' : '');
+      const className = 'pin ' + (pageNote ? 'page-note-pin ' : '') + (String(issue.number).length > 4 ? 'is-wide ' : '') + issue.status + (selected?.id === issue.id ? ' is-selected' : '');
       if (pin.className !== className) pin.className = className;
       if (pin.textContent !== String(issue.number)) pin.textContent = String(issue.number);
       pin.setAttribute('aria-label', `Issue ${issue.number}, ${labels[issue.status]}: ${(issue.title || issue.body).slice(0, 90)}`);
       pin.dataset.tooltip = (issue.title || issue.body || 'Issue ' + issue.number).slice(0, 120);
-      if (resolved.approximate) pin.dataset.tooltipNote = 'Approximate location';
+      if (pageNote) { pin.setAttribute('aria-label', 'Page note ' + issue.number + ', ' + labels[issue.status] + ': ' + (issue.title || issue.body).slice(0, 90)); pin.dataset.tooltipNote = 'Page note'; }
+      else if (resolved.approximate) pin.dataset.tooltipNote = 'Approximate location';
       else delete pin.dataset.tooltipNote;
-      pin.dataset.approximate = String(resolved.approximate); pin.style.left = `${point.x}px`; pin.style.top = `${point.y}px`;
+      pin.dataset.approximate = String(resolved.approximate); pin.style.left = pageNote ? '' : `${point.x}px`; pin.style.top = pageNote ? '' : `${point.y}px`;
     });
     for (const [id, pin] of existing) if (!retained.has(id)) pin.remove();
+    pageOrder.forEach((issue, index) => { const pin = pageNotePins.querySelector(`[data-pin-issue="${issue.id}"]`); if (pin && pageNotePins.children[index] !== pin) pageNotePins.insertBefore(pin, pageNotePins.children[index] || null); });
+    positionPageNotes();
   }
   let frame = null;
   const redraw = () => { if (frame) return; frame = requestAnimationFrame(() => { frame = null; if (open) panel.hidden = innerWidth < 900 && (picking || Boolean(draft) || selected && !issuePopup.hidden); updateChrome(); drawPins(); positionDraft(); }); };

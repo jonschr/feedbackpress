@@ -4,14 +4,14 @@
  * Plugin URI: https://github.com/jonschr/feedbackpress
  * Update URI: https://github.com/jonschr/feedbackpress
  * Description: On-page client feedback, screenshots, and central project storage.
- * Version: 0.4.1
+ * Version: 0.5.0
  * Requires at least: 6.6
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  */
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
-const VERSION = '0.4.1';
+const VERSION = '0.5.0';
 require_once __DIR__ . '/includes/service.php';
 require_once __DIR__ . '/includes/review-access.php';
 require_once __DIR__ . '/includes/api.php';
@@ -46,5 +46,5 @@ add_action('wp_enqueue_scripts', function () {
     if (is_feed()) return;
     wp_enqueue_script('feedbackpress-access', plugins_url('assets/review-access.js', __FILE__), [], VERSION . '.' . filemtime(__DIR__ . '/assets/review-access.js'), false);
     // Resolve all identity and permission state through an uncached request, including public review mode.
-    wp_localize_script('feedbackpress-access', 'FeedbackPressAccess', ['api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '', 'publicReview' => settings()['mode'] === 'everyone' && bound()]);
+    wp_localize_script('feedbackpress-access', 'FeedbackPressAccess', ['api' => esc_url_raw(rest_url('feedbackpress/v1/')), 'home' => untrailingslashit(home_url()), 'script' => plugins_url('assets/review.js', __FILE__) . '?ver=' . asset_version(), 'css' => plugins_url('assets/review.css', __FILE__) . '?ver=' . asset_version(), 'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '', 'publicReview' => settings()['mode'] === 'everyone' && bound()]);
 });

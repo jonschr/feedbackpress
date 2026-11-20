@@ -88,7 +88,7 @@ const { chromium } = require('playwright'), assert = require('node:assert/strict
       const bounds = node.getBoundingClientRect();
       return [...node.querySelectorAll('.issue-row')].find(row => {
         const rect = row.getBoundingClientRect();
-        return rect.height > 0 && row.querySelector('.page-reference').textContent === home && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+        return rect.height > 0 && row.querySelector('.page-reference').textContent === new URL(home).host && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
       })?.dataset.issue;
     }, base + '/')).jsonValue();
     assert.ok(mobileId, 'A current-view homepage row is visible without scrolling.');

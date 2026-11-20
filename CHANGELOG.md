@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 — November 20, 2026
+
+- Add centered page-note markers and a contextual ADD PAGE NOTE drop area, with click creation, drag conversion in both directions and a ticket-menu action. Page-note screenshots omit positional pins.
+- Adapt the drop area to light, dark and image backgrounds; keep it clear of open tickets where space permits and switch to a square placement cursor over it.
+- Edit owned titles, descriptions, replies and private notes by double-clicking. Inline fields fit their content, Escape cancels the field, and clicking elsewhere in the ticket saves. Menu-based editing remains available.
+- Replace the status dropdown with a persistent, open-by-default icon drawer. Keep its summary width stable and automatically include Done when sorting by completion.
+- Show Closed timestamps opposite the original author, using the existing human-readable time format.
+- Toggle an active sidebar issue off with a second click, preserving the sidebar and drafts.
+- Add circular author avatars, private-note colors and current-author markers; use bundled transparent Codex/Claude marks for agent notes.
+- Change individual reply attribution through the author picker without changing immutable ownership.
+- Restore saved sidebar spacing before page paint, preload review assets after access checking starts, and load screenshot support only when needed.
+- Shorten displayed homepage URLs and remove move-handle tooltip/hover decoration while retaining dragging and keyboard access.
+
+Known limitation: the strict Chrome first-open timing target remains intermittent on the release Mac; the published 0.4.1 comparison also missed it. See release verification for measured samples.
+
 ## 0.4.1 — November 19, 2026
 
 - Refresh expired anonymous REST nonces once without requiring sign-in, and keep central review-access validation out of page rendering.
