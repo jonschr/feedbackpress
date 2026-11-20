@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 — November 20, 2026
+
+- Move connected environments into a drawer opened by an icon beside Pause. Default it closed and remember its open state through same-tab navigation without reserving ticket-list space.
+- Show a sun or moon inside the system appearance icon, update it when the system changes, and describe the current appearance in tooltips.
+- Center the page-note target’s text plus above its label, with a dashed border, rounded corners and a stable pointer cursor.
+- Explain that direct text edits cannot be moved only when their pins are dragged; ordinary hover retains the ticket tooltip.
+- Show an early loading status while magic-link access and the feedback interface are opening, including reduced-motion and dark appearance support.
+- Preview direct text suggestions in headings containing line breaks, restore their exact original markup when hidden or cancelled, and synchronize selected-pin rings immediately.
+
+No service update or database migration is required.
+
 ## 0.5.0 — November 20, 2026
 
 - Add centered page-note markers and a contextual ADD PAGE NOTE drop area, with click creation, drag conversion in both directions and a ticket-menu action. Page-note screenshots omit positional pins.

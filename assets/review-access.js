@@ -3,9 +3,10 @@
   const c = window.FeedbackPressAccess;
   if (!c) return;
   const domReady = document.readyState === 'loading' ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true })) : Promise.resolve();
-  let earlyStyle = null, shell = null;
+  let earlyStyle = null, shell = null, loading = null;
   function finishBoot(ready = false) {
     shell?.remove(); shell = null;
+    loading?.remove(); loading = null;
     if (!ready && earlyStyle) { earlyStyle.remove(); document.documentElement.removeAttribute('data-feedbackpress-room'); }
     earlyStyle = null;
   }
@@ -30,11 +31,21 @@
     shell.style.cssText = `all:initial;position:fixed;top:0;${side}:0;width:min(400px,100vw);height:100dvh;background:${dark ? '#17191e' : '#fff'};z-index:2147483646;zoom:${room ? 1 / zoom : 1};pointer-events:none`;
     document.documentElement.append(shell);
   }
+  function showLoading() {
+    if (loading) return;
+    const appearance = (() => { try { return localStorage.getItem('feedbackpress-appearance'); } catch (_) {} })();
+    const dark = appearance === 'dark' || appearance !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches;
+    loading = document.createElement('div'); loading.id = 'feedbackpress-loading'; loading.dataset.html2canvasIgnore = 'true';
+    loading.style.cssText = `all:initial;position:fixed;right:16px;bottom:16px;z-index:2147483647;max-width:calc(100vw - 32px);pointer-events:none;zoom:${1 / (parseFloat(getComputedStyle(document.documentElement).zoom) || 1)}`;
+    const root = loading.attachShadow({ mode: 'open' });
+    root.innerHTML = `<style>:host{color-scheme:${dark ? 'dark' : 'light'}}.status{display:flex;align-items:center;gap:10px;box-sizing:border-box;max-width:100%;padding:12px 16px;border-radius:8px;background:${dark ? '#17191e' : '#fff'};color:${dark ? '#eef0f3' : '#20242b'};box-shadow:0 4px 20px #0003;font:14px/20px system-ui,sans-serif}.spinner{box-sizing:border-box;flex:none;width:18px;height:18px;border:2px solid ${dark ? '#626a76' : '#cbd0d8'};border-top-color:currentColor;border-radius:50%;animation:fp-loading .8s linear infinite}@keyframes fp-loading{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation:none}}</style><div class="status" role="status" aria-live="polite" aria-atomic="true"><span class="spinner" aria-hidden="true"></span><span>Opening FeedbackPress…</span></div>`;
+    document.documentElement.append(loading);
+  }
   function preload(href, as) {
     if (!href) return;
     const link = document.createElement('link'); link.rel = 'preload'; link.as = as; link.href = href; document.head.append(link);
   }
-  addEventListener('resize', () => { if (shell) { finishBoot(); prepareBoot(); } });
+  addEventListener('resize', () => { if (shell) { const wasLoading = Boolean(loading); finishBoot(); prepareBoot(); if (wasLoading) showLoading(); } });
   function invitation() {
     const hash = new URLSearchParams(location.hash.slice(1)), token = hash.get('fp-review');
     // A fragment never enters HTTP/referrer logs; remove it before loading the review UI.
@@ -48,8 +59,13 @@
   const script = src => new Promise((resolve, reject) => { const node = document.createElement('script'); node.src = src; node.onload = resolve; node.onerror = () => reject(new Error('FeedbackPress could not load. Reload this page to try again.')); document.head.append(node); });
   async function start({token, invitation, verification}) {
     try {
-      if (!token && !c.nonce && !c.publicReview && !document.cookie.split('; ').some(value => value === 'feedbackpress_review_active=1')) return;
-      if (!document.getElementById('feedbackpress-root')) { prepareBoot(); preload(c.script, 'script'); preload(c.css, 'style'); }
+      const activeReview = document.cookie.split('; ').some(value => value === 'feedbackpress_review_active=1');
+      if (!token && !c.nonce && !c.publicReview && !activeReview) return;
+      if (!document.getElementById('feedbackpress-root')) {
+        prepareBoot();
+        if (token || activeReview || shell || new URLSearchParams(location.search).get('feedbackpress') === 'open' || /^#feedbackpress=/.test(location.hash)) showLoading();
+        preload(c.script, 'script'); preload(c.css, 'style');
+      }
       const request = nonce => fetch(endpoint, { method: token ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(nonce ? { 'X-WP-Nonce': nonce } : {}) }, ...(token ? { body: JSON.stringify({ token, ...(invitation ? {invitation} : {}), ...(verification ? {verification} : {}) }) } : {}) });
       let response = await request(c.nonce), data = await response.json();
       // A cached nonce from another WordPress login must never select the old private actor.

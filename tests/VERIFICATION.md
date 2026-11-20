@@ -1,3 +1,13 @@
+# Release checks for 0.5.1 — November 20, 2026
+
+All 16 selected intercepted Chrome suites pass: bootstrap-loading, review-access, sidebar-startup, environments, overlay-sharing, page-notes, pin-drag, tooltips, text-preview-markup, text-changes, text-controls, status-drawer, review-pause, sidebar-layout, screenshot-pin and security-rendering. These cover the environment drawer and permission boundaries, loading/error handoff, current-state appearance icons/tooltips, attempted-drag-only text hint, native page-note cursor, exact BR markup restoration, immediate selection rings, existing layout/navigation and all ten real screenshot-renderer scenarios.
+
+The first sidebar-layout run failed its obsolete total-SVG count because the hidden environment controls now reside in the footer. Replaced that implementation count with hidden/unauthorized environment checks; the compact-footer geometry and original desktop/mobile layout, navigation, scroll and style-restoration checks remain. The full suite rerun passes. Initial failure and successful rerun are retained privately.
+
+First-party JavaScript syntax and ESLint pass. All 11 first-party runtime PHP files pass syntax checks under supported PHP 8.1, the WordPress security profile passes, and whitespace checks pass. Main Dev passes native WordPress normal and update-AJAX updater tests against matching 0.5.1 metadata; those tests intercept the feed and install no update. Full WPCS style compliance and a fresh full PHP regression run are not claimed for this frontend patch.
+
+No service update or schema migration is required. Browser requests in these release suites are synthetic; no real feedback or email was written. Existing first-open latency limitations remain; loading feedback is not a speed guarantee. Safari/Firefox were not re-certified. Private logs and package evidence: `~/Library/Application Support/FeedbackPress/private/release-0.5.1-20261120T225359Z`.
+
 # Published 0.5.0 — November 20, 2026
 [FeedbackPress 0.5.0](https://github.com/jonschr/feedbackpress/releases/tag/0.5.0) tags source `c5f7984965dd46a91a28a65249e7549b1ee06de9`. The installable ZIP has 150 files and SHA256 `c734d5122058945c3b65389e488c6f135d998c10e0139e1b75180006fef575a5`. Draft assets were downloaded and byte-verified; the published ZIP, manifest and checksum assets were then downloaded anonymously and byte-verified before pushing main's updater metadata.
 
@@ -599,3 +609,58 @@ Both notification-opening browser variants pass with simulated Cloudflare Rocket
 The author-avatars fixture passes no sidebar pseudo-marker, 3px ticket bars anchored at top/bottom zero with green light/dark tokens, unchanged comment/row geometry, circular 18px human avatar alignment, transparent uncropped agent marks, dark-mode inversion, versioned local brand URLs and all prior private-label/attribution/fallback checks at desktop and 320px. Both renders inspected. Codex uses its standalone terminal glyph without the filled badge; Claude is transparent too.
 
 Installed only review.js, review.css, codex.svg and its asset README on local Harrison after matching existing bytes to the prior receipts. All installed bytes and actual HTTP200 JS/CSS/Codex SVG bodies match source. Backups/manifest: private/harrison-ticket-markers-current-path. No settings, feedback or hosted service changes.
+
+
+# Environments drawer — November 20, 2026
+
+`environments.cjs` passes the default-closed globe action immediately after Pause, unchanged list geometry while the drawer overlays it, same-tab navigation restoration after owner authorization, explicit-close persistence, Escape, both desktop sidebar sides, 320px layout and light/dark appearance. Existing owner-only visibility, lazy/retry reads, destination validation/deduplication, empty and revoked-owner cases still pass. Desktop light, desktop dark and narrow light renders inspected. The ten `overlay-sharing.cjs` regression variants also pass, along with JS syntax and whitespace checks. All HTTP is intercepted; source-only, with no installed-site or hosted-service changes.
+
+
+# System appearance icon — November 20, 2026
+
+`text-changes.cjs` passes the existing three-state appearance cycle and manual override behavior, with added checks for distinct system sun/moon glyphs and live system-scheme updates. Both toolbar-size system icons inspected. JS syntax and whitespace checks pass. Source-only; no installed-site changes.
+
+
+# FeedbackPress Main Dev bakery fixture — November 20, 2026
+
+Created new Cove `feedbackpress-main-dev` with a Sunday Bread child of Ollie and the working plugin checkout linked directly. Six published pages contain 206 native Gutenberg blocks; Block Runner reports zero invalid blocks/warnings or Custom HTML fallbacks. Actual WordPress editor checks pass on all six pages. Chrome verifies all six HTTP200 pages, one H1 each, loaded photos, exact feedback anchors/text-change originals, owner controls, the environment drawer across normal header-link navigation, a real menu ticket, and native menu navigation without overflow at 390px/320px. Desktop and mobile renders inspected; no page errors. Safari/Firefox were not checked.
+
+The separate Sunday Bread — Main Dev project contains 19 tickets (5 todo, 4 needs_info, 3 doing, 4 review, 3 done), 24 replies, two photo attachments, one real homepage screenshot and two private notes. Native/API and browser reads confirm 19 owner-visible versus 18 shared tickets, with one private developer ticket excluded anonymously. The project has no notification recipient or public delivery destination. Existing sites/projects were left intact. Retained assets/receipts and usage are documented in docs/MAIN-DEV-SITE.md.
+
+
+# Page-note target refinement and references — November 20, 2026
+
+`page-notes.cjs` passes the centered text-plus placement above the label, 2px dashed border and 8px corners, with existing creation, drag conversion/return, failed-save restoration, keyboard, contrast switching, popup avoidance, sidebar sides and 320px coverage. The creation/drag label now has its own selector so the decorative plus cannot be overwritten. Main Dev render inspected with actual bakery content. JS syntax and whitespace checks pass.
+
+Captured comparison references from official BugHerd public-feedback, Filestage commenting, and Atarim client/stakeholder guides, plus the actual updated Main Dev target. These are official illustration/guide captures, not authenticated product trials. Screenshots, sources.json and comparison.html are retained in the Main Dev development-fixture/page-note-references directory. The transparent target still competes with underlying text on busy content; a solid surface is a possible follow-up, outside this requested shape/layout refinement. No real feedback was created during the visual check.
+
+
+# Page-note cursor and drag feedback — November 20, 2026
+
+Replaced the drop zone's second SVG image cursor with a native pointer, made its decorative plus/label pointer-transparent, and disabled text selection on the interactive zone. The normal page-placement cursor remains outside the zone. `page-notes.cjs` now checks the same hit target and pointer over the plus and label, plus the explanatory rejection of a text-change pin without modifying its target or proposed wording. Page-note and pin-drag suites pass.
+
+Live Sunday Bread browser checks confirm the native pointer across the zone and conversion of ordinary pin #19. Pin #1 is a text-change suggestion and is intentionally prevented from losing its text target; rejection now explains this rather than failing silently. Target-save requests were intercepted within the browser for this check; server re-reads confirm #1 remains #home-title and #19 remains #daily-bread. No ticket was created or modified by these live drag checks. The reported failing ticket number remains unconfirmed; ordinary-pin failure has not been reproduced.
+
+
+# Direct text-edit pin explanation — November 20, 2026
+
+The owner confirmed the reported Sunday Bread drag failure was text-change ticket #1. Text-change pins now use a pointer rather than a grab cursor and include “Direct text edits cannot be moved” in their shared tooltip. An attempted drag keeps the original pin fixed and shows the explanation without opening a page-note target or sending a target update. Ordinary clicks still open the ticket. Expanded page-notes.cjs passes these checks, preserves original/proposed text, and retains the existing ordinary drag/conversion coverage. This resolves the previously unconfirmed ticket-type report; the behavior is no longer a silent refusal.
+
+
+# Magic-link loading feedback — November 20, 2026
+
+Sub-agent implementation in review-access.js adds an early “Opening FeedbackPress…” status with a spinner, dark/system appearance and reduced-motion support. It covers the required authorization/DOM/JS/CSS wait through the actual CSS-ready handoff; denial and errors clear it. No-link ordinary visitors remain silent. This improves visible progress, without claiming a service latency reduction.
+
+New bootstrap-loading.cjs passes ten scenarios: desktop, 320px dark/reduced-motion, continuation with resize, denial/reload retry, network failure, script failure, CSS failure, blocked cookies, and quiet public/private visitors. Existing review-access.cjs and sidebar-startup.cjs pass unchanged. Parent review inspected desktop/mobile loading renders and the final source diff; page-notes.cjs and pin-drag.cjs also pass with the direct-text-edit tooltip changes. JS syntax and whitespace checks pass. All requests in these loading fixtures are synthetic. Main Dev uses the source symlink; no other installed site or hosted service was deployed, and no email or real feedback write occurred.
+
+
+# Text-edit movement hint only on attempted drag — November 20, 2026
+
+Removed the movement explanation from the text pin's persistent hover/focus tooltip data. The drag handler now supplies it as a one-time detail to the shared tooltip after the existing movement threshold. Expanded page-notes.cjs verifies no warning on ordinary hover, the warning during an attempted drag without movement/writes, and restoration of the ordinary tooltip on a later hover. Page-note and shared-tooltip suites pass; JS syntax and whitespace checks pass. Available through Main Dev's source link; other installed copies were not updated.
+
+
+# Line-break text previews and immediate pin selection — November 20, 2026
+
+Reproduced both failures in new text-preview-markup.cjs: a valid heading suggestion containing a BR was not previewed, and a cached ticket's pin did not receive its selection ring until a later redraw. Text eligibility now permits plain text with BR children; both temporary editing and saved previews retain the original child nodes and restore them on cancel/toggle. Complex rich content stays protected, and independent host markup changes are preserved. renderSelection now paints current pin selection synchronously, independently of preview toggles.
+
+New text-preview-markup.cjs passes repeated toggle restoration including original BR node identity, edit cancellation, changed-word highlights, plain/rich safeguards, host markup changes, cached selection before a held server read, and selection stability through preview toggles. Existing text-changes.cjs and text-controls.cjs pass. Syntax/whitespace checks pass. Live Sunday Bread checks confirm #1 shows “Your daily bread. A slower kind of morning.” with actual CSS highlights, off restores Good bread.<br> plus the exact newline/Slow mornings markup, and #9 shows “Made for your favorite people.” on Cakes & Catering. No WordPress content or ticket data was changed; these are browser previews. Main Dev source link only; other installed copies remain unmodified.

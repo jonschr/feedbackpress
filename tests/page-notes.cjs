@@ -84,9 +84,19 @@ const { chromium } = require('playwright'), fs = require('node:fs'), assert = re
     await page.keyboard.press('Escape');
     assert.equal(await drop.isVisible(), false); await page.keyboard.press('c'); await drop.waitFor();
     const zone = await drop.boundingBox(); assert.ok(Math.abs(zone.y + zone.height / 2 - 450) < 1); assert.ok(zone.width >= 200 && zone.height >= 150); const stack = await rail.boundingBox(); assert.ok(zone.x >= stack.x + stack.width + 10); assert.ok(Math.abs(stack.y + stack.height / 2 - 450) < 1);
-    assert.equal(await drop.locator('svg').count(), 1); assert.equal(await drop.locator('span').textContent(), 'Add page note'); assert.equal(await drop.evaluate(node => getComputedStyle(node).textTransform), 'uppercase');
-    await drop.hover(); assert.equal(await drop.locator('svg').isVisible(), true);
-    const squareCursor = await drop.evaluate(node => getComputedStyle(node).cursor); assert.ok(decodeURIComponent(squareCursor).includes('<rect'));
+    assert.equal(await drop.locator('.page-note-plus').count(), 1); assert.equal(await drop.locator('.page-note-label').textContent(), 'Add page note'); assert.equal(await drop.evaluate(node => getComputedStyle(node).textTransform), 'uppercase');
+    const plusBox = await drop.locator('.page-note-plus').boundingBox(), labelBox = await drop.locator('.page-note-label').boundingBox();
+    assert.ok(plusBox.y + plusBox.height <= labelBox.y); assert.ok(Math.abs(plusBox.x + plusBox.width / 2 - labelBox.x - labelBox.width / 2) < 1);
+    assert.equal(await drop.locator('.page-note-plus').textContent(), '+');
+    assert.deepEqual(await drop.evaluate(node => { const s = getComputedStyle(node); return [s.borderTopStyle, s.borderTopWidth, s.borderTopLeftRadius]; }), ['dashed','2px','8px']);
+    await drop.hover(); assert.equal(await drop.locator('.page-note-plus').isVisible(), true);
+    assert.equal(await drop.evaluate(node => getComputedStyle(node).cursor), 'pointer');
+    for (const part of ['.page-note-plus', '.page-note-label']) {
+      const point = await center(drop.locator(part)); await page.mouse.move(point.x, point.y);
+      assert.equal(await drop.evaluate((node, point) => node.getRootNode().elementFromPoint(point.x, point.y) === node, point), true, 'Text and plus share one stable hover target');
+      assert.equal(await drop.locator(part).evaluate(node => getComputedStyle(node).cursor), 'pointer');
+    }
+    assert.equal(await drop.evaluate(node => getComputedStyle(node).userSelect), 'none');
     await page.mouse.move(700, 600); const roundCursor = await page.locator('#target').evaluate(node => getComputedStyle(node).cursor); assert.ok(!decodeURIComponent(roundCursor).includes('<rect'));
     await drop.hover(); assert.equal(await page.locator('.highlight').isVisible(), false);
      assert.equal(await drop.evaluate(node => node.tagName), 'DIV');
@@ -138,6 +148,20 @@ const { chromium } = require('playwright'), fs = require('node:fs'), assert = re
     await page.keyboard.press('Escape');
     await page.keyboard.press('c'); await drop.waitFor(); const mobileZone = await drop.boundingBox(); assert.ok(Math.abs(mobileZone.y + mobileZone.height / 2 - 422) < 1); const mobileStack = await rail.boundingBox(); assert.ok(mobileZone.x >= mobileStack.x + mobileStack.width + 10); assert.ok(mobileZone.x + mobileZone.width <= 308);
     await page.screenshot({ path: '/tmp/feedbackpress-page-notes-320.png' }); await page.keyboard.press('Escape'); assert.equal(await drop.isVisible(), false);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    items[0].target = { selector: '#target', text: 'Target', x: .5, y: .5, text_change: { original: 'Target', proposed: 'Updated target' } }; items[0].revision++;
+    await page.reload(); await pin(1).waitFor();
+    await pin(1).hover(); await page.getByRole('tooltip').waitFor();
+    assert.ok(!(await page.getByRole('tooltip').textContent()).includes('Direct text edits cannot be moved'));
+    const textPin = await center(pin(1)); await page.mouse.move(textPin.x, textPin.y); await page.mouse.down(); await page.mouse.move(textPin.x + 80, textPin.y + 60, { steps: 8 });
+    await page.getByRole('tooltip').getByText('Direct text edits cannot be moved', { exact: true }).waitFor();
+    assert.equal(await drop.isVisible(), false); assert.deepEqual(await center(pin(1)), textPin);
+    assert.equal(await pin(1).evaluate(node => getComputedStyle(node).cursor), 'pointer');
+    await page.mouse.up();
+    await page.waitForTimeout(550); await page.mouse.move(1100, 600); await pin(1).hover();
+    assert.ok(!(await page.getByRole('tooltip').textContent()).includes('Direct text edits cannot be moved'));
+    await pin(1).click(); await popup.waitFor();
+    assert.equal(items[0].target.selector, '#target'); assert.equal(items[0].target.text_change.proposed, 'Updated target');
     assert.equal(writes, 4); assert.deepEqual(errors, []);
     console.log('PASS Page notes: existing notes, chronological stack, page isolation, fixed scroll position, creation, reload, drag conversion/return, Escape, failed saves, action conversion, unchanged authorship/content, hover shortcuts, left/right room/overlay and 320px layout.');
   } finally { await browser.close(); }

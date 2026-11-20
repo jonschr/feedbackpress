@@ -23,18 +23,31 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
    return route.fulfill({contentType:'text/html',body:`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><main>Client website</main><script>window.FeedbackPressConfig=${JSON.stringify({home,api:base+'/api/',css:base+'/review.css',reviewAccess:true,canShareReviewLinks:variant!=='guest',reviewSession:true,userName:variant==='guest'?'':'Administrator',nonce:'fixture'})}</script><script src="/review.js"></script>`});
   });
   const page=await context.newPage();page.on('pageerror',e=>{errors.push(e.message);console.error('Page error',variant,e.message);});await page.goto(home+'/');await page.getByRole('button',{name:'View issues',exact:true}).click();
-  const switcher=page.locator('.environment-switcher'),summary=switcher.locator('summary');
-  if(['guest','nonowner'].includes(variant)){await page.getByRole('heading',{name:'0 open issues',exact:true}).waitFor();assert.equal(await switcher.isVisible(),false);assert.equal(requests,0);await context.close();continue;}
-  await summary.waitFor();assert.equal(requests,0);await summary.click();
+  const switcher=page.locator('.environment-switcher'),summary=page.getByRole('button',{name:'Environments',exact:true});
+  if(['guest','nonowner'].includes(variant)){await page.getByRole('heading',{name:'0 open issues',exact:true}).waitFor();assert.equal(await switcher.isVisible(),false);assert.equal(await summary.isVisible(),false);assert.equal(requests,0);await context.close();continue;}
+  await summary.waitFor();assert.equal(requests,0);assert.equal(await switcher.isVisible(),false);assert.equal(await summary.getAttribute('aria-expanded'),'false');
+  assert.ok(await summary.evaluate(n=>n.previousElementSibling.getAttribute('aria-label')==='Pause new client tickets'));
+  const listBefore=await page.locator('.issue-list').boundingBox();await summary.click();
   if(variant==='revoked'){await page.locator('.notice').getByText(/Only the FeedbackPress account owner/).waitFor();assert.equal(await switcher.isVisible(),false);assert.equal(await page.getByRole('complementary',{name:'Issues'}).isVisible(),true);await context.close();continue;}
   if(variant==='failed'){await switcher.getByText('Cannot load environments. Try again.',{exact:true}).waitFor();await switcher.getByRole('button',{name:'Try again',exact:true}).click();}
   if(['missing-grant','wrong-origin'].includes(variant)){await switcher.getByRole('button',{name:'Try again',exact:true}).waitFor();assert.equal(await switcher.locator('a').count(),0);assert.deepEqual(errors,[]);await context.close();continue;}
   if(variant==='empty'){await switcher.getByText('No other environments connected.',{exact:true}).waitFor();assert.equal(await switcher.locator('a').count(),0);}else{
    await switcher.getByRole('link',{name:'live.example.test',exact:true}).waitFor();const links=await switcher.locator('a').evaluateAll(nodes=>nodes.map(n=>({href:n.href,target:n.target,rel:n.rel})));assert.deepEqual(links.map(x=>x.href),['https://live.example.test/?feedbackpress=open#fp-review='+grant,'https://staging.example.test/client/?feedbackpress=open#fp-review='+grant]);assert.ok(links.every(x=>x.target==='_blank'&&x.rel==='noopener noreferrer'));assert.ok(links.every(x=>new URL(x.href).hash==='#fp-review='+grant));
   }
+  assert.deepEqual(await page.locator('.issue-list').boundingBox(),listBefore);assert.ok(listBefore.height>0);
+  const drawerBox=await switcher.boundingBox(),settingsBox=await page.locator('.sidebar-settings').boundingBox();
+  assert.ok(drawerBox.y>=0&&drawerBox.y+drawerBox.height<=settingsBox.y+1);
   assert.ok(await page.evaluate(()=>{const r=document.querySelector('#feedbackpress-root').shadowRoot.querySelector('.panel');return r.scrollWidth<=r.clientWidth}));
   if(['owner','mobile','dark'].includes(variant))await page.getByRole('complementary',{name:'Issues'}).screenshot({path:'/tmp/feedbackpress-environments-'+variant+'.png'});
-  await summary.press('Escape');assert.equal(await switcher.evaluate(n=>n.open),false);assert.equal(await page.getByRole('complementary',{name:'Issues'}).isVisible(),true);assert.deepEqual(errors,[]);await context.close();
+  if(['owner','mobile','dark'].includes(variant)){
+   await page.goto(home+'/another-page/');await switcher.waitFor();
+   await switcher.getByRole('link',{name:'live.example.test',exact:true}).waitFor();assert.equal(await summary.getAttribute('aria-expanded'),'true');
+   if(variant!=='mobile')await page.getByRole('radio',{name:'Left',exact:true}).check();assert.equal(await switcher.isVisible(),true);
+   await switcher.getByRole('button',{name:'Close environments',exact:true}).click();assert.equal(await switcher.isVisible(),false);
+   await page.goto(home+'/third-page/');await summary.waitFor();assert.equal(await switcher.isVisible(),false);
+   await summary.click();await switcher.getByRole('link',{name:'live.example.test',exact:true}).waitFor();
+  }
+  await summary.press('Escape');assert.equal(await switcher.isVisible(),false);assert.equal(await summary.getAttribute('aria-expanded'),'false');assert.equal(await page.getByRole('complementary',{name:'Issues'}).isVisible(),true);assert.deepEqual(errors,[]);await context.close();
  }
- console.log('PASS owner-only environments, lazy/retry reads, current-site exclusion/deduplication, site-specific magic links without API credentials, empty/revoked states, Escape and desktop/mobile light/dark layouts.');
+ console.log('PASS owner-only environments, lazy/retry reads, current-site exclusion/deduplication, site-specific magic links without API credentials, empty/revoked states, Escape, overlay geometry, drawer navigation persistence, explicit close persistence and desktop/mobile light/dark layouts.');
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

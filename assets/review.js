@@ -16,7 +16,7 @@
     if (stylesReady) updatePlacementCursor();
   }
   host.dataset.appearance = appearance === 'system' ? (appearanceMedia.matches ? 'dark' : 'light') : appearance;
-  appearanceMedia.addEventListener('change', () => { if (appearance === 'system') applyAppearance(); });
+  appearanceMedia.addEventListener('change', () => { if (appearance === 'system') { applyAppearance(); updateAppearanceControl(); } });
   addEventListener('storage', event => { if (event.key === 'feedbackpress-appearance') { appearance = ['light','dark'].includes(event.newValue) ? event.newValue : 'system'; applyAppearance(); updateAppearanceControl(); } });
 
   let stylesReady = false;
@@ -60,7 +60,11 @@
     if (kind === 'history') path.setAttribute('d', 'M3 11a9 9 0 119 10M3 4v7h7M12 7v5l3 2');
     if (kind === 'sun') path.setAttribute('d', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5');
     if (kind === 'moon') path.setAttribute('d', 'M20 14a8 8 0 0 1-10-10A8.5 8.5 0 1 0 20 14Z');
-    if (kind === 'system') path.setAttribute('d', 'M3 4h18v13H3zM8 21h8M12 17v4');
+    if (kind === 'system-sun' || kind === 'system-moon') {
+      path.setAttribute('d', 'M3 3h18v15H3zM8 21h8M12 18v3' + (kind === 'system-sun'
+        ? 'M14 10.5a2 2 0 1 0-4 0 2 2 0 0 0 4 0ZM12 6v1M12 14v1M7.5 10.5h1M15.5 10.5h1M8.8 7.3l.7.7M14.5 13l.7.7M8.8 13.7l.7-.7M14.5 8l.7-.7'
+        : 'M15.5 11.5a4 4 0 0 1-5-5 4 4 0 1 0 5 5Z'));
+    }
     if (kind === 'logout') path.setAttribute('d', 'M10 4H4v16h6M14 8l4 4-4 4M8 12h12');
     if (['todo', 'needs_info', 'doing', 'review', 'check'].includes(kind)) { svg.classList.add('fp-status-icon'); svg.setAttribute('stroke-width', '1.9'); }
     svg.append(path); return svg;
@@ -290,8 +294,8 @@
     applyAppearance(); updateAppearanceControl();
   }, { class: 'fp-icon-button' });
   function updateAppearanceControl() {
-    appearanceControl.replaceChildren(icon(appearance === 'light' ? 'sun' : appearance === 'dark' ? 'moon' : 'system'));
-    const label = 'Appearance: ' + appearance + ' — switch to ' + ({system:'light',light:'dark',dark:'system'}[appearance]);
+    appearanceControl.replaceChildren(icon(appearance === 'light' ? 'sun' : appearance === 'dark' ? 'moon' : appearanceMedia.matches ? 'system-moon' : 'system-sun'));
+    const label = 'Appearance: ' + appearance + (appearance === 'system' ? ' (' + (appearanceMedia.matches ? 'dark' : 'light') + ')' : '');
     appearanceControl.setAttribute('aria-label', label); appearanceControl.dataset.tooltip = label;
   }
   updateAppearanceControl(); sidebarUtilities.append(appearanceControl);
@@ -302,9 +306,10 @@
   function applyReviewAccess(state) {
     if(typeof state.paused!=='boolean'||typeof state.account_owner!=='boolean'||typeof state.can_create!=='boolean')return;
     if(state.paused===reviewAccess.paused&&state.account_owner===reviewAccess.account_owner&&state.can_create===reviewAccess.can_create)return;
-    if (!state.account_owner) clearEnvironments(); else environmentSwitcher.hidden = !c.canShareReviewLinks;
     reviewAccess=state;pauseControl.hidden=!state.account_owner;pauseControl.replaceChildren(icon(state.paused?'doing':'pause'));
     pauseControl.setAttribute('aria-label',state.paused?'Resume new client tickets':'Pause new client tickets');pauseControl.setAttribute('aria-pressed',String(state.paused));
+    if (!state.account_owner) clearEnvironments();
+    else { environmentControl.hidden = !c.canShareReviewLinks; if (resumeEnvironments && !environmentControl.hidden) setEnvironments(true); }
     pauseState.hidden=!state.paused;pauseState.textContent=state.account_owner?'New client tickets are paused.':'New tickets are paused. You can still reply and attach files.';
     if(!state.can_create){cancelPick();if(draft)message('New client tickets are paused. Your draft is kept.');}
     composer.querySelectorAll('[type=submit]').forEach(button=>{button.disabled=!state.can_create;});
@@ -319,16 +324,30 @@
   }, {class:'fp-icon-button','aria-label':'Show text changes','aria-pressed':String(showTextChanges)});
   sidebarUtilities.append(textPreviewControl);
 
-  let environmentRequest = 0;
+  let environmentRequest = 0, resumeEnvironments = false;
+  const environmentDisclosureKey = 'feedbackpress-environments-drawer:' + c.home;
+  try { resumeEnvironments = sessionStorage.getItem(environmentDisclosureKey) === 'true'; } catch (_) {}
   const environmentLinks = el('nav', { class: 'environment-links', 'aria-label': 'Connected environments' });
-  const environmentSummary = el('summary', {}, icon('globe'), el('span', {}, 'Environments'), el('span', { class: 'environment-host' }, new URL(c.home).host + homePath), icon('chevron'));
-  const environmentSwitcher = el('details', { class: 'environment-switcher', hidden: true, ontoggle: () => {
-    queueScrollCues();
-    if (environmentSwitcher.open) { setSharing(false, false); loadEnvironments(); }
+  const environmentControl = button(icon('globe'), () => setEnvironments(environmentSwitcher.hidden), {
+    class: 'fp-icon-button', 'aria-label': 'Environments', 'aria-controls': 'fp-environments', 'aria-expanded': 'false', 'aria-pressed': 'false', hidden: true
+  });
+  pauseControl.after(environmentControl);
+  const environmentSwitcher = el('section', { id: 'fp-environments', class: 'environment-switcher', 'aria-label': 'Environments', hidden: true },
+    el('div', { class: 'environment-heading' }, el('span', {}, 'Environments'), el('span', { class: 'environment-host' }, new URL(c.home).host + homePath),
+      button(icon('close'), () => { setEnvironments(false); environmentControl.focus({ preventScroll: true }); }, { class: 'fp-icon-button', 'aria-label': 'Close environments' })), environmentLinks);
+  sidebarSettings.append(environmentSwitcher);
+  function setEnvironments(show) {
+    if (show && (environmentControl.hidden || !reviewAccess.account_owner)) return;
+    const changed = environmentSwitcher.hidden === show;
+    environmentSwitcher.hidden = !show; resumeEnvironments = show;
+    environmentControl.setAttribute('aria-expanded', String(show)); environmentControl.setAttribute('aria-pressed', String(show));
+    try { sessionStorage.setItem(environmentDisclosureKey, String(show)); } catch (_) {}
+    if (!changed) return;
+    if (show) { setSharing(false, false); loadEnvironments(); }
     else { environmentRequest++; environmentLinks.replaceChildren(); }
-  } }, environmentSummary, environmentLinks);
+  }
   function clearEnvironments() {
-    environmentRequest++; environmentSwitcher.open = false; environmentSwitcher.hidden = true; environmentLinks.replaceChildren();
+    setEnvironments(false); environmentControl.hidden = true;
   }
   async function loadEnvironments() {
     const request = ++environmentRequest;
@@ -422,7 +441,7 @@
   }
   function setSharing(show, focus = true) {
     shareBar.hidden = !show; shareControl.setAttribute('aria-expanded', String(show)); shareControl.setAttribute('aria-pressed', String(show));
-    if (show) { environmentSwitcher.open = false; if (!sharingLoaded && !sharingLoading) loadSharing(); if (focus) shareEmail.focus({ preventScroll: true }); }
+    if (show) { setEnvironments(false); if (!sharingLoaded && !sharingLoading) loadSharing(); if (focus) shareEmail.focus({ preventScroll: true }); }
     else { closeShareSuggestions(); shareFallback.value = ''; shareFallback.hidden = true; if (focus) shareControl.focus({ preventScroll: true }); }
     queueScrollCues();
   }
@@ -473,7 +492,7 @@
   }
 
   if (c.reviewSession) sidebarUtilities.append(button(icon('logout'), event => perform(event.currentTarget, async () => { await api('review-session', { method: 'DELETE' }); dismissInterface(); issueCache.clear(); try { sessionStorage.removeItem(cacheKey); } catch (_) {} location.reload(); }), { class: 'fp-icon-button', 'aria-label': 'End review session' }));
-  panel.append(panelContents,pauseState,environmentSwitcher,...(c.canShareReviewLinks ? [shareBar] : []),sidebarSettings);
+  panel.append(panelContents,pauseState,...(c.canShareReviewLinks ? [shareBar] : []),sidebarSettings);
   const placementCursorStyle = document.createElement('style');
   placementCursorStyle.dataset.feedbackpressCursor = '';
   document.head.append(placementCursorStyle);
@@ -540,7 +559,7 @@
   const pins = el('div', { class: 'pins' });
   const pageNotePins = el('div', { class: 'page-note-pins', role: 'group', 'aria-label': 'Page notes' });
   const createPageNote = () => { if (picking && !textPicking && !busy) withIdentity(() => newDraft(pageNoteTarget())); };
-  const pageNoteDrop = el('div', { class: 'page-note-drop', hidden: true, role: 'button', tabindex: 0, 'aria-label': 'Add page note', onclick: createPageNote, onpointerenter: () => { highlight.hidden = true; }, onkeydown: event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); createPageNote(); } } }, icon('plus'), el('span', {}, 'Add page note'));
+  const pageNoteDrop = el('div', { class: 'page-note-drop', hidden: true, role: 'button', tabindex: 0, 'aria-label': 'Add page note', onclick: createPageNote, onpointerenter: () => { highlight.hidden = true; }, onkeydown: event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); createPageNote(); } } }, el('span', { class: 'page-note-plus', 'aria-hidden': 'true' }, '+'), el('span', { class: 'page-note-label' }, 'Add page note'));
   const pageNotes = el('div', { class: 'page-notes', hidden: true }, pageNotePins);
   const highlight = el('div', { class: 'highlight', hidden: true });
   const notice = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite', hidden: true });
@@ -654,7 +673,7 @@
     if (tooltip.hidePopover && tooltip.matches(':popover-open')) tooltip.hidePopover();
     tooltip.hidden = true;
   }
-  function showTooltip(target) {
+  function showTooltip(target, note) {
     clearTimeout(tooltipHideTimer);
     if (!target || target.disabled) return;
     const label = target.dataset.tooltip || target.getAttribute('aria-label') || target.textContent.trim();
@@ -665,7 +684,8 @@
     const row = el('div', { class: 'tooltip-line' }, el('span', {}, label));
     if (shortcut) row.append(el('kbd', {}, shortcut));
     tooltip.replaceChildren(row);
-    if (target.dataset.tooltipNote) tooltip.append(el('small', {}, target.dataset.tooltipNote));
+    const detail = note ?? target.dataset.tooltipNote;
+    if (detail) tooltip.append(el('small', {}, detail));
     target.setAttribute('aria-describedby', [target.getAttribute('aria-describedby'), tooltip.id].filter(Boolean).join(' '));
     tooltip.hidden = false;
     // The top layer avoids clipping inside scrolling panels and attachment dialogs.
@@ -898,7 +918,7 @@
   }
   function toggle(value) {
     if (busy) return;
-    if (!value) { imageDropJob = null; environmentSwitcher.open = false; setSharing(false, false); } clearImageDrop();
+    if (!value) { imageDropJob = null; setEnvironments(false); setSharing(false, false); } clearImageDrop();
     captureListScroll();
     issueRequest++; openingIssue = 0; closeDraft(); cancelPick(); identity.hidden = true; notice.hidden = true; open = value;
     if (value) prepareListReveal(); panel.hidden = !value; viewButton.setAttribute('aria-expanded', String(value));
@@ -1167,6 +1187,7 @@
   }
   function pageLabel(path) { return path === '/' ? c.home.replace(/^https?:\/\//i, '').replace(/\/$/, '') : path; }
   function renderSelection() {
+    for (const pin of [...pins.children, ...pageNotePins.children]) pin.classList.toggle('is-selected', pin.dataset.pinIssue === selected?.id);
     if (!panelContents.hasChildNodes() || panelContents.querySelector('.outside-filter') || selected && matchesScope(selected) && !issues.some(issue => issue.id === selected.id)) return render();
     updateChrome();
     for (const row of panelContents.querySelectorAll('.issue-row')) {
@@ -2002,7 +2023,7 @@
   function stopTextSession() {
     const session = textSession; textSession = null; if (!session) return;
     const { node } = session;
-    if (node.textContent === session.last) node.textContent = session.original;
+    if (node.textContent === session.last) node.replaceChildren(...session.originalNodes);
     if (session.editing && node.getAttribute('contenteditable') === 'plaintext-only') {
       if (session.editable === null) node.removeAttribute('contenteditable'); else node.setAttribute('contenteditable', session.editable);
     }
@@ -2015,7 +2036,7 @@
     return node;
   }
   function isPlainTextNode(node) {
-    if (!node || node.childElementCount || !node.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,span,li,strong,em') || node.closest('form,#wpadminbar,[data-feedbackpress-private]') || node.isContentEditable || !node.textContent.trim() || node.textContent.length > 10000) return false;
+    if (!node || [...node.children].some(child => child.tagName !== 'BR') || !node.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,span,li,strong,em') || node.closest('form,#wpadminbar,[data-feedbackpress-private]') || node.isContentEditable || !node.textContent.trim() || node.textContent.length > 10000) return false;
     return true;
   }
   function pickTextNode(target) {
@@ -2043,7 +2064,7 @@
   }
   function startTextSession(node, value, editing, changed = () => {}) {
     stopTextSession();
-    const session = { node, original: node.textContent, last: value, editable: node.getAttribute('contenteditable'), editing, styles: [], listeners: [] };
+    const session = { node, original: node.textContent, originalNodes: [...node.childNodes], last: value, editable: node.getAttribute('contenteditable'), editing, styles: [], listeners: [] };
     textSession = session; node.textContent = value;
     const listen = (type, callback, capture = false, element = node) => { element.addEventListener(type, callback, capture); session.listeners.push([element, type, callback, capture]); };
     const style = (element, key, value) => { const previous = [element, key, element.style.getPropertyValue(key), element.style.getPropertyPriority(key)]; element.style.setProperty(key, value, 'important'); session.styles.push([...previous, element.style.getPropertyValue(key)]); };
@@ -2097,7 +2118,7 @@
       el('div',{class:'text-change-replacement'},short ? el('div',{class:'text-change-proposed','aria-label':'Replacement text'},...diff.next) : el('div',{class:'text-change-unified', 'aria-label':'Text changes'},...diff.combined),copy));
   }
   function restoreTextPreview(node, preview) {
-    if (node.textContent === preview.proposed) node.textContent=preview.original;
+    if (node.textContent === preview.proposed && !node.childElementCount) node.replaceChildren(...preview.originalNodes);
     for (const [key,value,priority,applied] of preview.styles) if (node.style.getPropertyValue(key)===applied) { if(value)node.style.setProperty(key,value,priority);else node.style.removeProperty(key); }
     textPreviews.delete(node);textHighlightsDirty=true;
   }
@@ -2135,7 +2156,7 @@
       }
       let offset=0;const ranges=[];
       for(const part of textDiff(change.original,change.proposed).next){const end=offset+part.textContent.length;if(part.nodeName==='INS' && end>offset)ranges.push([offset,end]);offset=end;}
-      textPreviews.set(node,{...change,styles,ranges});textHighlightsDirty=true;node.textContent=change.proposed;
+      textPreviews.set(node,{...change,originalNodes:[...node.childNodes],styles,ranges});textHighlightsDirty=true;node.textContent=change.proposed;
     }
     updateTextHighlights();
   }
@@ -2425,13 +2446,11 @@
     prepareListReveal(); panel.hidden = !open; updateChrome(); if (open) render(); drawPins();
   }
   function updatePlacementCursor() {
-    if (!picking) { placementCursorStyle.textContent = ''; pageNoteDrop.style.removeProperty('--fp-page-cursor'); return; }
+    if (!picking) { placementCursorStyle.textContent = ''; return; }
     if (textPicking) { placementCursorStyle.textContent='html,body,body *:not(#feedbackpress-root){cursor:text!important}#feedbackpress-root{cursor:auto!important}';return; }
     const tokens = getComputedStyle(host), ink = tokens.getPropertyValue('--fp-todo-ink').trim(), surface = tokens.getPropertyValue('--fp-surface').trim();
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="${ink}" stroke="${surface}" stroke-width="2"/><circle cx="16" cy="16" r="3" fill="${surface}"/></svg>`;
     const cursor = ink && surface ? `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, crosshair` : 'crosshair';
-    const square = svg.replace('<circle cx="16" cy="16" r="14"', '<rect x="2" y="2" width="28" height="28" rx="3"');
-    pageNoteDrop.style.setProperty('--fp-page-cursor', ink && surface ? `url("data:image/svg+xml,${encodeURIComponent(square)}") 16 16, crosshair` : 'crosshair');
     placementCursorStyle.textContent = `html, body, body *:not(#feedbackpress-root){cursor:${cursor}!important}#feedbackpress-root{cursor:auto!important}`;
   }
   function cancelPick() { picking = false; updatePlacementCursor(); highlight.hidden = true; }
@@ -2458,7 +2477,7 @@
   }, true);
   function dismissInterface() {
     deferredIssueRender = deferredListRender = false;
-    environmentSwitcher.open = false; setSharing(false, false);
+    setEnvironments(false); setSharing(false, false);
     finishIssueWindowDrag();
     root.querySelectorAll('.note-actions:popover-open').forEach(menu => menu.hidePopover());
     cancelLocate();
@@ -2489,7 +2508,7 @@
       if (pinDrag && !pinDrag.ending) { consume(); cancelPinDrag(); return; }
       if (lightbox.open) { consume(); closeLightbox(); }
       else if (shareSuggestions.matches(':popover-open')) { consume(); closeShareSuggestions(); }
-      else if (environmentSwitcher.open) { consume(); environmentSwitcher.open = false; environmentSummary.focus({ preventScroll: true }); }
+      else if (!environmentSwitcher.hidden) { consume(); setEnvironments(false); environmentControl.focus({ preventScroll: true }); }
       else if (!shareBar.hidden) { consume(); setSharing(false); }
       else if (filterOpen && root.activeElement?.closest('.status-filter, .status-filter-options')) { consume(); closeStatusFilter(true); }
       else if (openingIssue || picking || draft || selected || open || !identity.hidden || !notice.hidden) { consume(); dismissInterface(); }
@@ -2918,7 +2937,7 @@
     drawPins(); positionDraft();
   }
   function dropTarget(x, y) {
-    if (pageNoteDropAt(x, y)) return pinDrag?.issue.target.text_change ? null : { target: pageNoteTarget() };
+    if (pageNoteDropAt(x, y)) return { target: pageNoteTarget() };
     const node = document.elementFromPoint(x, y);
     if (!node || node === host || node === document.documentElement || node === document.body || host.contains(node)) return null;
     const rect = node.getBoundingClientRect();
@@ -2943,12 +2962,17 @@
     const drag = pinDrag;
     if (!drag || drag.ending || event.pointerId !== drag.pointer) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
+    if (drag.issue.target.text_change) {
+      event.preventDefault(); event.stopPropagation();
+      if (!drag.moved) { drag.moved = true; showTooltip(drag.pin, 'Direct text edits cannot be moved'); }
+      return;
+    }
     if (!identified()) { drag.moved = true; cancelPinDrag(); withIdentity(() => message('Drag the pin to its new location.')); return; }
     drag.moved = true; notice.hidden = true; event.preventDefault(); event.stopPropagation(); hideTooltip();
     const showingDrop = pageNoteDrop.hidden;
     pageNoteDrop.hidden = false; pageNoteDrop.dataset.dragging = ''; positionPageNotes();
-    pageNoteDrop.querySelector('span').textContent = drag.issue.target.text_change ? 'Choose an element' : 'Drop for page note';
-    pageNoteDrop.toggleAttribute('data-over', !drag.issue.target.text_change && pageNoteDropAt(event.clientX, event.clientY));
+    pageNoteDrop.querySelector('.page-note-label').textContent = 'Drop for page note';
+    pageNoteDrop.toggleAttribute('data-over', pageNoteDropAt(event.clientX, event.clientY));
     if (showingDrop) positionDraft();
     drag.pin.classList.add('is-dragging'); drag.pin.style.pointerEvents = 'none';
     drag.pin.style.left = event.clientX + 'px'; drag.pin.style.top = event.clientY + 'px';
@@ -2959,6 +2983,7 @@
     const drag = pinDrag;
     if (!drag || drag.ending || event.pointerId !== drag.pointer) return;
     if (!drag.moved) { pinDrag = null; return; }
+    if (drag.issue.target.text_change) { event.preventDefault(); event.stopPropagation(); cancelPinDrag(); return; }
     drag.ending = true; event.preventDefault(); event.stopPropagation();
     suppressedPin = drag.pin; setTimeout(() => { if (suppressedPin === drag.pin) suppressedPin = null; }, 500);
     if (drag.pin.hasPointerCapture(drag.pointer)) drag.pin.releasePointerCapture(drag.pointer);
@@ -2978,7 +3003,7 @@
     if (selected && !visible.some(issue => issue.id === selected.id)) visible.push(selected);
     syncTextPreviews(visible);
     const current = visible.filter(issue => issue.path === pagePath);
-    pageNoteDrop.querySelector('span').textContent = 'Add page note';
+    pageNoteDrop.querySelector('.page-note-label').textContent = 'Add page note';
     pageNotes.hidden = cacheDenied || !current.some(issue => !issue.target.selector);
     pageNoteDrop.hidden = cacheDenied || !picking || textPicking;
     pageNoteDrop.setAttribute('aria-disabled', String(busy || !picking || !reviewAccess.can_create));
@@ -3006,6 +3031,7 @@
       if (pageNote) { pin.setAttribute('aria-label', 'Page note ' + issue.number + ', ' + labels[issue.status] + ': ' + (issue.title || issue.body).slice(0, 90)); pin.dataset.tooltipNote = 'Page note'; }
       else if (resolved.approximate) pin.dataset.tooltipNote = 'Approximate location';
       else delete pin.dataset.tooltipNote;
+      pin.toggleAttribute('data-text-change', Boolean(issue.target.text_change));
       pin.dataset.approximate = String(resolved.approximate); pin.style.left = pageNote ? '' : `${point.x}px`; pin.style.top = pageNote ? '' : `${point.y}px`;
     });
     for (const [id, pin] of existing) if (!retained.has(id)) pin.remove();
