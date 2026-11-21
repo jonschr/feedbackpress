@@ -12,7 +12,7 @@ A database clone keeps the encoded connection and automatically registers the ne
 
 Every review-capable page can display filtered passive pins. Active views refresh automatically, at most once per minute per installation, and pause when idle/hidden. There is no WordPress sync cron or manual sync button. Writes go directly to the service; failed writes retain the draft for retry.
 
-Images/PDFs are streamed through the WordPress gateway and saved only centrally, with a 5 MiB file limit and 60-day expiry. The pilot has an explicit test storage allowance, not a finalized paid plan limit. No WordPress Media Library records are created.
+Attachments are streamed through the WordPress gateway and saved only centrally, with a 15 MiB input limit and 60-day expiry. Images are processed within 3000 pixels; PDF, spreadsheets and DOCX/PPTX have previews. See [supported formats and restrictions](USAGE.md#attachments). The pilot has an explicit test storage allowance, not a finalized paid plan limit. No WordPress Media Library records are created.
 
 ## Agents
 

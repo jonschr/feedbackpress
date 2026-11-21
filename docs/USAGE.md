@@ -9,7 +9,7 @@ The Issues list has one page-view menu: **Issues by page** divides the complete 
 
 These choices persist in the browser tab across navigation. Current page follows the page you navigate to. Explicit view changes reset the list to the top; status changes and replies retain the active list order and position until the next explicit view change or reload.
 
-Issue rows show counts for shared replies plus private notes you are authorized to read. A compact attachment strip previews up to three thread uploads, excluding automatic screenshots, with +N for additional files. Click a thumbnail to open that image/PDF directly in the lightbox without opening or navigating to its issue. For a one-click file save, use Download in the lightbox or the download icon on a thread attachment/screenshot. Sidebar thumbnails have no separate download button. Click the issue title/reply count or +N to open the full thread. Clicking the selected issue again (its title, number, reply count or row background) deselects it and closes its conversation while leaving the sidebar open. Unsent reply drafts are kept. PDF/unavailable uploads use file markers; image previews load as rows become visible.
+Issue rows show counts for shared replies plus private notes you are authorized to read. A compact attachment strip previews up to three thread uploads, excluding automatic screenshots, with +N for additional files. Click a thumbnail or file marker to open its preview directly in the lightbox without opening or navigating to its issue. For a one-click file save, use Download in the lightbox or the download icon on a thread attachment/screenshot. Sidebar thumbnails have no separate download button. Click the issue title/reply count or +N to open the full thread. Clicking the selected issue again (its title, number, reply count or row background) deselects it and closes its conversation while leaving the sidebar open. Unsent reply drafts are kept. Documents, PDFs and unavailable uploads use file markers; image previews load as rows become visible.
 
 
 Use the four icons at the bottom of the list to choose **Left** or **Right**, and **Overlay page** or **Make room**. Hover or keyboard-focus an icon for its tooltip; the active choices are highlighted. Make room proportionally scales the whole page beside the desktop sidebar, including the admin bar and fixed headers. FeedbackPress stays full size, and the site keeps its normal line wrapping and responsive breakpoints. Overlay keeps the page at normal size. These choices follow navigation within the tab. On narrow screens the controls retain your desktop choices, and the list/page use separate views.
@@ -42,7 +42,19 @@ Selecting another issue on the same page scrolls smoothly without reloading the 
 
 The existing WordPress update feed offers normal release 0.3.0 to legacy and central copies. A legacy copy needs an account key and a selected/new central project after updating. Old local feedback remains untouched and is not imported.
 
-### Issue card controls
+## Attachments
+
+Use the paperclip, or drop files onto an open issue or its sidebar row. Files in one drop and consecutive drops onto that issue share one attachment reply; adding a text reply, switching issues or closing review starts a new group. Drop replies are shared, so a private draft is never silently published. Saved comment text remains available when an upload fails; use Retry without creating another comment.
+
+Each file can be up to **15 MiB**. Supported images are JPEG, PNG, WebP, GIF, HEIC/HEIF, AVIF, TIFF, BMP/DIB and a restricted SVG subset. PDF, XLSX, CSV, TSV, ODS, legacy XLS, DOCX and PPTX are also supported. Video, old DOC/PPT and macro-enabled Office formats are unsupported. Files stay in the central service, outside the WordPress Media Library, under your account storage allowance and 60-day retention.
+
+Images are oriented and reduced to fit within **3000 × 3000 pixels**, without enlargement. New screenshots and non-JPEG text/graphics use lossless PNG, recognized photos use JPEG, and transparency stays in PNG. Previously uploaded files are unchanged. Supported animation keeps its frames as animated WebP; APNG and animated AVIF are rejected. Inputs above 32 million decoded pixels across all frames or 100 frames are rejected. SVGs must be at most 512 KiB and use supported static vector features; active/external content is rejected. Their preview is a PNG, while Download saves the accepted SVG.
+
+Click an attachment to open its lightbox preview. Spreadsheets show sheet tabs and a bounded table, DOCX shows text paragraphs and PPTX shows slide text. Formulas are never calculated; available cached values are shown. These text previews omit document layout, embedded images/objects and active links. A truncation notice explains when only part of the file is displayed. Use Download to save the complete original spreadsheet/document. Images download in their processed format, which can change the extension. PDF viewing depends on browser support.
+
+Encrypted Office/ODS files, macros, embedded objects and external resource connections are rejected. Ordinary web/email hyperlinks are shown as inert text. Legacy XLS is restricted to BIFF8 worksheets; named ranges, object records, external workbook references and other unsupported features can cause rejection. Save those files as XLSX or CSV and try again. Previews are not a substitute for opening the complete original in its authoring application.
+
+## Issue card controls
 
 The card puts statuses on the left and navigation, the issue owner’s action menu and Close on the right. The issue number appears beside its author/date, below its title and description. Reply and private-note menus apply to their own notes; the header menu applies to the whole issue.
 

@@ -2,6 +2,16 @@
   'use strict';
   const c = window.FeedbackPressConfig;
   if (!c || document.getElementById('feedbackpress-root')) return;
+  const attachmentAccept = '.jpg,.jpeg,.png,.webp,.gif,.svg,.heic,.heif,.avif,.tif,.tiff,.bmp,.pdf,.xlsx,.csv,.tsv,.ods,.xls,.docx,.pptx';
+  const supportedAttachment = file => /\.(jpe?g|png|webp|gif|svg|heic|heif|avif|tiff?|bmp|pdf|xlsx|csv|tsv|ods|xls|docx|pptx)$/i.test(file.name);
+  const safeImageMimes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/bmp']);
+  const imagePreview = file => safeImageMimes.has(file.preview_mime || file.mime);
+  function attachmentError(file) {
+    if (!file.size) return file.name + ' is empty.';
+    if (file.size > (c.maxBytes || 15 * 1024 * 1024)) return file.name + ' exceeds 15 MiB.';
+    if (!supportedAttachment(file)) return 'Attach images, PDF, XLSX, CSV, TSV, ODS, XLS, DOCX or PPTX. Macro-enabled and encrypted documents are not supported.';
+    return '';
+  }
   const host = document.createElement('div'); host.id = 'feedbackpress-root'; host.style.visibility = 'hidden';
   host.setAttribute('data-lenis-prevent', '');
   // Keep native scrolling inside review UI instead of handing gestures to page smooth-scroll handlers.
@@ -944,7 +954,7 @@
     const id = surface === issuePopup ? selected?.id : surface.dataset.issue;
     const issue = issueCache.get(id)?.issue || issues.find(item => item.id === id) || (selected?.id === id ? selected : null);
     if (!issue) return null;
-    const blocked = privateReply.has(id) ? 'Switch off Private note to attach shared images.' : issue.pending ? 'Wait for this issue to finish saving.' : busy ? 'Finish the current action before attaching images.' : '';
+    const blocked = privateReply.has(id) ? 'Switch off Private note to attach shared files.' : issue.pending ? 'Wait for this issue to finish saving.' : busy ? 'Finish the current action before attaching files.' : '';
     return { surface, issue, blocked };
   }
   root.addEventListener('dragover', event => {
@@ -954,7 +964,7 @@
     if (imageDropTarget !== info.surface || imageDropTarget.classList.contains('image-drop-blocked') !== Boolean(info.blocked)) {
       clearImageDrop(); imageDropTarget = info.surface;
       imageDropTarget.classList.add('image-drop-active'); imageDropTarget.classList.toggle('image-drop-blocked', Boolean(info.blocked));
-      imageDropTarget.append(el('div', { class: 'image-drop-hint', role: 'status' }, icon('image'), el('strong', {}, info.blocked || (imageDropJob?.issueId === info.issue.id ? 'Add images to this reply' : 'Drop images to reply to #' + info.issue.number)), el('small', {}, info.blocked ? 'No images will be attached.' : 'Shared image reply · 5 MB per image')));
+      imageDropTarget.append(el('div', { class: 'image-drop-hint', role: 'status' }, icon('image'), el('strong', {}, info.blocked || (imageDropJob?.issueId === info.issue.id ? 'Add files to this reply' : 'Drop files to reply to #' + info.issue.number)), el('small', {}, info.blocked ? 'No files will be attached.' : 'Shared attachment reply · 15 MiB per file')));
     }
     clearTimeout(imageDropTimer); imageDropTimer = setTimeout(clearImageDrop, 1200);
   });
@@ -964,9 +974,9 @@
     event.preventDefault(); event.stopPropagation();
     if (info.blocked) return message(info.blocked);
     const files = [...event.dataTransfer.files];
-    if (!files.length || files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type.toLowerCase()) && (file.type || !/\.(png|jpe?g|webp)$/i.test(file.name)))) return message('Drop PNG, JPEG or WebP images. Use the attachment button for PDFs.');
-    const invalid = files.find(file => !file.size || file.size > c.maxBytes);
-    if (invalid) return message(!invalid.size ? invalid.name + ' is empty.' : invalid.name + ' exceeds 5 MB.');
+    if (!files.length) return;
+    const invalid = files.map(attachmentError).find(Boolean);
+    if (invalid) return message(invalid);
     const id = info.issue.id;
     withIdentity(() => {
       if (cacheDenied || privateReply.has(id)) return;
@@ -1274,7 +1284,7 @@
   }
   function rowAttachment(file, issue) {
     const tile = button(icon(file.mime.startsWith('image/') ? 'image' : 'document'), () => openAttachment(file, tile, issue), { class: 'row-attachment', 'data-file': file.id, 'aria-label': 'Preview ' + file.name, disabled: !file.available, title: (file.expired ? 'Expired: ' : !file.available ? 'Not yet available: ' : '') + file.name });
-    if (file.available && file.mime.startsWith('image/')) {
+    if (file.available && imagePreview(file)) {
       tile.feedbackpressFile = file; tile.dataset.previewState='queued';tile.setAttribute('aria-busy','true');
       rowPreviewObserver ||= new IntersectionObserver(entries => {
         for (const entry of entries) { if (entry.isIntersecting) rowPreviewQueue.add(entry.target); else rowPreviewQueue.delete(entry.target); }
@@ -1285,13 +1295,13 @@
     return tile;
   }
   function loadRowPreviews() {
-    // Original images can be 5 MB: only visible tiles, two transfers at a time.
+    // Original images can be 15 MiB: only visible tiles, two transfers at a time.
     while (rowPreviewActive < 2 && rowPreviewQueue.size) {
       const tile = rowPreviewQueue.values().next().value; rowPreviewQueue.delete(tile); rowPreviewObserver.unobserve(tile);
       if (!tile.isConnected || cacheDenied) continue;
       rowPreviewActive++;tile.dataset.previewState='loading';
       const file = tile.feedbackpressFile;
-      attachmentData(file).then(data => displayThumbnail(tile,el('img',{alt:'',decoding:'async'}),data))
+      attachmentData(file, true).then(data => displayThumbnail(tile,el('img',{alt:'',decoding:'async'}),data))
         .catch(() => { if (tile.isConnected) { tile.dataset.previewState='error';tile.setAttribute('aria-busy','false');tile.querySelector('img[hidden]')?.remove();tile.dataset.tooltip = 'Preview unavailable: ' + file.name; } })
         .finally(() => { rowPreviewActive--; loadRowPreviews(); });
     }
@@ -1405,31 +1415,37 @@
     }
   }
   function pruneAttachments(protectedId = null, all = false) {
-    let bytes = [...attachmentCache.values()].reduce((total, entry) => total + (entry.url ? entry.size : 0), 0);
-    let count = [...attachmentCache.values()].filter(entry => entry.url).length;
+    let bytes = [...attachmentCache.values()].reduce((total, entry) => total + (entry.ready ? entry.size : 0), 0);
+    let count = [...attachmentCache.values()].filter(entry => entry.ready).length;
     for (const [id, entry] of attachmentCache) {
-      if (!all && (!entry.url || id === protectedId || id === previewFileId)) continue;
+      if (!all && (!entry.ready || id === protectedId || entry.fileId === previewFileId)) continue;
       if (!all && Date.now() - entry.at < cacheLifetime && bytes <= 20 * 1024 * 1024 && count <= 8) continue;
       releaseAttachment(entry, all); attachmentCache.delete(id);
-      if (entry.url) { bytes -= entry.size; count--; }
+      if (entry.ready) { bytes -= entry.size; count--; }
     }
   }
   function clearAttachments(all = false) {
     closeLightbox(); previewIssueId = null; pruneAttachments(null, all);
   }
-  function attachmentData(file) {
-    const cached = attachmentCache.get(file.id);
+  function attachmentData(file, preview = false) {
+    const converted = preview && Boolean(file.preview_mime), id = file.id + (converted ? '/preview' : '');
+    const cached = attachmentCache.get(id);
     if (cached && (Date.now() - cached.at < cacheLifetime || file.id === previewFileId)) return cached.promise;
     if (cached?.url) URL.revokeObjectURL(cached.url);
-    attachmentCache.delete(file.id);
-    const entry = { url: null, promise: null, at: Date.now(), size: file.size || 0 };
+    attachmentCache.delete(id);
+    const entry = { fileId: file.id, url: null, ready: false, promise: null, at: Date.now(), size: (converted ? file.preview_size : file.size) || 0 };
     entry.promise = (async () => {
-      const blob = await (await api('files/' + file.id)).blob();
-      if (attachmentCache.get(file.id) !== entry) throw new Error('Preview cancelled.');
-      entry.url = URL.createObjectURL(blob); entry.size = blob.size; pruneAttachments(file.id);
-      return { url: entry.url, blob };
-    })().catch(error => { if (attachmentCache.get(file.id) === entry) attachmentCache.delete(file.id); throw error; });
-    attachmentCache.set(file.id, entry);
+      const blob = await (await api('files/' + id)).blob();
+      if (attachmentCache.get(id) !== entry) throw new Error('Preview cancelled.');
+      const mime = converted ? file.preview_mime : file.mime;
+      if (preview && blob.type.split(';')[0] !== mime) throw new Error('The preview type changed. Reopen the issue and try again.');
+      const document = converted && mime === 'application/json' ? JSON.parse(await blob.text()) : null;
+      if (attachmentCache.get(id) !== entry) throw new Error('Preview cancelled.');
+      if (!document) entry.url = URL.createObjectURL(blob);
+      entry.size = blob.size; entry.ready = true; pruneAttachments(id);
+      return { url: entry.url, blob, document };
+    })().catch(error => { if (attachmentCache.get(id) === entry) attachmentCache.delete(id); throw error; });
+    attachmentCache.set(id, entry);
     return entry.promise;
   }
   function downloadAttachment(file, url) {
@@ -1445,23 +1461,77 @@
     }, { class: 'attachment-download', 'aria-label': 'Download ' + caption, disabled: !file.available });
     return control;
   }
+  function documentPreview(data) {
+    const content = el('div', { class: 'document-preview' });
+    let truncated = Boolean(data?.truncated);
+    const paragraphs = (parent, values) => {
+      if (!Array.isArray(values)) throw new Error('This document preview is unavailable. Use Download.');
+      if (values.length > 500) truncated = true;
+      for (const value of values.slice(0, 500)) {
+        if (typeof value !== 'string') throw new Error('This document preview is unavailable. Use Download.');
+        if (value.length > 10000) truncated = true;
+        parent.append(el('p', {}, value.slice(0, 10000)));
+      }
+    };
+    if (data?.kind === 'spreadsheet' && Array.isArray(data.sheets) && data.sheets.length) {
+      const sheets = data.sheets.slice(0, 20);
+      if (data.sheets.length > sheets.length) truncated = true;
+      const area = el('div', { class: 'spreadsheet-scroll', tabindex: 0, role: 'region', 'aria-label': 'Sheet contents' });
+      const notice = el('p', { class: 'preview-truncated', hidden: true }, 'Preview shortened. Download for the complete file.');
+      const showSheet = index => {
+        const sheet = sheets[index];
+        if (!sheet || typeof sheet.name !== 'string' || !Array.isArray(sheet.rows)) throw new Error('This spreadsheet preview is unavailable. Use Download.');
+        const table = el('table', { class: 'spreadsheet-table' }, el('caption', {}, sheet.name)), body = el('tbody');
+        for (const row of sheet.rows.slice(0, 200)) {
+          if (!Array.isArray(row) || row.some(cell => typeof cell !== 'string')) throw new Error('This spreadsheet preview is unavailable. Use Download.');
+          body.append(el('tr', {}, ...row.slice(0, 40).map(cell => el('td', {}, cell.slice(0, 2000)))));
+        }
+        table.append(body); area.replaceChildren(sheet.rows.length ? table : el('p', {}, 'This sheet is empty.'));
+        notice.hidden = !(truncated || sheet.truncated || sheet.rows.length > 200 || sheet.rows.some(row => row.length > 40 || row.some(cell => cell.length > 2000)));
+      };
+      const chooser = el('select', { 'aria-label': 'Sheet', onchange: event => { try { showSheet(Number(event.target.value)); } catch (error) { area.replaceChildren(el('p', { role: 'alert' }, error.message)); } } }, ...sheets.map((sheet, index) => el('option', { value: index }, typeof sheet.name === 'string' ? sheet.name : 'Sheet ' + (index + 1))));
+      content.append(el('label', { class: 'spreadsheet-chooser' }, 'Sheet', chooser), area, notice); showSheet(0);
+      return content;
+    }
+    if (data?.kind === 'document') paragraphs(content, data.paragraphs);
+    else if (data?.kind === 'presentation' && Array.isArray(data.slides)) {
+      if (data.slides.length > 100) truncated = true;
+      data.slides.slice(0, 100).forEach((slide, index) => {
+        const section = el('section', { class: 'presentation-slide' }, el('h2', {}, typeof slide.title === 'string' && slide.title ? slide.title : 'Slide ' + (index + 1)));
+        paragraphs(section, slide.paragraphs); content.append(section);
+        if (slide.truncated) truncated = true;
+      });
+    } else throw new Error('This document preview is unavailable. Use Download.');
+    if (!content.childElementCount) content.append(el('p', {}, 'This file has no previewable text.'));
+    if (truncated) content.append(el('p', { class: 'preview-truncated' }, 'Preview shortened. Download for the complete file.'));
+    return content;
+  }
   async function openAttachment(file, trigger, issue = selected) {
     closeMentionMenu();
     const ticket = ++viewerRequest; returnFocus = trigger; previewFileId = file.id; lightbox.dataset.issue = issue?.id || '';
-    lightbox.style.setProperty('--preview-width', file.mime === 'application/pdf' ? '1600px' : '640px');
+    lightbox.style.setProperty('--preview-width', file.mime === 'application/pdf' || file.preview_mime === 'application/json' ? '1600px' : '640px');
     const body = el('div', { class: 'lightbox-body', role: 'status' }, 'Loading preview…');
     const toolbar = el('div', { class: 'lightbox-tools' }, button(icon('close'), closeLightbox, { class: 'fp-icon-button', 'aria-label': 'Dismiss attachment', 'aria-keyshortcuts': 'Escape', title: 'Dismiss', 'data-tooltip-shortcut': 'Esc' }));
+    const download = button([icon('download'), el('span', { class: 'lightbox-download-label' }, 'Download')], async () => {
+      download.disabled = true;
+      try { const data = await attachmentData(file); downloadAttachment(file, data.url); }
+      catch (error) { message(error.message); }
+      finally { download.disabled = false; }
+    }, { class: 'fp-quiet lightbox-download', 'aria-label': 'Download' });
+    toolbar.prepend(download);
     const comment = issue?.activity.find(event => event.kind === 'reply' && event.id === file.comment_id);
     const author = !file.comment_id || file.comment_id === issue?.id ? issue?.author : comment?.payload.author;
     const heading = el('div', { class: 'lightbox-heading' }, el('strong', {}, file.screenshot ? 'Screenshot' : file.name), el('small', { class: 'lightbox-author' }, author ? 'By ' + author : 'Author unavailable'));
     lightbox.replaceChildren(el('header', { class: 'lightbox-header' }, heading, toolbar), body);
     if (!lightbox.open) lightbox.showModal();
     try {
-      const data = await attachmentData(file);
+      if (!imagePreview(file) && file.mime !== 'application/pdf' && file.preview_mime !== 'application/json') {
+        body.replaceChildren(el('p', {}, 'Preview unavailable. Use Download to open this file.')); return;
+      }
+      const data = await attachmentData(file, true);
       if (!lightbox.open || ticket !== viewerRequest) return;
-      toolbar.prepend(button([icon('download'), el('span', { class: 'lightbox-download-label' }, 'Download')], () => downloadAttachment(file, data.url), { class: 'fp-quiet lightbox-download', 'aria-label': 'Download' }));
       body.removeAttribute('role');
-      if (file.mime.startsWith('image/')) body.replaceChildren(el('img', { src: data.url, alt: file.name, class: 'lightbox-image', onload: event => {
+      if (imagePreview(file)) body.replaceChildren(el('img', { src: data.url, alt: file.name, class: 'lightbox-image', onload: event => {
         const image = event.currentTarget;
         if (ticket === viewerRequest && lightbox.open && image.naturalHeight) {
           hideTooltip();
@@ -1471,7 +1541,8 @@
       else if (file.mime === 'application/pdf') {
         toolbar.prepend(el('a', { href: data.url, target: '_blank', rel: 'noopener', class: 'pdf-open' }, 'Open PDF'));
         body.replaceChildren(el('iframe', { src: data.url, title: 'PDF preview: ' + file.name, class: 'lightbox-pdf' }), el('small', { class: 'pdf-fallback' }, 'If the preview is unavailable, use Open PDF or Download.'));
-      } else body.replaceChildren(el('p', {}, 'Preview unavailable. Use Download to open this file.'));
+      } else if (data.document) body.replaceChildren(documentPreview(data.document));
+      else body.replaceChildren(el('p', {}, 'Preview unavailable. Use Download to open this file.'));
     } catch (error) {
       if (lightbox.open && ticket === viewerRequest) body.replaceChildren(el('p', { role: 'alert' }, error.message), button('Retry', () => openAttachment(file, trigger, issue)));
     }
@@ -1487,11 +1558,11 @@
     const caption = file.screenshot ? 'Screenshot' : file.name;
     const thumbnail = button('', () => openAttachment(file, thumbnail), { class: 'attachment-thumbnail', 'aria-label': 'Preview ' + caption, disabled: !file.available });
     if (!file.available) thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document')), el('small', { class: 'file-state' }, file.expired ? 'Expired' : 'Waiting for sync'));
-    else if (file.mime.startsWith('image/')) {
+    else if (imagePreview(file)) {
       const image = el('img', { alt: caption, class: 'attachment-image', decoding: 'async' });
       const placeholder = el('span', { class: 'file-placeholder' }, icon('image'));
       thumbnail.append(placeholder);thumbnail.dataset.previewState='loading';thumbnail.setAttribute('aria-busy','true');
-      attachmentData(file).then(data => displayThumbnail(thumbnail,image,data)).catch(() => { if (thumbnail.isConnected) { thumbnail.dataset.previewState='error';thumbnail.setAttribute('aria-busy','false');image.remove();thumbnail.setAttribute('aria-description', 'Preview unavailable. Click to retry.'); } });
+      attachmentData(file, true).then(data => displayThumbnail(thumbnail,image,data)).catch(() => { if (thumbnail.isConnected) { thumbnail.dataset.previewState='error';thumbnail.setAttribute('aria-busy','false');image.remove();thumbnail.setAttribute('aria-description', 'Preview unavailable. Click to retry.'); } });
     } else thumbnail.append(el('span', { class: 'file-placeholder' }, icon('document'), el('span', {}, file.mime === 'application/pdf' ? 'PDF' : 'File')));
     return el('div', { class: 'attachment-item' + (!file.available ? ' is-unavailable' : '') }, thumbnail,
       el('div', { class: 'attachment-caption' }, el('span', { class: 'attachment-label', 'aria-hidden': 'true' }, caption), attachmentDownload(file)));
@@ -1969,7 +2040,7 @@
     const unmatched = issue.files.filter(file => !known.has(file.comment_id || issue.id));
     if (unmatched.length) thread.append(el('div', { class: 'attachment-strip', role: 'group', 'aria-label': 'Uploads awaiting comment sync' }, ...unmatched.map(attachmentThumbnail)));
     issuePopup.append(thread);
-    const reply = el('textarea', { name: 'body', rows: 2, maxlength: 10000, required: true, placeholder: 'Reply or attach images…', 'aria-label': 'Reply', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => replyDrafts.set(issue.id, event.target.value) }); reply.value = replyDrafts.get(issue.id) || '';
+    const reply = el('textarea', { name: 'body', rows: 2, maxlength: 10000, required: true, placeholder: 'Reply or attach files…', 'aria-label': 'Reply', 'aria-keyshortcuts': 'Meta+Enter Control+Enter', oninput: event => replyDrafts.set(issue.id, event.target.value) }); reply.value = replyDrafts.get(issue.id) || '';
     const files = replyFiles.get(issue.id) || []; replyFiles.set(issue.id, files);
     const queued = el('div', { class: 'attached-files reply-queued', 'aria-live': 'polite' });
     function renderQueued() {
@@ -1979,17 +2050,17 @@
         renderQueued();
       }, { class: 'fp-icon-button', 'aria-label': 'Remove ' + file.name })))); positionDraft();
     }
-    const input = el('input', { type: 'file', name: 'files', multiple: true, class: 'visually-hidden', accept: 'image/png,image/jpeg,image/webp,application/pdf', 'aria-label': 'Issue attachments' });
+    const input = el('input', { type: 'file', name: 'files', multiple: true, class: 'visually-hidden', accept: attachmentAccept, 'aria-label': 'Issue attachments' });
     input.addEventListener('change', () => {
       for (const file of input.files) {
-        if (file.size > c.maxBytes) { message(`${file.name} exceeds 5 MB.`); continue; }
+        const error = attachmentError(file); if (error) { message(error); continue; }
         if (!files.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified)) files.push(file);
       }
       input.value = ''; renderQueued();
     });
     renderQueued();
-    const attach = button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files to reply', title: 'Attach images or PDFs to this reply', disabled: privateReply.has(issue.id) });
-    const privateToggle = c.privateNotes && issue.visibility !== 'private' ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', role: 'switch', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = attach.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply or attach images…'; } }), el('span', { class: 'private-switch-track', 'aria-hidden': 'true' }), el('span', { class: 'private-switch-label' }, 'Private note')) : null;
+    const attach = button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files to reply', title: 'Attach files to this reply (15 MiB each)', disabled: privateReply.has(issue.id) });
+    const privateToggle = c.privateNotes && issue.visibility !== 'private' ? el('label', { class: 'private-reply-toggle' }, el('input', { type: 'checkbox', role: 'switch', checked: privateReply.has(issue.id), onchange: event => { closeMentionMenu(); if (event.target.checked) privateReply.add(issue.id); else privateReply.delete(issue.id); input.disabled = attach.disabled = event.target.checked; reply.required = event.target.checked || !files.length; reply.feedbackpressMentionEnabled?.(); reply.placeholder = event.target.checked ? 'Private note, visible only to your WordPress email…' : 'Reply or attach files…'; } }), el('span', { class: 'private-switch-track', 'aria-hidden': 'true' }), el('span', { class: 'private-switch-label' }, 'Private note')) : null;
     input.disabled = privateReply.has(issue.id); reply.placeholder = privateReply.has(issue.id) ? 'Private note, visible only to your WordPress email…' : reply.placeholder;
     issuePopup.append(el('form', { class: 'reply-form', onsubmit: event => {
       if (!privateReply.has(issue.id)) { event.preventDefault(); return submitReply(event.target, issue.id); }
@@ -2036,7 +2107,7 @@
     enqueueShared('reply', `issues/${id}/replies`, { author: name, author_email: email, ...content, attachment_only: !content.body && files.length > 0, revision: current.revision }, files, null, key);
   }
   async function upload(id, file, capture = false, comment = null, requestId = null) {
-    if (file.size > c.maxBytes) throw new Error(`${file.name} exceeds 5 MB.`);
+    const error = attachmentError(file); if (error) throw new Error(error);
     const data = new FormData(); data.append('file', file); data.append('screenshot', capture ? '1' : '0');
     if (comment) data.append('comment_id', comment);
     await api(`issues/${id}/files`, { method: 'POST', body: data, ...(requestId ? { requestId } : {}) });
@@ -2201,7 +2272,7 @@
 
   function renderDraft(selection = null) {
     const files = [];
-    const input = el('input', { type: 'file', name: 'files', 'aria-label': 'Images or PDFs', class: 'visually-hidden', tabindex: '-1', accept: 'image/png,image/jpeg,image/webp,application/pdf', multiple: true });
+    const input = el('input', { type: 'file', name: 'files', 'aria-label': 'Attachments', class: 'visually-hidden', tabindex: '-1', accept: attachmentAccept, multiple: true });
     const attached = el('div', { class: 'attached-files', 'aria-live': 'polite' });
     function renderFiles() {
       attached.replaceChildren(...files.map((file, index) => el('div', { class: 'attached-file' }, el('small', {}, file.name), button(icon('close'), () => { files.splice(index, 1); renderFiles(); }, { class: 'fp-icon-button', 'aria-label': 'Remove ' + file.name, title: 'Remove ' + file.name }))));
@@ -2209,7 +2280,7 @@
     }
     input.addEventListener('change', () => {
       for (const file of input.files) {
-        if (file.size > c.maxBytes) { message(`${file.name} exceeds 5 MB.`); continue; }
+        const error = attachmentError(file); if (error) { message(error); continue; }
         if (!files.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified)) files.push(file);
       }
       input.value = ''; renderFiles();
@@ -2226,7 +2297,7 @@
       el('label', { class: 'visually-hidden', for: 'fp-comment' }, 'What needs to change?'),
       el('div', { class: 'composer-field' },
         mentionField(el('textarea', { id: 'fp-comment', name: 'body', rows: 3, maxlength: 10000, placeholder: 'Description (optional)…', 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }), 'draft:' + draftOperation),
-        button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files', title: 'Attach images or PDFs (5 MB each)' })),
+        button(icon('attach'), () => input.click(), { class: 'fp-icon-button attachment-button', 'aria-label': 'Attach files', title: 'Attach files (15 MiB each)' })),
       input, attached,
       el('div', { class: 'composer-footer' }, el('button', { type: 'submit', class: 'fp-primary', title: 'Submit feedback', 'data-tooltip-shortcut': submitShortcut, 'aria-keyshortcuts': 'Meta+Enter Control+Enter' }, 'Submit feedback')));
     let mode = 'note', proposed = '', original = '';
@@ -2398,7 +2469,7 @@
   function submitDraft(e) {
     if(!reviewAccess.can_create){e.preventDefault();message('New client tickets are paused. Your draft is kept.');return;}
     e.preventDefault(); const form = e.target, data = new FormData(form), files = [...form.feedbackpressFiles];
-    if (files.some(file => file.size > c.maxBytes)) return message('Each attachment must be 5 MB or smaller.');
+    const invalidAttachment = files.map(attachmentError).find(Boolean); if (invalidAttachment) return message(invalidAttachment);
     const change = form.feedbackpressTextChange;
     if (change && (!change.proposed.trim() || change.proposed.length > 10000 || change.original === change.proposed || !textSession?.node.isConnected || textSession.node.textContent !== textSession.last)) return message('Change the replacement wording before saving the suggestion.');
     const target = change ? {...draft, text_change:change} : draft, capturePromise = screenshot;
@@ -2454,8 +2525,8 @@
         context.shadowColor = 'transparent'; context.beginPath(); context.arc(point.x, point.y, 3, 0, Math.PI * 2); context.fillStyle = '#ffffff'; context.fill();
         context.restore();
       }
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .8));
-      return blob && blob.size <= c.maxBytes ? new File([blob], 'screenshot.jpg', { type: 'image/jpeg' }) : null;
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      return blob && blob.size <= c.maxBytes ? new File([blob], 'screenshot.png', { type: 'image/png' }) : null;
     } catch (_) { return null; }
   }
   function selector(node, useIds = true) {

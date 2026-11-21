@@ -2,10 +2,11 @@
 namespace FeedbackPress;
 defined('ABSPATH') || exit;
 final class API {
-    const MAX_FILE = 5242880;
+    const MAX_FILE = 15 * 1024 * 1024;
+    const UPLOAD_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/heic', 'image/heif', 'image/avif', 'image/tiff', 'image/bmp', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/tab-separated-values', 'application/vnd.oasis.opendocument.spreadsheet', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
     const STATUSES = ['todo', 'needs_info', 'doing', 'review', 'done'];
     const ORDERS = ['created_asc', 'created_desc', 'updated_asc', 'updated_desc', 'completed_asc', 'completed_desc'];
-    public static function error(string $message, int $status = 400, string $code = 'feedbackpress'): \WP_Error { return new \WP_Error($code, $message, ['status' => $status]); }
+    public static function error(string $message, int $status = 400, string $code = 'feedbackpress', int $retryAfter = 0): \WP_Error { return new \WP_Error($code, $message, ['status' => $status] + ($retryAfter > 0 ? ['retry_after' => $retryAfter] : [])); }
     public static function can_view(): bool { $m = settings()['mode']; if (!($m === 'everyone' || ($m === 'admins' && (current_user_can('manage_options') || ReviewAccess::member() || ReviewAccess::grant())))) return false; try { Service::ensureConnection(); } catch (\Throwable $e) { return false; } return bound(); }
     public static function read($r = null) { if ($r && $r->get_header('origin')) { $home = wp_parse_url(home_url()); $origin = $home['scheme'] . '://' . $home['host'] . (isset($home['port']) ? ':' . $home['port'] : ''); if ($r->get_header('origin') !== $origin) return self::error('Open feedback on this site.', 403); } if ($r && $r->get_header('x-feedbackpress-network') && $r->get_header('x-feedbackpress-network') !== (Service::connection()['project'] ?? '')) return self::error('The project changed. Reload this page.', 409); return self::can_view() ? true : self::error('Feedback is unavailable.', 403); }
     public static function write(\WP_REST_Request $r, bool $requireIdentity = true) {
@@ -37,7 +38,7 @@ final class API {
     public static function routes(): void {
         $route = function ($path, $methods, $callback, $permission = null) {
             register_rest_route('feedbackpress/v1', $path, ['methods' => $methods, 'permission_callback' => $permission ?? [self::class, 'write'], 'callback' => function ($r) use ($callback) {
-                try { return $callback($r); } catch (\Throwable $e) { $status = (int) $e->getCode(); return self::error($e->getMessage(), $status >= 400 && $status <= 599 ? $status : 400, $e instanceof RemoteError ? $e->remoteCode : 'feedbackpress'); }
+                try { return $callback($r); } catch (\Throwable $e) { $status = (int) $e->getCode(); return self::error($e->getMessage(), $status >= 400 && $status <= 599 ? $status : 400, $e instanceof RemoteError ? $e->remoteCode : 'feedbackpress', $e instanceof RemoteError ? $e->retryAfter : 0); }
             }]);
         };
         $read = [self::class, 'read']; $id = '/issues/(?P<id>[a-f0-9-]{36})';
@@ -89,8 +90,8 @@ final class API {
             return Service::view(Service::request('PATCH', '/issues/' . $r['id'] . '/authors/' . $target, ['revision' => (int) $r->get_param('revision'), 'author' => $person], self::key($r)));
         });
         $route($id . '/files', 'POST', [self::class, 'upload']);
-        $route('/files/(?P<id>[a-f0-9-]{36})', 'GET', function ($r) {
-            $file = Service::request('GET', '/media/' . $r['id'], null, '', false, null, true);
+        $route('/files/(?P<id>[a-f0-9-]{36})(?P<preview>/preview)?', 'GET', function ($r) {
+            $file = Service::request('GET', '/media/' . $r['id'] . ($r->get_param('preview') ? '/preview' : ''), null, '', false, null, true);
             $response = new \WP_REST_Response(null); $response->header('Content-Type', $file['mime']); $response->header('Content-Disposition', $file['disposition']);
             $response->header('X-Content-Type-Options', 'nosniff'); $response->header('Content-Security-Policy', "sandbox; default-src 'none'");
             $response->header('X-FeedbackPress-Binary', '1'); $response->set_data($file['body']); return $response;
@@ -130,7 +131,7 @@ final class API {
         add_filter('rest_post_dispatch', function ($response, $server, $r) { if (str_starts_with($r->get_route(), '/feedbackpress/')) { $response->header('Cache-Control', 'private, no-store, max-age=0'); $response->header('Vary', 'Cookie, Authorization'); $response->header('X-FeedbackPress-Actor-Id', is_user_logged_in() ? Identity::id(wp_get_current_user()->user_email) : ''); if ($response->get_status() === 429 && ($retry = (int) ($response->get_data()['data']['retry_after'] ?? 0)) > 0) $response->header('Retry-After', (string) $retry); if ($response->get_status() >= 400 && $response->get_status() !== 429 && (str_ends_with($r->get_route(), '/manage') || str_contains($r->get_route(), '/notes'))) Log::add(['operation' => $r->get_method() . (str_ends_with($r->get_route(), '/manage') ? ' manage' : ' notes'), 'status' => $response->get_status(), 'ms' => 0, 'error' => sanitize_key($response->get_data()['code'] ?? 'gateway_error')]); } return $response; }, 10, 3);
         add_filter('rest_pre_serve_request', function ($served, $response, $request) {
             if (str_starts_with($request->get_route(), '/feedbackpress/v1/files/') && ($response->get_headers()['X-FeedbackPress-Binary'] ?? '') === '1') {
-                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Authorized image/PDF bytes have nosniff and sandbox headers; HTML escaping corrupts the download.
+                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Authorized attachment bytes have nosniff and sandbox headers; HTML escaping corrupts downloads/previews.
                 echo $response->get_data(); return true;
             } return $served;
         }, 10, 3);
@@ -176,12 +177,39 @@ final class API {
         $sign = $direction === 'desc' ? -1 : 1;
         return strcmp($left, $right) * $sign ?: ($a['number'] <=> $b['number']) * ($field === 'created' ? $sign : 1);
     }
+    public static function uploadMime(string $bytes, string $name): string {
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        if (str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) return 'image/png';
+        if (str_starts_with($bytes, "\xff\xd8\xff")) return 'image/jpeg';
+        if (str_starts_with($bytes, 'GIF87a') || str_starts_with($bytes, 'GIF89a')) return 'image/gif';
+        if (str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') return 'image/webp';
+        if (str_starts_with($bytes, 'BM')) return 'image/bmp';
+        if (str_starts_with($bytes, "II\x2a\0") || str_starts_with($bytes, "MM\0\x2a")) return 'image/tiff';
+        if (str_starts_with($bytes, '%PDF-')) return 'application/pdf';
+        if (substr($bytes, 4, 4) === 'ftyp') {
+            $brands = str_split(substr($bytes, 8, min(64, max(0, strlen($bytes) - 8))), 4);
+            if (array_intersect($brands, ['avif', 'avis'])) return 'image/avif';
+            if (array_intersect($brands, ['heic', 'heix', 'hevc', 'hevx'])) return 'image/heic';
+            if (array_intersect($brands, ['mif1', 'msf1'])) return 'image/heif';
+        }
+        // Containers are only classified here; the service validates their contents in isolation.
+        $containers = ['xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'ods' => 'application/vnd.oasis.opendocument.spreadsheet', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+        if (str_starts_with($bytes, "PK\x03\x04") && isset($containers[$extension])) return $containers[$extension];
+        if (str_starts_with($bytes, "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1") && $extension === 'xls') return 'application/vnd.ms-excel';
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+        $aliases = ['image/x-ms-bmp' => 'image/bmp', 'image/x-bmp' => 'image/bmp', 'image/x-tiff' => 'image/tiff', 'image/heic-sequence' => 'image/heic', 'image/heif-sequence' => 'image/heif', 'application/csv' => 'text/csv', 'text/x-csv' => 'text/csv', 'application/x-csv' => 'text/csv', 'text/tsv' => 'text/tab-separated-values'];
+        $mime = $aliases[$mime] ?? $mime;
+        if (in_array($mime, ['text/plain', 'text/xml', 'application/xml', 'image/svg+xml', 'text/html'], true) && $extension === 'svg') return 'image/svg+xml';
+        if (in_array($mime, ['text/plain', 'text/csv', 'text/tab-separated-values', 'application/vnd.ms-excel'], true) && in_array($extension, ['csv', 'tsv'], true) && !str_contains($bytes, "\0")) return $extension === 'csv' ? 'text/csv' : 'text/tab-separated-values';
+        throw new \InvalidArgumentException('Supported attachments: images, PDF, XLSX, CSV, TSV, ODS, XLS, DOCX and PPTX. Macro-enabled and encrypted documents are not supported.');
+    }
     public static function upload($r) {
         $file = $r->get_file_params()['file'] ?? null;
-        if (!$file || $file['error'] !== UPLOAD_ERR_OK || $file['size'] > self::MAX_FILE || !is_uploaded_file($file['tmp_name'])) throw new \InvalidArgumentException('Upload an image or PDF no larger than 5 MB.');
-        $bytes = file_get_contents($file['tmp_name']); $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
-        if (!in_array($mime, ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'], true)) throw new \InvalidArgumentException('Only PNG, JPEG, WebP images and PDFs are accepted.');
+        if (!$file || $file['error'] !== UPLOAD_ERR_OK || $file['size'] > self::MAX_FILE || !is_uploaded_file($file['tmp_name'])) throw new \InvalidArgumentException('Upload a supported attachment no larger than 15 MiB.');
+        $bytes = file_get_contents($file['tmp_name']);
+        if ($bytes === false || !strlen($bytes) || strlen($bytes) > self::MAX_FILE) throw new \InvalidArgumentException('Upload a nonempty attachment no larger than 15 MiB.');
+        $mime = self::uploadMime($bytes, $file['name']);
         $reservation = Service::request('POST', '/media', ['issue_id' => $r['id'], 'comment_id' => $r->get_param('comment_id') ?: $r['id'], 'name' => sanitize_file_name($file['name']), 'mime' => $mime, 'size' => strlen($bytes), 'sha256' => hash('sha256', $bytes), 'screenshot' => $r->get_param('screenshot') === '1'], self::key($r));
-        return Service::request('PUT', '/media/' . $reservation['id'], $bytes);
+        return Service::request('PUT', '/media/' . $reservation['id'], $bytes, '', false, null, false, $mime);
     }
 }

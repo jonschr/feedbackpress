@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3 — 2026-11-21
+
+- Upload images, safe SVGs, spreadsheets, Word documents and PowerPoint files up to 15 MB.
+- Preview SVGs as PNGs and documents/spreadsheets as bounded, safe text and tables.
+- Keep new screenshots lossless and show clearer upload errors with recoverable retries.
+
+
 ## 0.5.2 — November 21, 2026
 
 - Show the latest commenter’s avatar behind a solid comment badge beside the sidebar reply count. Clicking it opens the start of that comment, including on another page, with earlier discussion available above.

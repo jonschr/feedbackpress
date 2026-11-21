@@ -49,3 +49,8 @@ Account owners who connected before this feature can reconnect once in Settings 
 ## First activation
 
 After a single-site administrator activates an unconfigured FeedbackPress installation, WordPress opens **Settings → FeedbackPress**. Connect your license or account access key there; the existing free-account option remains available when enabled by the service. Until an account is connected, administrators see **License FeedbackPress to get started**, with a **Set up FeedbackPress** link on other admin pages. Connected installations receive no licensing reminder or activation redirect. Bulk, network, AJAX and command-line activations do not redirect; open settings manually for those workflows. No license is checked through an external request just to render the notice.
+
+
+## Attachments
+
+Attachments support images, PDF, XLSX/CSV/TSV/ODS/XLS, DOCX and PPTX, up to 15 MiB each, with 60-day retention. Images are processed within 3000 pixels; document previews show bounded text while Download retains the complete original. See [attachment formats and previews](USAGE.md#attachments) before uploading encrypted, macro-enabled or complex legacy files.

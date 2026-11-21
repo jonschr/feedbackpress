@@ -2,10 +2,10 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
-**0.5.2** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
+**0.5.3** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
 
 - Pin issues to page elements and discuss them with replies.
-- Capture screenshots and attach images or PDFs.
+- Capture screenshots and attach images, PDFs, spreadsheets or documents (15 MiB each).
 - Suggest text changes directly on the page, compare wording and copy replacements.
 - Follow system light/dark appearance or choose it in the sidebar.
 - Track To do, Information needed, Doing, Review, and Done statuses.
@@ -24,7 +24,7 @@ Review access defaults to logged-in administrators and explicitly invited WordPr
 
 Guests can read shared feedback without identifying. Before their first ticket, reply or other contribution, they choose native WordPress login or verify their email. Email proof links expire after 15 minutes and can be used once; a Secure, HttpOnly cookie remembers the verified address for 180 days. Those short-lived proof links are separate from persistent shared-access links. Project-wide revocation also invalidates remembered guest access. Verification authorizes shared contributions and editing their own comments; private notes still require WordPress login. Editable name/email cookies are only form defaults, never proof of ownership.
 
-Existing invited accounts are matched by email when an invitation is opened. The optional Create WordPress accounts for invited reviewers setting creates a FeedbackPress reviewer on the destination site at first use, with feedback access and no WordPress content, upload or administration capabilities. It never signs them in or replaces an existing account’s role/password. New reviewers can set their password through the native login/reset flow. Logged-in attribution retains the same email-based comment identity. Images and PDFs stay outside WordPress and expire after 60 days.
+Existing invited accounts are matched by email when an invitation is opened. The optional Create WordPress accounts for invited reviewers setting creates a FeedbackPress reviewer on the destination site at first use, with feedback access and no WordPress content, upload or administration capabilities. It never signs them in or replaces an existing account’s role/password. New reviewers can set their password through the native login/reset flow. Logged-in attribution retains the same email-based comment identity. Attachments stay outside WordPress and expire after 60 days. See [attachment formats and previews](docs/USAGE.md#attachments) for limits and supported files.
 
 ## Shortcuts
 
