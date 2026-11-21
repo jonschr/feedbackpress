@@ -1,3 +1,9 @@
+# Release checks for 0.5.2 — November 21, 2026
+
+The versioned candidate passes nine intercepted Chrome suites: issue-window, issue-resize, latest-comment, list-summary, page-notes, sidebar-layout, thread-reveal, tooltips and private-reply-counts. Coverage includes newest-comment timestamp selection and cross-page opening, manual scroll stability, temporary size reset, pointer/touch/keyboard resizing/cancellation, hover-only corner controls without footer padding/tooltips or Reply interception, pin overlap without auto-moving/shrinking, fixed docking on both sides, mobile bounds/layering, privacy/count isolation, retained drafts and existing navigation. No real feedback/email was written by browser fixtures.
+
+First-party JS syntax, all first-party runtime PHP syntax under PHP 8.1, and the WordPress security profile pass. Main Dev passes native normal/update-AJAX update-checker tests against 0.5.2 metadata, without installing an update. The existing first-open latency limitation remains; Safari/Firefox and a full unrelated PHP/browser rerun are not newly certified. Private logs: ~/Library/Application Support/FeedbackPress/private/release-0.1.6-0.5.2-20261121. Publication and public-asset verification are still pending at this checkpoint.
+
 # Published 0.5.1 — November 20, 2026
 
 [FeedbackPress 0.5.1](https://github.com/jonschr/feedbackpress/releases/tag/0.5.1) tags source `626c5d3679c024e641063bf245ca5e85a5791953`. The installable ZIP contains 150 files built from committed bytes and has SHA256 `666f2b811958c72e4d58ad0822c5dd41234b23f7dcad952548fa0b8a40f74297`. Downloaded draft assets match the committed-source package and every manifest entry. After publication, the ZIP, manifest and checksum assets were downloaded anonymously over HTTP 200 and match byte for byte, with no observed throttling.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2 — November 21, 2026
+
+- Show the latest commenter’s avatar behind a solid comment badge beside the sidebar reply count. Clicking it opens the start of that comment, including on another page, with earlier discussion available above.
+- Resize floating comment windows with a corner handle, touch, or arrow keys. Sizes are temporary and reset when reopening, changing tickets, or reloading; drafts are preserved. Show the handle on hover or keyboard focus without extra footer spacing or a tooltip.
+- Keep docked windows flush beside the sidebar, even when covering pins. Manually moved or resized windows can also cover pins without snapping away or shrinking.
+- Keep mobile issue lists and conversations above floating page-note markers so the controls remain usable.
+
+The companion service 0.1.6 defers debounced summary emails from midnight until 8 a.m. Central, including daylight saving; instant emails remain unchanged. Plugin UI changes do not require a new database migration.
+
 ## 0.5.1 — November 20, 2026
 
 - Move connected environments into a drawer opened by an icon beside Pause. Default it closed and remember its open state through same-tab navigation without reserving ticket-list space.

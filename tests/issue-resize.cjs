@@ -1,0 +1,44 @@
+// Real pointer/touch/keyboard input with synthetic threads and intercepted requests only.
+const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const base='https://feedbackpress.test',ids=['11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222'];let writes=0;
+ const issues=ids.map((id,i)=>({id,number:i+1,title:'Resize discussion '+(i+1),body:'Initial feedback. '.repeat(50),author:'Reviewer',status:'todo',revision:1,path:'/',created_at:'2026-11-12T12:00:00Z',target:{selector:'#target',x:.5,y:.5},files:[],activity:[{id:'reply-'+i,kind:'reply',created_at:'2026-11-13T12:00:00Z',payload:{author:'Client',body:'More detailed feedback. '.repeat(150)}}]}));
+ const pageNote={...issues[0],id:'33333333-3333-4333-8333-333333333333',number:3,title:'Page note near the window',target:{selector:'',x:.5,y:.5},activity:[]};
+ const ctx=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'}),errors=[];
+ await ctx.route('**/*',route=>{const u=new URL(route.request().url());if(u.origin!==base)return route.abort();
+  if(u.pathname.endsWith('.woff2'))return route.fulfill({body:fs.readFileSync('assets/fonts/InterVariable.woff2'),contentType:'font/woff2'});
+  if(u.pathname.endsWith('.css'))return route.fulfill({body:fs.readFileSync('assets/review.css'),contentType:'text/css'});
+  if(u.pathname.startsWith('/api/')){if(route.request().method()!=='GET')writes++;return route.fulfill({json:u.pathname==='/api/issues'?{issues:[...issues,pageNote],total:3,page:1}:issues.find(i=>u.pathname.endsWith(i.id))||{}});}
+  return route.fulfill({contentType:'text/html',body:`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><main id="target" style="margin:150px;width:120px;height:50px">Demo target</main><script>window.FeedbackPressConfig={home:'${base}',api:'${base}/api/',css:'${base}/review.css',userName:'Jon',nonce:'fixture'}</script><script>${fs.readFileSync('assets/review.js','utf8')}</script>`});
+ });
+ const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await page.getByRole('button',{name:'View issues',exact:true}).click();
+ const panel=page.getByRole('complementary',{name:'Issues',exact:true}),popup=page.getByRole('region',{name:'Issue details',exact:true}),row=i=>panel.locator(`[data-issue="${ids[i]}"] .issue-open`),handle=popup.getByRole('button',{name:'Resize issue window',exact:true}),field=popup.getByRole('textbox',{name:'Reply',exact:true}),box=()=>popup.boundingBox(),settle=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+ const drag=async(dx,dy,cancel=false)=>{const h=await handle.boundingBox();await page.mouse.move(h.x+h.width*.75,h.y+h.height*.75);await page.mouse.down();await page.mouse.move(h.x+h.width*.75+dx,h.y+h.height*.75+dy,{steps:6});if(cancel)await page.keyboard.press('Escape');await page.mouse.up();await settle();};
+ await row(0).click();await popup.waitFor();
+ await page.mouse.move(1430,990);await page.evaluate(()=>document.querySelector('#feedbackpress-root').shadowRoot.activeElement?.blur());
+ assert.equal(await handle.evaluate(n=>getComputedStyle(n).opacity),'0');
+ const unhovered=await box();assert.equal(await popup.locator('.reply-form').evaluate(n=>getComputedStyle(n).paddingBottom),'12px');assert.equal(await popup.locator('.reply-form').evaluate(n=>getComputedStyle(n).paddingRight),'16px');
+ await popup.hover();assert.ok(await popup.getByRole('button',{name:'Reply',exact:true}).evaluate(n=>{const r=n.getBoundingClientRect();return n===n.getRootNode().elementFromPoint(r.right-4,r.bottom-4)?.closest('button');}),'Resize corner must not intercept the reply button');assert.equal(await handle.evaluate(n=>getComputedStyle(n).opacity),'1');assert.deepEqual(await box(),unhovered,'Resize affordance must not change window spacing');
+ await handle.hover({position:{x:18,y:18}});assert.equal(await page.getByRole('tooltip').isVisible(),false,'Resize handle has no hover tooltip');await handle.focus();assert.equal(await page.getByRole('tooltip').isVisible(),false,'Resize handle has no focus tooltip');
+ await field.fill('Keep this reply draft while resizing');const initial=await box();
+ await drag(130,-80);let resized=await box();assert.equal(resized.width,initial.width+130);assert.equal(resized.height,initial.height-80);assert.equal(await field.inputValue(),'Keep this reply draft while resizing');
+ await row(0).click();await row(0).click();assert.equal((await box()).width,400,'Reopening a closed issue resets size like its dragged position');
+ await drag(130,-80);resized=await box();await drag(-60,70,true);assert.deepEqual(await box(),resized,'Escape restores the size and position before resizing');
+ await handle.focus();await page.keyboard.press('ArrowRight');assert.equal((await box()).width,resized.width+10);await page.keyboard.press('Shift+ArrowDown');assert.equal((await box()).height,resized.height+40);await page.keyboard.press('Home');assert.equal((await box()).width,400);assert.equal(await popup.getAttribute('data-resized'),null);
+ await drag(150,-120);resized=await box();await popup.getByRole('button',{name:'Dock issue window',exact:true}).click();assert.equal(await handle.isVisible(),false);assert.equal((await box()).height,1000);assert.equal((await box()).width,400);await popup.getByRole('button',{name:'Undock issue window',exact:true}).click();assert.equal((await box()).width,resized.width);assert.equal((await box()).height,resized.height);
+ // The same window can be resized by touch without changing a marker or saving content.
+ const cdp=await ctx.newCDPSession(page);let h=await handle.boundingBox(),x=h.x+h.width*.75,y=h.y+h.height*.75;
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-50,y:y-60}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await settle();assert.equal((await box()).width,resized.width-50);assert.equal((await box()).height,resized.height-60);
+ resized=await box();h=await handle.boundingBox();x=h.x+h.width*.75;y=h.y+h.height*.75;await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-30,y:y+50}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await settle();assert.deepEqual(await box(),resized);
+ await drag(-4000,-4000);assert.equal((await box()).width,320);assert.equal((await box()).height,240);
+ await drag(4000,4000);resized=await box();const sidebar=await panel.boundingBox();assert.ok(resized.x>=12&&resized.x+resized.width<=sidebar.x-12&&resized.y>=12&&resized.y+resized.height<=988);assert.ok(await popup.evaluate(n=>n.scrollWidth<=n.clientWidth));
+ assert.ok(await popup.evaluate(n=>{const p=n.getRootNode().querySelector('.pins .pin.is-selected').getBoundingClientRect();return n.contains(n.getRootNode().elementFromPoint(p.x+p.width/2,p.y+p.height/2));}),'Resized window covers its own pin');
+ assert.equal(resized.height,await popup.evaluate(n=>parseFloat(n.style.height)),'Pin avoidance must not shrink a resized window');
+ await page.evaluate(()=>dispatchEvent(new Event('resize')));await settle();assert.deepEqual(await box(),resized,'Covering a pin must not move or resize the window after reflow');
+ await page.screenshot({path:'/tmp/feedbackpress-resize-desktop.png'});
+ for(const width of [900,390,320]){await page.setViewportSize({width,height:844});await settle();const r=await box();assert.ok(r.x>=0&&r.x+r.width<=width&&r.y>=0&&r.y+r.height<=844,JSON.stringify(r));assert.ok(await popup.evaluate(n=>n.scrollWidth<=n.clientWidth));}
+ await page.screenshot({path:'/tmp/feedbackpress-resize-mobile.png'});
+ await page.setViewportSize({width:1440,height:1000});await settle();await row(1).click();assert.equal((await box()).width,400);assert.equal(await popup.getAttribute('data-resized'),null,'Switching issues resets size');await row(0).click();assert.equal(await field.inputValue(),'Keep this reply draft while resizing');
+ await drag(80,-50);await page.reload();await popup.waitFor();assert.equal((await box()).width,400,'Size must not persist after reload');assert.equal(await popup.getAttribute('data-resized'),null);assert.equal(writes,0);assert.deepEqual(errors,[]);
+ console.log('PASS Pointer/touch/keyboard resizing, Escape and touch cancellation, draft retention, docking override/undock restoration, viewport/sidebar bounds, mobile layout, issue switch/reopen/reload reset, and no content writes.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

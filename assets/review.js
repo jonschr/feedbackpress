@@ -56,6 +56,7 @@
     if (kind === 'sidebar-right') path.setAttribute('d', 'M3 4h18v16H3zM15 4v16M8 9l3 3-3 3');
     if (kind === 'overlay') path.setAttribute('d', 'M3 4h14v16H3zM12 8h9v12h-9z');
     if (kind === 'dock') path.setAttribute('d', 'M3 4h18v16H3zM15 4v16M6 8h6M6 12h6');
+    if (kind === 'resize') path.setAttribute('d', 'M8 20 20 8M14 20l6-6');
     if (kind === 'room') path.setAttribute('d', 'M3 4h10v16H3zM17 4h4v16h-4z');
     if (kind === 'history') path.setAttribute('d', 'M3 11a9 9 0 119 10M3 4v7h7M12 7v5l3 2');
     if (kind === 'sun') path.setAttribute('d', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5');
@@ -89,7 +90,7 @@
   try { filterOpen = localStorage.getItem(filterDisclosureKey) !== 'false'; } catch (_) {}
   const collapsedPages = new Set(), sharedPagePaths = new Set();
   let sidebarSide = 'right', pageLayout = 'room';
-  let issueWindowPosition = null, issueWindowDocked = false, issueWindowDrag = null, dockHoldPoint = null;
+  let issueWindowPosition = null, issueWindowSize = null, issueWindowDocked = false, issueWindowDrag = null, dockHoldPoint = null;
   const dockPreferenceKey = 'feedbackpress-docked:' + c.home;
   try { issueWindowDocked = localStorage.getItem(dockPreferenceKey) === 'true'; } catch (_) {}
   function saveDockPreference() { try { localStorage.setItem(dockPreferenceKey, String(issueWindowDocked)); } catch (_) {} }
@@ -102,6 +103,8 @@
   const replyFiles = new Map();
   const replyOperations = new Map();
   const threadScrolls = new Map();
+  let threadEntryTarget = null;
+  const commentTargetKey = 'feedbackpress-comment-target:' + c.home;
   let statusCounts = null, projectCounts = null;
   const countedStatuses = new Map();
   let draftOperation = null;
@@ -608,6 +611,10 @@
   function restoreThreadScroll() {
     const thread = issuePopup.querySelector('.issue-thread');
     if (stylesReady && selected && thread) thread.scrollTop = threadScrolls.get(selected.id) || 0;
+    if (stylesReady && selected && selected.id === threadEntryTarget?.issueId && thread?.querySelector(`[data-comment="${threadEntryTarget.commentId}"]`)) {
+      revealThreadEntry(selected.id, threadEntryTarget.commentId, true);
+      threadEntryTarget = null;
+    }
   }
   function threadEntryVisible(issueId, entryId) {
     if (selected?.id !== issueId || issuePopup.hidden || !stylesReady) return false;
@@ -616,13 +623,13 @@
     const viewport = thread.getBoundingClientRect(), row = entry.getBoundingClientRect();
     return row.top >= viewport.top - 1 && (row.bottom <= viewport.bottom + 1 || row.height > thread.clientHeight && row.top <= viewport.top + 1);
   }
-  function revealThreadEntry(issueId, entryId) {
+  function revealThreadEntry(issueId, entryId, alignStart = false) {
     if (selected?.id !== issueId || issuePopup.hidden || !stylesReady) return;
     const thread = issuePopup.querySelector('.issue-thread');
     const entry = thread?.querySelector(`[data-comment="${entryId}"], [data-note="${entryId}"]`);
     if (!entry) return;
     const viewport = thread.getBoundingClientRect(), row = entry.getBoundingClientRect();
-    if (row.height > thread.clientHeight || row.top < viewport.top) thread.scrollTop += row.top - viewport.top;
+    if (alignStart || row.height > thread.clientHeight || row.top < viewport.top) thread.scrollTop += row.top - viewport.top;
     else if (row.bottom > viewport.bottom) thread.scrollTop += row.bottom - viewport.bottom;
     captureThreadScroll(); queueScrollCues();
   }
@@ -660,7 +667,7 @@
   root.addEventListener('load', queueScrollCues, true);
   const tooltip = el('div', { id: 'fp-tooltip', class: 'fp-tooltip', role: 'tooltip', popover: 'manual', hidden: true });
   root.append(tooltip);
-  const tooltipTargets = '[data-tooltip], [data-tooltip-shortcut], button[aria-keyshortcuts]:not(.popup-move), button[type=submit]';
+  const tooltipTargets = '[data-tooltip], [data-tooltip-shortcut], button[aria-keyshortcuts]:not(.popup-move, .popup-resize), button[type=submit]';
   let tooltipTarget = null, tooltipHideTimer;
   function hideTooltip() {
     clearTimeout(tooltipHideTimer);
@@ -1214,7 +1221,12 @@
   }
   function replyCountControl(issue) {
     const replies = replyCount(issue);
-    return replies ? button([icon('reply'), String(replies)], () => toggleSidebarIssue(issue.id), { class: 'row-replies', 'aria-label': `${replies} ${replies === 1 ? 'reply' : 'replies'}` }) : null;
+    if (!replies) return null;
+    const latest = issue.activity.filter(event => event.kind === 'reply').reduce((last, event) => !last || (Date.parse(event.created_at) || 0) >= (Date.parse(last.created_at) || 0) ? event : last, null);
+    const author = latest?.payload;
+    const description = author ? 'Open latest comment by ' + (author.author || 'Unknown author') : '';
+    const badge = el('span', { class: 'row-commenter' + (author ? ' has-avatar' : ''), 'aria-hidden': 'true' }, author ? authorAvatar(author.author_id, author.author) : null, icon('reply'));
+    return button([badge, String(replies)], () => showIssue(issue.id, true, latest?.id), { class: 'row-replies', 'aria-label': `${replies} ${replies === 1 ? 'reply' : 'replies'}`, 'aria-description': description || null, title: description || null });
   }
   function paintReplyCounts() {
     for (const issue of issues) {
@@ -1320,7 +1332,13 @@
     }
     else if (items[next]) await showIssue(items[next].id);
   }
-  async function showIssue(id, scroll = true) {
+  async function showIssue(id, scroll = true, commentId = null) {
+    if (!commentId) try {
+      const target = JSON.parse(sessionStorage.getItem(commentTargetKey) || 'null');
+      if (target?.issueId === id && Date.now() - target.at < 60000) commentId = target.commentId;
+      sessionStorage.removeItem(commentTargetKey);
+    } catch (_) {}
+    threadEntryTarget = commentId ? { issueId: id, commentId } : null;
     stopLocate();
     if (imageDropJob?.issueId !== id) imageDropJob = null;
     clearImageDrop();
@@ -1330,7 +1348,10 @@
     const cached = issueCache.get(id)?.issue || issues.find(issue => issue.id === id) || pageIssues.find(issue => issue.id === id);
     const display = issue => {
       if (ticket !== issueRequest || cacheDenied) return false;
-      if (issue.path !== pagePath) { captureListScroll(); saveView(); location.assign(c.home + issue.path + '#feedbackpress=' + issue.id); return false; }
+      if (issue.path !== pagePath) {
+        if (commentId) try { sessionStorage.setItem(commentTargetKey, JSON.stringify({ issueId: id, commentId, at: Date.now() })); } catch (_) {}
+        captureListScroll(); saveView(); location.assign(c.home + issue.path + '#feedbackpress=' + issue.id); return false;
+      }
       if (scroll && issue.target.selector) {
         const scroller = document.scrollingElement, left = scroller.scrollLeft, top = scroller.scrollTop;
         locating ||= { styles: new Map(), timer: null, frame: null };
@@ -1339,7 +1360,7 @@
       }
       if (!countedStatuses.has(issue.id)) countedStatuses.set(issue.id, { status: issue.status, matches: matchesListSearch(issue) });
       if (scroll && grouping === 'page' && collapsedPages.has(issue.path)) setPageCollapsed(issue.path, false);
-      if (selected?.id !== issue.id) { finishIssueWindowDrag(true); issueWindowPosition = null; }
+      if (selected?.id !== issue.id) { finishIssueWindowDrag(true); issueWindowPosition = null; issueWindowSize = null; }
       closeDraft(); cancelPick(); privateNotes.delete(issue.id); selected = issue;
       if (/^[a-f0-9-]{36}$/i.test(issue.id) && location.hash !== '#feedbackpress='+issue.id) history.replaceState(history.state, '', location.pathname+location.search+'#feedbackpress='+issue.id);
       issues = issues.map(existing => existing.id === issue.id ? issue : existing);
@@ -1980,6 +2001,7 @@
         await loadNotes(issue.id); revealThreadEntry(issue.id, note.id);
       });
     } }, issue.visibility === 'private' ? el('small', { class: 'subtle' }, 'Replies in this private issue are visible only to you.') : null, el('div', { class: 'composer-field reply-field' }, mentionField(reply, 'reply:' + issue.id, [], () => issue.visibility !== 'private' && !privateReply.has(issue.id)), queued, el('div', { class: 'reply-toolbar' }, attach, privateToggle, el('button', { type: 'submit', class: 'fp-primary', title: 'Send reply', 'data-tooltip-shortcut': submitShortcut }, 'Reply'))), input));
+    issuePopup.append(button(icon('resize'), () => {}, { class: 'popup-resize', 'aria-label': 'Resize issue window', 'aria-description': 'Drag to resize. Arrow keys change size; Shift changes it faster. Home resets size.', 'aria-keyshortcuts': 'ArrowUp ArrowDown ArrowLeft ArrowRight Home' }));
     issuePopup.hidden = false; positionDraft(); restoreThreadScroll();
   }
   const pendingForms = new WeakSet();
@@ -2311,14 +2333,21 @@
     issuePopup.toggleAttribute('data-docked', docked);
     const dockButton = issuePopup.querySelector('.popup-dock');
     if (dockButton) { dockButton.disabled = innerWidth < 900 || busy; dockButton.setAttribute('aria-pressed', String(issueWindowDocked)); dockButton.setAttribute('aria-label', issueWindowDocked ? 'Undock issue window' : 'Dock issue window'); dockButton.dataset.tooltip = dockButton.getAttribute('aria-label'); dockButton.dataset.tooltipNote = innerWidth < 900 ? 'Available beside the sidebar on larger screens.' : ''; }
-    surface.style.height = docked ? Math.max(120, bottom - top) + 'px' : '';
-    surface.style.maxHeight = Math.max(120, Math.min(surface === issuePopup && !docked ? 620 : Infinity, bottom - top)) + 'px';
+    const customSize = surface === issuePopup && !docked && issueWindowSize;
+    const availableWidth = Math.max(0, right - left), availableHeight = Math.max(120, bottom - top);
+    if (surface === issuePopup) {
+      surface.toggleAttribute('data-resized', Boolean(customSize));
+      surface.toggleAttribute('data-positioned', Boolean(issueWindowPosition));
+      surface.style.width = customSize ? Math.max(Math.min(320, availableWidth), Math.min(issueWindowSize.width, availableWidth)) + 'px' : '';
+    }
+    surface.style.height = docked ? availableHeight + 'px' : customSize ? Math.max(Math.min(240, availableHeight), Math.min(issueWindowSize.height, availableHeight)) + 'px' : '';
+    surface.style.maxHeight = Math.min(surface === issuePopup && !docked && !customSize ? 620 : Infinity, availableHeight) + 'px';
     const clamp = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
-    if (surface === issuePopup && (docked || issueWindowPosition)) {
-      const { width, height } = surface.getBoundingClientRect();
+    if (surface === issuePopup && (docked || issueWindowPosition || customSize)) {
+      const { width, height, left: currentX, top: currentY } = surface.getBoundingClientRect();
       const minX = docked && sidebarSide === 'left' ? panelRect.right : left, maxX = docked && sidebarSide === 'right' ? panelRect.left : right;
-      const position = docked ? { x: sidebarSide === 'right' ? maxX - width : minX, y: top } : issueWindowPosition;
-      const { x, y } = avoidPageNotes(surface, { x: clamp(position.x, minX, maxX - width), y: clamp(position.y, top, bottom - height) }, { left: minX, right: maxX, top, bottom }, !docked);
+      const position = docked ? { x: sidebarSide === 'right' ? maxX - width : minX, y: top } : issueWindowPosition || { x: currentX, y: currentY };
+      const x = clamp(position.x, minX, maxX - width), y = clamp(position.y, top, bottom - height);
       if (!docked) issueWindowPosition = { x, y };
       Object.assign(surface.style, { left: x + 'px', top: y + 'px' });
       tether.hidden = true; positionMentionMenu(); return;
@@ -2488,7 +2517,7 @@
   }
   window.addEventListener('keydown', event => {
     if (event.isComposing) return;
-    root.activeElement?.closest('.popup-move')?.removeAttribute('data-pointer-focus');
+    root.activeElement?.closest('.popup-move, .popup-resize')?.removeAttribute('data-pointer-focus');
     if ((event.key === 'Escape' || event.key === 'Esc') && root.querySelector('.note-actions:popover-open')) { event.preventDefault(); event.stopPropagation(); const menu = root.querySelector('.note-actions:popover-open'); menu.hidePopover(); root.querySelector(`[popovertarget="${menu.id}"]`)?.focus(); return; }
     const actionsMenu = root.querySelector('.note-actions:popover-open');
     if (actionsMenu && !(event.key === 'Backspace' && actionsMenu.getAttribute('aria-label') === 'Actions for issue')) return;
@@ -2516,9 +2545,15 @@
     }
     if (busy || lightbox.open || event.repeat) return;
     const target = event.composedPath().find(node => node instanceof Element);
+    if (target?.closest('.popup-resize') && !event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key)) {
+      consume();
+      if (event.key === 'Home') { issueWindowSize = null; positionDraft(); }
+      else { const rect = issuePopup.getBoundingClientRect(), step = event.shiftKey ? 40 : 10; resizeIssueWindow(rect.width + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0), rect.height + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0)); }
+      return;
+    }
     if (target?.closest('.popup-move') && !event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key)) {
       consume();
-      if (event.key === 'Home') { issueWindowPosition = null; issueWindowDocked = false; saveDockPreference(); positionDraft(); }
+      if (event.key === 'Home') { issueWindowPosition = null; issueWindowSize = null; issueWindowDocked = false; saveDockPreference(); positionDraft(); }
       else { const rect = issuePopup.getBoundingClientRect(), step = event.shiftKey ? 40 : 10; moveIssueWindow(rect.left + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0), rect.top + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0)); }
       return;
     }
@@ -2785,6 +2820,11 @@
   function moveIssueWindow(x, y) {
     issueWindowDocked = false; if (!issueWindowDrag) saveDockPreference(); issueWindowPosition = { x, y }; positionDraft();
   }
+  function resizeIssueWindow(width, height) {
+    const rect = issuePopup.getBoundingClientRect();
+    issueWindowPosition ||= { x: rect.left, y: rect.top };
+    issueWindowSize = { width, height }; positionDraft();
+  }
   function toggleIssueWindowDock(event) {
     finishIssueWindowDrag(); issueWindowDocked = !issueWindowDocked; saveDockPreference(); issueWindowPosition = null;
     dockHoldPoint = issueWindowDocked ? { x: event?.clientX ?? -1, y: event?.clientY ?? -1, entered: false } : null;
@@ -2793,19 +2833,21 @@
   }
   function finishIssueWindowDrag(cancel = false) {
     const drag = issueWindowDrag; if (!drag) return;
-    issueWindowDrag = null; issuePopup.removeAttribute('data-dragging');
-    if (cancel) { issueWindowPosition = drag.position; issueWindowDocked = drag.docked; }
+    issueWindowDrag = null; issuePopup.removeAttribute('data-dragging'); issuePopup.removeAttribute('data-resizing');
+    if (cancel) { issueWindowPosition = drag.position; issueWindowSize = drag.size; issueWindowDocked = drag.docked; }
     else if (drag.moved && drag.docked) saveDockPreference();
     if (issuePopup.hasPointerCapture(drag.pointer)) issuePopup.releasePointerCapture(drag.pointer);
     positionDraft();
   }
   issuePopup.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || busy || lightbox.open || !event.target.closest('.popup-header') || event.target.closest('button:not(.popup-move), a, input, select, textarea')) return;
+    const resize = Boolean(event.target.closest('.popup-resize'));
+    if (event.button !== 0 || busy || lightbox.open) return;
+    if (resize ? issuePopup.hasAttribute('data-docked') : !event.target.closest('.popup-header') || event.target.closest('button:not(.popup-move), a, input, select, textarea')) return;
     event.preventDefault();
-    const handle = issuePopup.querySelector('.popup-move');
+    const handle = issuePopup.querySelector(resize ? '.popup-resize' : '.popup-move');
     handle?.setAttribute('data-pointer-focus', ''); handle?.focus({ preventScroll: true });
     const rect = issuePopup.getBoundingClientRect();
-    issueWindowDrag = { pointer: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, position: issueWindowPosition, docked: issueWindowDocked, moved: false };
+    issueWindowDrag = { pointer: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height, position: issueWindowPosition, size: issueWindowSize, resize, docked: issueWindowDocked, moved: false };
     issuePopup.setPointerCapture(event.pointerId); cancelLocate(); hideTooltip();
   });
   window.addEventListener('pointermove', event => {
@@ -2815,8 +2857,10 @@
     }
     const drag = issueWindowDrag; if (!drag || drag.pointer !== event.pointerId) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
-    event.preventDefault(); drag.moved = true; issuePopup.setAttribute('data-dragging', '');
-    cardRevealRequest = null; hideTooltip(); moveIssueWindow(drag.left + event.clientX - drag.x, drag.top + event.clientY - drag.y);
+    event.preventDefault(); drag.moved = true; issuePopup.setAttribute(drag.resize ? 'data-resizing' : 'data-dragging', '');
+    cardRevealRequest = null; hideTooltip();
+    if (drag.resize) resizeIssueWindow(drag.width + event.clientX - drag.x, drag.height + event.clientY - drag.y);
+    else moveIssueWindow(drag.left + event.clientX - drag.x, drag.top + event.clientY - drag.y);
   }, { passive: false });
   window.addEventListener('pointerup', event => { if (issueWindowDrag?.pointer === event.pointerId) finishIssueWindowDrag(); });
   window.addEventListener('pointercancel', event => { if (issueWindowDrag?.pointer === event.pointerId) finishIssueWindowDrag(true); });

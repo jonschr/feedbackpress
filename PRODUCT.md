@@ -60,3 +60,7 @@ Sidebar owner actions mirror the card menu through a quiet horizontal-dots trigg
 ## November 13 approved additions
 
 Text changes are a second issue type selected after placing a pin, with local in-place preview, exact original/proposed wording, normal shared/private ownership and existing issue lifecycle. Save suggestions first; apply separately. System-aware light/dark appearance has a manual sidebar override. One project is free indefinitely, with 100 MB/account attachment storage and the agreed 60-day retention. A second project requires the $30/month unlimited-project plan; the same account key and connections continue through upgrade. Public signup/live paid activation remain behind review and the documented production gates.
+
+Sidebar reply navigation: the latest shared commenter’s avatar sits behind a small solid comment badge beside the reply count. Clicking that control opens the conversation at the start of that comment, including across page navigation. Keep earlier comments expanded and scrollable; clicking the title retains normal issue opening and saved thread position. Expose the commenter and action in the tooltip and accessible description.
+
+Floating issue windows can be resized with a corner handle or arrow keys. Size is temporary for the open issue, resets with issue changes/reopening/reload, and never enters saved preferences. Docked windows retain their fixed layout.
