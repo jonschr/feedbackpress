@@ -24,6 +24,8 @@ $samples = [
     ["PK\x03\x04opaque", 'data.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     ["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1opaque", 'data.xls', 'application/vnd.ms-excel'],
 ];
+$samples[] = ["\xff\xd8\xffsynthetic", 'photo.jfif', 'image/jpeg'];
+$samples[] = [pack('V3v2V6', 40, 2, 2, 1, 24, 0, 16, 0, 0, 0, 0) . str_repeat(chr(100), 16), 'graphic.dib', 'image/bmp'];
 foreach ($samples as [$bytes, $name, $mime]) attachment_assert(API::uploadMime($bytes, $name) === $mime, 'Canonical MIME classification failed for ' . $name);
 foreach (['data.xlsm', 'data.docm', 'data.pptm', 'archive.zip', 'text.exe'] as $name) {
     try { API::uploadMime("PK\x03\x04opaque", $name); throw new RuntimeException('Unsupported format was accepted: ' . $name); }
@@ -42,7 +44,9 @@ $http = function ($pre, $args, $url) use (&$calls, &$remoteFailure, $project, $m
 add_filter('pre_option_' . Service::OPTION, $connection); add_filter('pre_option_feedbackpress_settings', $settings); add_filter('pre_http_request', $http, 10, 3);
 try {
     attachment_assert(FeedbackPress\frontend_config()['maxBytes'] === 15728640, 'Frontend upload limit must be exactly 15 MiB.');
-    foreach ($samples as [$bytes, $name, $mime]) {
+    $samples[] = ["\xff\xd8\xffsynthetic", 'photo.jfif', 'image/jpeg'];
+$samples[] = [pack('V3v2V6', 40, 2, 2, 1, 24, 0, 16, 0, 0, 0, 0) . str_repeat(chr(100), 16), 'graphic.dib', 'image/bmp'];
+foreach ($samples as [$bytes, $name, $mime]) {
         Service::request('PUT', '/media/' . $media, $bytes, '', false, null, false, $mime);
         $call = end($calls);
         attachment_assert($call['headers']['Content-Type'] === $mime && $call['body'] === $bytes, 'Raw upload bytes or reserved MIME changed for ' . $name);

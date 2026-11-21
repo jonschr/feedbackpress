@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 — November 21, 2026
+
+- Include JFIF and DIB in attachment picking and drag/drop, completing the service format aliases.
+
 ## 0.5.3 — 2026-11-21
 
 - Upload images, safe SVGs, spreadsheets, Word documents and PowerPoint files up to 15 MB.

@@ -2,8 +2,8 @@
   'use strict';
   const c = window.FeedbackPressConfig;
   if (!c || document.getElementById('feedbackpress-root')) return;
-  const attachmentAccept = '.jpg,.jpeg,.png,.webp,.gif,.svg,.heic,.heif,.avif,.tif,.tiff,.bmp,.pdf,.xlsx,.csv,.tsv,.ods,.xls,.docx,.pptx';
-  const supportedAttachment = file => /\.(jpe?g|png|webp|gif|svg|heic|heif|avif|tiff?|bmp|pdf|xlsx|csv|tsv|ods|xls|docx|pptx)$/i.test(file.name);
+  const attachmentAccept = '.jpg,.jpeg,.jfif,.png,.webp,.gif,.svg,.heic,.heif,.avif,.tif,.tiff,.bmp,.dib,.pdf,.xlsx,.csv,.tsv,.ods,.xls,.docx,.pptx';
+  const supportedAttachment = file => /\.(jpe?g|jfif|png|webp|gif|svg|heic|heif|avif|tiff?|bmp|dib|pdf|xlsx|csv|tsv|ods|xls|docx|pptx)$/i.test(file.name);
   const safeImageMimes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/bmp']);
   const imagePreview = file => safeImageMimes.has(file.preview_mime || file.mime);
   function attachmentError(file) {

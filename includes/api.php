@@ -184,6 +184,8 @@ final class API {
         if (str_starts_with($bytes, 'GIF87a') || str_starts_with($bytes, 'GIF89a')) return 'image/gif';
         if (str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') return 'image/webp';
         if (str_starts_with($bytes, 'BM')) return 'image/bmp';
+        // Headerless DIB MIME detection differs between hosts; the isolated decoder validates the pixels.
+        if ($extension === 'dib' && strlen($bytes) >= 12 && in_array(unpack('Vsize', substr($bytes, 0, 4))['size'], [12, 16, 40, 52, 56, 64, 108, 124], true)) return 'image/bmp';
         if (str_starts_with($bytes, "II\x2a\0") || str_starts_with($bytes, "MM\0\x2a")) return 'image/tiff';
         if (str_starts_with($bytes, '%PDF-')) return 'application/pdf';
         if (substr($bytes, 4, 4) === 'ftyp') {

@@ -2,7 +2,7 @@
 
 Visual feedback for WordPress, backed by one central FeedbackPress service.
 
-**0.5.3** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
+**0.5.4** requires an account key and compatible service; existing peer-sync feedback stays untouched and is not imported. The existing WordPress update feed offers this release to both legacy and central installations. After updating a legacy copy, connect an account key and select or create its central project in WordPress settings. See the [changelog](CHANGELOG.md).
 
 - Pin issues to page elements and discuss them with replies.
 - Capture screenshots and attach images, PDFs, spreadsheets or documents (15 MiB each).
